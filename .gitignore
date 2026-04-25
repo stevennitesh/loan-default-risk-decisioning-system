@@ -1,0 +1,89 @@
+# OS and editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.venv/
+venv/
+env/
+ENV/
+pip-wheel-metadata/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Python tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.coverage
+coverage.xml
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data: keep directories via .gitkeep, not Kaggle/source/intermediate files
+data/raw/*
+data/external/*
+data/interim/*
+data/processed/*
+data/features/*
+!data/**/.gitkeep
+
+# Local databases and query scratch files
+*.duckdb
+*.duckdb.wal
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Model and experiment artifacts
+models/*
+!models/.gitkeep
+*.pkl
+*.pickle
+*.joblib
+*.onnx
+*.lgb
+mlruns/
+wandb/
+
+# Generated reports, exports, and runtime artifacts
+artifacts/
+outputs/
+reports/generated/
+reports/dashboard_data/
+reports/figures/generated/
+reports/tables/generated/
+!reports/**/.gitkeep
+
+# Power BI and Office temp files
+*.pbix.Backup
+*.pbit.Backup
+~$*
+powerbi/**/.pbi/
+powerbi/**/PowerBICache/
+
+# Logs
+*.log
+logs/
