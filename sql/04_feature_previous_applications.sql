@@ -1,0 +1,2 @@
+-- Milestone 2 placeholder.
+-- Responsibility: aggregate previous Home Credit applications to applicant grain.

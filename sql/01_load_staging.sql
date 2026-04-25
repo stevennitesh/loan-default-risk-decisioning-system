@@ -1,0 +1,2 @@
+-- Milestone 1 placeholder.
+-- Responsibility: load configured Parquet files into DuckDB staging tables.

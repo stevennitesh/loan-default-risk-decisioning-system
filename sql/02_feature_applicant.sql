@@ -1,0 +1,2 @@
+-- Milestone 2 placeholder.
+-- Responsibility: build f_applicant_static at one row per SK_ID_CURR and exclude model-risk fields.

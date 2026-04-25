@@ -1,0 +1,2 @@
+-- Milestone 2 placeholder.
+-- Responsibility: join feature tables into mart_credit_risk_features with one row per applicant per source population.

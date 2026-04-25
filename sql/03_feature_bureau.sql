@@ -1,0 +1,2 @@
+-- Milestone 2 placeholder.
+-- Responsibility: aggregate bureau history to applicant grain in f_bureau_agg.

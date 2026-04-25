@@ -1,0 +1,2 @@
+-- Milestone 8 placeholder.
+-- Responsibility: define credit_risk_scores and reporting table contracts for scoring outputs.

@@ -30,6 +30,7 @@ dist/
 
 # Python tooling caches
 .pytest_cache/
+pytest-cache-files-*/
 .ruff_cache/
 .mypy_cache/
 .pyre/
@@ -37,11 +38,16 @@ dist/
 coverage.xml
 htmlcov/
 
+# Local scratch
+.tmp/
+
 # Jupyter
 .ipynb_checkpoints/
 
 # Data: keep directories via .gitkeep, not Kaggle/source/intermediate files
 data/raw/*
+data/parquet/*
+data/db/*
 data/external/*
 data/interim/*
 data/processed/*

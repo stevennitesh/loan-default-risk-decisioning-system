@@ -1,0 +1,2 @@
+-- Milestone 1/2 placeholder.
+-- Responsibility: define DuckDB staging table creation behavior when explicit schemas are needed.
