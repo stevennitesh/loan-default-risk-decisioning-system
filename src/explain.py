@@ -445,6 +445,9 @@ def _write_shap_summary(
     sample_indexes = _summary_sample_indexes(shap_values.shape[0], random_seed)
     sampled_shap_values = shap_values[sample_indexes]
     sampled_features = _to_dense(transformed_features[sample_indexes])
+    if _write_shap_package_summary(path, sampled_features, sampled_shap_values, feature_labels):
+        return
+
     feature_order = np.argsort(-np.abs(sampled_shap_values).mean(axis=0))[: min(20, len(feature_labels))]
 
     figure, axis = plt.subplots(figsize=(9, max(5, len(feature_order) * 0.35)))
@@ -477,6 +480,35 @@ def _write_shap_summary(
     plt.close(figure)
     if not path.exists() or path.stat().st_size == 0:
         raise ExplainabilityError(f"Failed to write SHAP summary figure: {path}")
+
+
+def _write_shap_package_summary(
+    path: Path,
+    sampled_features: np.ndarray,
+    sampled_shap_values: np.ndarray,
+    feature_labels: list[str],
+) -> bool:
+    try:
+        import shap
+    except ImportError:
+        return False
+
+    plot_frame = pd.DataFrame(sampled_features, columns=feature_labels)
+    plt.figure(figsize=(9, 6))
+    shap.summary_plot(
+        sampled_shap_values,
+        plot_frame,
+        feature_names=feature_labels,
+        max_display=min(20, len(feature_labels)),
+        show=False,
+    )
+    figure = plt.gcf()
+    figure.tight_layout()
+    figure.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(figure)
+    if not path.exists() or path.stat().st_size == 0:
+        raise ExplainabilityError(f"Failed to write SHAP summary figure: {path}")
+    return True
 
 
 def _summary_sample_indexes(row_count: int, random_seed: int) -> np.ndarray:
