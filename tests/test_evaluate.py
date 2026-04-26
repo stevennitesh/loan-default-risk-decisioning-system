@@ -13,6 +13,7 @@ from src.evaluate import (
     EvaluationError,
     run_evaluation,
 )
+from src.thresholding import MODEL_THRESHOLD_METRICS_COLUMNS
 from src.train import MODEL_METRICS_SUMMARY_COLUMNS
 from src.train import run_training
 from tests.test_train import create_training_database
@@ -82,6 +83,10 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
         report_dir / "model_calibration_bins.csv",
         MODEL_CALIBRATION_BINS_COLUMNS,
     )
+    threshold_rows = read_csv_rows(
+        report_dir / "model_threshold_metrics.csv",
+        MODEL_THRESHOLD_METRICS_COLUMNS,
+    )
     confusion_rows = read_csv_rows(
         report_dir / "model_confusion_matrix.csv",
         MODEL_CONFUSION_MATRIX_COLUMNS,
@@ -136,6 +141,23 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
 
     assert {row["split"] for row in confusion_rows} == {"validation", "test"}
     assert {row["scenario_name"] for row in confusion_rows} == SCENARIOS
+    assert {row["split"] for row in threshold_rows} == {"validation", "test"}
+    assert {row["scenario_name"] for row in threshold_rows} == SCENARIOS
+    assert {row["threshold_version"] for row in threshold_rows} == {"threshold_v1"}
+    assert {row["model_version"] for row in threshold_rows} == {result["selected_model_version"]}
+    assert len(threshold_rows) == 2 * len(SCENARIOS)
+    validation_thresholds = {
+        row["scenario_name"]: (row["threshold_low"], row["threshold_high"])
+        for row in threshold_rows
+        if row["split"] == "validation"
+    }
+    test_thresholds = {
+        row["scenario_name"]: (row["threshold_low"], row["threshold_high"])
+        for row in threshold_rows
+        if row["split"] == "test"
+    }
+    assert validation_thresholds == test_thresholds
+
     for split in {"validation", "test"}:
         for scenario_name in SCENARIOS:
             rows = [
@@ -147,6 +169,46 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
             assert sum(int(row["count"]) for row in rows) == split_sizes[split]
             assert {int(row["true_label"]) for row in rows} == {0, 1}
             assert {int(row["predicted_label"]) for row in rows} == {0, 1}
+            threshold_row = next(
+                row
+                for row in threshold_rows
+                if row["split"] == split and row["scenario_name"] == scenario_name
+            )
+            applicant_count = int(threshold_row["applicant_count"])
+            approved_good_count = int(threshold_row["approved_good_count"])
+            approved_bad_count = int(threshold_row["approved_bad_count"])
+            manual_review_count = int(threshold_row["manual_review_count"])
+            high_risk_count = int(threshold_row["high_risk_count"])
+            high_risk_default_count = sum(
+                int(row["count"])
+                for row in rows
+                if row["true_label"] == "1" and row["predicted_label"] == "1"
+            )
+            total_default_count = sum(
+                int(row["count"])
+                for row in rows
+                if row["true_label"] == "1"
+            )
+
+            assert applicant_count == split_sizes[split]
+            assert approved_good_count + approved_bad_count + manual_review_count + high_risk_count == applicant_count
+            assert float(threshold_row["approval_rate"]) == pytest.approx(
+                (approved_good_count + approved_bad_count) / applicant_count
+            )
+            assert float(threshold_row["manual_review_rate"]) == pytest.approx(
+                manual_review_count / applicant_count
+            )
+            assert float(threshold_row["high_risk_rate"]) == pytest.approx(
+                high_risk_count / applicant_count
+            )
+            assert high_risk_count == sum(
+                int(row["count"])
+                for row in rows
+                if row["predicted_label"] == "1"
+            )
+            assert float(threshold_row["high_risk_default_capture_rate"]) == pytest.approx(
+                high_risk_default_count / total_default_count
+            )
 
     for figure_name in [
         "roc_curve.png",
@@ -157,7 +219,12 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
         assert (report_dir / "figures" / figure_name).stat().st_size > 0
 
     validation_report = (report_dir / "validation_report.md").read_text(encoding="utf-8")
-    assert "Expected-value analysis is pending Milestone 7" in validation_report
+    business_value_report = (report_dir / "business_value_analysis.md").read_text(encoding="utf-8")
+    assert "Expected-value analysis is pending Milestone 7" not in validation_report
+    assert "Threshold expected-value analysis" in validation_report
+    assert "Expected margin per good approved loan: 1000" in business_value_report
+    assert "Expected loss per bad approved loan: 5000" in business_value_report
+    assert "Manual review cost: 50" in business_value_report
     assert "Kaggle application_test rows are not used for evaluation metrics" in validation_report
 
     with duckdb.connect(str(scratch_path / "db" / "credit_risk.duckdb"), read_only=True) as connection:
@@ -173,5 +240,8 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
         assert connection.execute("SELECT COUNT(*) FROM model_confusion_matrix").fetchone()[0] == len(
             confusion_rows
         )
+        assert connection.execute("SELECT COUNT(*) FROM model_threshold_metrics").fetchone()[0] == len(
+            threshold_rows
+        )
         table_names = {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
-        assert "model_threshold_metrics" not in table_names
+        assert "model_threshold_metrics" in table_names

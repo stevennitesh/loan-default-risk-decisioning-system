@@ -26,6 +26,12 @@ from src.train import LIGHTGBM_MODEL_ARTIFACT_NAME
 from src.train import LIGHTGBM_MODEL_TYPE
 from src.train import LIGHTGBM_MODEL_VERSION
 from src.train import MODEL_METRICS_SUMMARY_COLUMNS
+from src.thresholding import MODEL_CONFUSION_MATRIX_COLUMNS
+from src.thresholding import MODEL_THRESHOLD_METRICS_COLUMNS
+from src.thresholding import ThresholdingError
+from src.thresholding import build_confusion_matrix_rows
+from src.thresholding import build_threshold_metric_rows
+from src.thresholding import resolve_scenario_thresholds
 
 
 matplotlib.use("Agg")
@@ -56,25 +62,11 @@ MODEL_CALIBRATION_BINS_COLUMNS = [
     "calibration_error",
 ]
 
-MODEL_CONFUSION_MATRIX_COLUMNS = [
-    "model_version",
-    "split",
-    "scenario_name",
-    "true_label",
-    "predicted_label",
-    "count",
-]
-
 EVALUATION_SPLITS = ("train", "validation", "test")
 REPORTING_SPLITS = ("validation", "test")
 MODEL_ARTIFACTS = {
     BASELINE_MODEL_TYPE: (BASELINE_MODEL_VERSION, BASELINE_MODEL_ARTIFACT_NAME),
     LIGHTGBM_MODEL_TYPE: (LIGHTGBM_MODEL_VERSION, LIGHTGBM_MODEL_ARTIFACT_NAME),
-}
-SCENARIO_QUANTILES = {
-    "growth_oriented": (0.85, 0.95),
-    "balanced": (0.80, 0.90),
-    "risk_averse": (0.70, 0.80),
 }
 
 
@@ -118,16 +110,28 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
         selected_artifact = artifacts[selected_model_type]
         selected_model_version = str(selected_artifact["model_version"])
         selected_predictions = prediction_frames[selected_model_type]
-        scenario_thresholds = _derive_scenario_thresholds(
-            selected_predictions["validation"]["probability"].to_numpy(),
-        )
+        try:
+            scenario_thresholds = resolve_scenario_thresholds(
+                config["threshold_policy"],
+                selected_predictions["validation"]["probability"].to_numpy(),
+            )
+            threshold_rows = build_threshold_metric_rows(
+                selected_model_version,
+                str(config["threshold_policy"]["threshold_version"]),
+                selected_predictions,
+                scenario_thresholds,
+                config["business_assumptions"],
+                created_at,
+            )
+            confusion_rows = build_confusion_matrix_rows(
+                selected_model_version,
+                selected_predictions,
+                scenario_thresholds,
+            )
+        except ThresholdingError as error:
+            raise EvaluationError(f"Threshold policy validation failed: {error}") from error
         lift_rows = _build_lift_rows(selected_model_version, selected_predictions)
         calibration_rows = _build_calibration_rows(selected_model_version, selected_predictions)
-        confusion_rows = _build_confusion_rows(
-            selected_model_version,
-            selected_predictions,
-            scenario_thresholds,
-        )
 
         report_dir.mkdir(parents=True, exist_ok=True)
         figures_dir = report_dir / "figures"
@@ -145,6 +149,11 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
             MODEL_CONFUSION_MATRIX_COLUMNS,
             confusion_rows,
         )
+        _write_csv(
+            report_dir / "model_threshold_metrics.csv",
+            MODEL_THRESHOLD_METRICS_COLUMNS,
+            threshold_rows,
+        )
         _write_validation_report(
             report_dir / "validation_report.md",
             selected_model_type,
@@ -152,6 +161,15 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
             metric_rows,
             selected_artifact,
             scenario_thresholds,
+            threshold_rows,
+            config["business_assumptions"],
+        )
+        _write_business_value_report(
+            report_dir / "business_value_analysis.md",
+            selected_model_type,
+            selected_model_version,
+            threshold_rows,
+            config["business_assumptions"],
         )
         _write_figures(figures_dir, selected_model_version, selected_predictions, lift_rows, calibration_rows)
 
@@ -159,6 +177,7 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
         _replace_duckdb_table(connection, "model_lift_by_decile", lift_rows)
         _replace_duckdb_table(connection, "model_calibration_bins", calibration_rows)
         _replace_duckdb_table(connection, "model_confusion_matrix", confusion_rows)
+        _replace_duckdb_table(connection, "model_threshold_metrics", threshold_rows)
 
     return {
         "selected_model_type": selected_model_type,
@@ -168,6 +187,7 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
         "lift_rows": lift_rows,
         "calibration_rows": calibration_rows,
         "confusion_rows": confusion_rows,
+        "threshold_rows": threshold_rows,
     }
 
 
@@ -421,95 +441,6 @@ def _build_calibration_rows(
     return rows
 
 
-def _build_confusion_rows(
-    model_version: str,
-    prediction_frames: dict[str, pd.DataFrame],
-    scenario_thresholds: dict[str, dict[str, float]],
-) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for split_name in REPORTING_SPLITS:
-        frame = prediction_frames[split_name]
-        for scenario_name, thresholds in scenario_thresholds.items():
-            action_bands = _assign_action_bands(frame["probability"].to_numpy(), thresholds)
-            predicted_labels = pd.Series(action_bands == "high_risk", index=frame.index).astype(int)
-            for true_label in [0, 1]:
-                for predicted_label in [0, 1]:
-                    rows.append(
-                        {
-                            "model_version": model_version,
-                            "split": split_name,
-                            "scenario_name": scenario_name,
-                            "true_label": true_label,
-                            "predicted_label": predicted_label,
-                            "count": int(
-                                ((frame["target"] == true_label) & (predicted_labels == predicted_label)).sum()
-                            ),
-                        }
-                    )
-    return rows
-
-
-def _assign_action_bands(
-    probabilities: np.ndarray,
-    thresholds: dict[str, float],
-) -> np.ndarray:
-    threshold_low = thresholds["threshold_low"]
-    threshold_high = thresholds["threshold_high"]
-    if threshold_low >= threshold_high:
-        raise EvaluationError("Scenario thresholds must satisfy threshold_low < threshold_high")
-    return np.select(
-        [
-            probabilities < threshold_low,
-            probabilities < threshold_high,
-        ],
-        [
-            "approve",
-            "manual_review",
-        ],
-        default="high_risk",
-    )
-
-
-def _derive_scenario_thresholds(probabilities: np.ndarray) -> dict[str, dict[str, float]]:
-    return {
-        scenario_name: {
-            "threshold_low": threshold_low,
-            "threshold_high": threshold_high,
-        }
-        for scenario_name, (threshold_low, threshold_high) in (
-            (scenario_name, _derive_threshold_pair(probabilities, low_quantile, high_quantile))
-            for scenario_name, (low_quantile, high_quantile) in SCENARIO_QUANTILES.items()
-        )
-    }
-
-
-def _derive_threshold_pair(
-    probabilities: np.ndarray,
-    low_quantile: float,
-    high_quantile: float,
-) -> tuple[float, float]:
-    unique_probabilities = np.unique(probabilities)
-    if len(unique_probabilities) < 2:
-        raise EvaluationError("Cannot derive scenario thresholds from a constant validation score")
-
-    threshold_low = float(np.quantile(probabilities, low_quantile))
-    threshold_high = float(np.quantile(probabilities, high_quantile))
-    if threshold_low < threshold_high:
-        return threshold_low, threshold_high
-
-    low_index = min(int(np.floor(low_quantile * (len(unique_probabilities) - 1))), len(unique_probabilities) - 2)
-    high_index = max(
-        int(np.ceil(high_quantile * (len(unique_probabilities) - 1))),
-        low_index + 1,
-    )
-    high_index = min(high_index, len(unique_probabilities) - 1)
-    threshold_low = float(unique_probabilities[low_index])
-    threshold_high = float(unique_probabilities[high_index])
-    if threshold_low >= threshold_high:
-        raise EvaluationError("Could not derive ordered scenario thresholds from validation scores")
-    return threshold_low, threshold_high
-
-
 def _select_model_type(metric_rows: list[dict[str, Any]]) -> str:
     validation_metrics = {
         row["model_version"]: float(row["metric_value"])
@@ -549,6 +480,8 @@ def _write_validation_report(
     metric_rows: list[dict[str, Any]],
     selected_artifact: dict[str, Any],
     scenario_thresholds: dict[str, dict[str, float]],
+    threshold_rows: list[dict[str, Any]],
+    assumptions: dict[str, Any],
 ) -> None:
     metrics = {
         (row["model_version"], row["split"], row["metric_name"]): float(row["metric_value"])
@@ -570,6 +503,18 @@ def _write_validation_report(
         f"Brier={metrics[(selected_model_version, split, 'brier_score')]:.6f}, "
         f"top-decile lift={metrics[(selected_model_version, split, 'top_decile_lift')]:.6f}"
         for split in REPORTING_SPLITS
+    )
+    balanced_rows = [
+        row
+        for row in threshold_rows
+        if row["scenario_name"] == "balanced" and row["split"] in REPORTING_SPLITS
+    ]
+    balanced_lines = "\n".join(
+        f"- {row['split']}: approval_rate={row['approval_rate']:.4f}, "
+        f"manual_review_rate={row['manual_review_rate']:.4f}, "
+        f"high_risk_rate={row['high_risk_rate']:.4f}, "
+        f"expected_value_per_applicant={row['expected_value_per_applicant']:.2f}"
+        for row in balanced_rows
     )
     text = f"""# Validation Report
 
@@ -605,11 +550,69 @@ Manual-review handling is explicit: the confusion matrix treats only the high-ri
 
 ## Business-Value Analysis
 
-Expected-value analysis is pending Milestone 7. `model_threshold_metrics` and `reports/business_value_analysis.md` are intentionally not produced here.
+Threshold expected-value analysis is produced in `model_threshold_metrics` and `reports/business_value_analysis.md`.
+
+Business assumptions:
+
+- Expected margin per good approved loan: {assumptions['expected_margin_per_good_loan']}
+- Expected loss per bad approved loan: {assumptions['expected_loss_per_bad_loan']}
+- Manual review cost: {assumptions['manual_review_cost']}
+
+Balanced scenario summary:
+
+{balanced_lines}
 
 ## Limitations
 
 This is a portfolio decision-support simulation, not a production credit-decisioning system. Metrics describe labeled holdout behavior and should not be interpreted as production underwriting readiness.
+"""
+    path.write_text(text, encoding="utf-8")
+
+
+def _write_business_value_report(
+    path: Path,
+    selected_model_type: str,
+    selected_model_version: str,
+    threshold_rows: list[dict[str, Any]],
+    assumptions: dict[str, Any],
+) -> None:
+    rows = sorted(
+        threshold_rows,
+        key=lambda row: (row["split"], row["scenario_name"]),
+    )
+    table_lines = "\n".join(
+        "| {split} | {scenario_name} | {approval_rate:.4f} | {manual_review_rate:.4f} | "
+        "{high_risk_rate:.4f} | {default_rate_approved:.4f} | "
+        "{high_risk_default_capture_rate:.4f} | {expected_value:.2f} | "
+        "{expected_value_per_applicant:.2f} |".format(**row)
+        for row in rows
+    )
+    text = f"""# Business Value Analysis
+
+Selected model: `{selected_model_type}` (`{selected_model_version}`).
+
+Thresholds are selected from validation scores and applied unchanged to the held-out labeled test split. Kaggle `application_test` rows are not included.
+
+## Assumptions
+
+- Expected margin per good approved loan: {assumptions['expected_margin_per_good_loan']}
+- Expected loss per bad approved loan: {assumptions['expected_loss_per_bad_loan']}
+- Manual review cost: {assumptions['manual_review_cost']}
+- Manual review capacity rate: {assumptions['manual_review_capacity_rate']}
+
+## Scenario Metrics
+
+| Split | Scenario | Approval Rate | Review Rate | High-Risk Rate | Approved Default Rate | High-Risk Default Capture | Expected Value | EV / Applicant |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+{table_lines}
+
+## Notes
+
+The expected-value formula is:
+
+`approved_good_count * expected_margin_per_good_loan - approved_bad_count * expected_loss_per_bad_loan - manual_review_count * manual_review_cost`.
+
+High-risk applicants contribute no approved-loan margin or loss in this simulation.
 """
     path.write_text(text, encoding="utf-8")
 
