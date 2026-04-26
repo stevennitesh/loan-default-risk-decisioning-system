@@ -85,6 +85,7 @@ reports/data_inventory.csv
 reports/feature_inventory.csv
 reports/model_run_summary.csv
 reports/model_metrics_summary.csv
+reports/model_comparison_summary.csv
 reports/split_summary.csv
 reports/dashboard_data/*
 reports/figures/generated/

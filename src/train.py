@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import warnings
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ import duckdb
 import joblib
 import numpy as np
 import pandas as pd
+from lightgbm import LGBMClassifier
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
@@ -28,9 +30,12 @@ from src.data_contracts import validate_data_contracts
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MODEL_VERSION = "logistic_regression_baseline_v1"
-MODEL_TYPE = "logistic_regression"
-MODEL_ARTIFACT_NAME = "logistic_regression_baseline.joblib"
+BASELINE_MODEL_VERSION = "logistic_regression_baseline_v1"
+BASELINE_MODEL_TYPE = "logistic_regression"
+BASELINE_MODEL_ARTIFACT_NAME = "logistic_regression_baseline.joblib"
+LIGHTGBM_MODEL_VERSION = "lightgbm_credit_risk_v1"
+LIGHTGBM_MODEL_TYPE = "lightgbm"
+LIGHTGBM_MODEL_ARTIFACT_NAME = "lightgbm_credit_risk.joblib"
 
 MODEL_RUN_SUMMARY_COLUMNS = [
     "model_version",
@@ -65,9 +70,24 @@ SPLIT_SUMMARY_COLUMNS = [
     "created_at",
 ]
 
+MODEL_COMPARISON_SUMMARY_COLUMNS = [
+    "metric_name",
+    "baseline_metric_value",
+    "lightgbm_metric_value",
+    "lightgbm_minus_baseline",
+    "selected_model_type",
+]
+
 
 class TrainingError(RuntimeError):
     """Raised when baseline training cannot satisfy the Milestone 4 contract."""
+
+
+warnings.filterwarnings(
+    "ignore",
+    message="X does not have valid feature names.*",
+    category=UserWarning,
+)
 
 
 def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
@@ -80,7 +100,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
         raise TrainingError(f"DuckDB database not found: {duckdb_path}")
 
     created_at = _created_at()
-    run_id = f"{MODEL_VERSION}_{created_at.replace('-', '').replace(':', '').replace('Z', '')}"
+    run_id = f"model_training_v1_{created_at.replace('-', '').replace(':', '').replace('Z', '')}"
     random_seed = int(config["project"]["random_seed"])
 
     with duckdb.connect(str(duckdb_path)) as connection:
@@ -97,32 +117,72 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
             split_frames["train"],
             feature_columns,
         )
-        pipeline = _build_pipeline(config, numeric_features, categorical_features, random_seed)
+        baseline_pipeline = _build_baseline_pipeline(
+            config,
+            numeric_features,
+            categorical_features,
+            random_seed,
+        )
+        lightgbm_params = _lightgbm_params(
+            config,
+            split_frames["train"],
+            random_seed,
+        )
+        lightgbm_pipeline = _build_lightgbm_pipeline(
+            numeric_features,
+            categorical_features,
+            lightgbm_params,
+        )
 
         x_train = _feature_frame(split_frames["train"], feature_columns)
         y_train = split_frames["train"]["TARGET"].astype(int)
-        pipeline.fit(x_train, y_train)
+        baseline_pipeline.fit(x_train, y_train)
+        lightgbm_pipeline.fit(x_train, y_train)
 
         split_summary_rows = _build_split_summary(split_frames, run_id, created_at)
-        metric_rows = _build_metric_rows(pipeline, split_frames, feature_columns, created_at)
+        baseline_metric_rows = _build_metric_rows(
+            BASELINE_MODEL_VERSION,
+            baseline_pipeline,
+            split_frames,
+            feature_columns,
+            created_at,
+        )
+        lightgbm_metric_rows = _build_metric_rows(
+            LIGHTGBM_MODEL_VERSION,
+            lightgbm_pipeline,
+            split_frames,
+            feature_columns,
+            created_at,
+        )
+        metric_rows = [*baseline_metric_rows, *lightgbm_metric_rows]
+        comparison_rows = _build_model_comparison_rows(baseline_metric_rows, lightgbm_metric_rows)
         run_summary_rows = [
             _build_run_summary_row(
                 config,
                 run_id,
+                BASELINE_MODEL_VERSION,
+                BASELINE_MODEL_TYPE,
                 split_summary_rows,
                 len(feature_columns),
                 created_at,
                 random_seed,
-            )
+            ),
+            _build_run_summary_row(
+                config,
+                run_id,
+                LIGHTGBM_MODEL_VERSION,
+                LIGHTGBM_MODEL_TYPE,
+                split_summary_rows,
+                len(feature_columns),
+                created_at,
+                random_seed,
+            ),
         ]
 
         model_dir.mkdir(parents=True, exist_ok=True)
         report_dir.mkdir(parents=True, exist_ok=True)
-        artifact = {
-            "pipeline": pipeline,
-            "model_version": MODEL_VERSION,
+        common_artifact_fields = {
             "run_id": run_id,
-            "model_type": MODEL_TYPE,
             "feature_columns": feature_columns,
             "numeric_feature_columns": numeric_features,
             "categorical_feature_columns": categorical_features,
@@ -132,27 +192,50 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
                 split_name: [int(value) for value in frame["SK_ID_CURR"].tolist()]
                 for split_name, frame in split_frames.items()
             },
-            "metric_rows": metric_rows,
             "created_at": created_at,
         }
-        joblib.dump(artifact, model_dir / MODEL_ARTIFACT_NAME)
+        baseline_artifact = {
+            **common_artifact_fields,
+            "pipeline": baseline_pipeline,
+            "model_version": BASELINE_MODEL_VERSION,
+            "model_type": BASELINE_MODEL_TYPE,
+            "metric_rows": baseline_metric_rows,
+        }
+        lightgbm_artifact = {
+            **common_artifact_fields,
+            "pipeline": lightgbm_pipeline,
+            "model_version": LIGHTGBM_MODEL_VERSION,
+            "model_type": LIGHTGBM_MODEL_TYPE,
+            "metric_rows": lightgbm_metric_rows,
+            "lightgbm_params": lightgbm_params,
+        }
+        joblib.dump(baseline_artifact, model_dir / BASELINE_MODEL_ARTIFACT_NAME)
+        joblib.dump(lightgbm_artifact, model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME)
 
         _write_csv(report_dir / "model_run_summary.csv", MODEL_RUN_SUMMARY_COLUMNS, run_summary_rows)
         _write_csv(report_dir / "model_metrics_summary.csv", MODEL_METRICS_SUMMARY_COLUMNS, metric_rows)
         _write_csv(report_dir / "split_summary.csv", SPLIT_SUMMARY_COLUMNS, split_summary_rows)
+        _write_csv(
+            report_dir / "model_comparison_summary.csv",
+            MODEL_COMPARISON_SUMMARY_COLUMNS,
+            comparison_rows,
+        )
         _replace_duckdb_table(connection, "model_run_summary", run_summary_rows)
         _replace_duckdb_table(connection, "model_metrics_summary", metric_rows)
         _replace_duckdb_table(connection, "split_summary", split_summary_rows)
+        _replace_duckdb_table(connection, "model_comparison_summary", comparison_rows)
 
     return {
-        "model_version": MODEL_VERSION,
         "run_id": run_id,
-        "model_type": MODEL_TYPE,
         "feature_columns": feature_columns,
+        "artifacts": {
+            BASELINE_MODEL_TYPE: model_dir / BASELINE_MODEL_ARTIFACT_NAME,
+            LIGHTGBM_MODEL_TYPE: model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME,
+        },
         "run_summary": run_summary_rows,
         "metric_rows": metric_rows,
+        "comparison_rows": comparison_rows,
         "split_summary": split_summary_rows,
-        "artifact_path": model_dir / MODEL_ARTIFACT_NAME,
     }
 
 
@@ -238,7 +321,7 @@ def _classify_feature_columns(
     return numeric_features, categorical_features
 
 
-def _build_pipeline(
+def _build_baseline_pipeline(
     config: dict[str, Any],
     numeric_features: list[str],
     categorical_features: list[str],
@@ -289,6 +372,72 @@ def _build_pipeline(
     )
 
 
+def _build_lightgbm_pipeline(
+    numeric_features: list[str],
+    categorical_features: list[str],
+    lightgbm_params: dict[str, Any],
+) -> Pipeline:
+    preprocessor = ColumnTransformer(
+        transformers=[
+            (
+                "numeric",
+                Pipeline(
+                    steps=[
+                        ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
+                    ]
+                ),
+                numeric_features,
+            ),
+            (
+                "categorical",
+                Pipeline(
+                    steps=[
+                        (
+                            "imputer",
+                            SimpleImputer(strategy="most_frequent", keep_empty_features=True),
+                        ),
+                        (
+                            "encoder",
+                            OneHotEncoder(handle_unknown="ignore", sparse_output=True),
+                        ),
+                    ]
+                ),
+                categorical_features,
+            ),
+        ]
+    )
+    classifier = LGBMClassifier(**lightgbm_params)
+    return Pipeline(
+        steps=[
+            ("preprocessor", preprocessor),
+            ("classifier", classifier),
+        ]
+    )
+
+
+def _lightgbm_params(
+    config: dict[str, Any],
+    train_frame: pd.DataFrame,
+    random_seed: int,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {
+        "objective": "binary",
+        "n_estimators": 300,
+        "learning_rate": 0.05,
+        "num_leaves": 31,
+        "subsample": 0.9,
+        "colsample_bytree": 0.9,
+        "random_state": random_seed,
+        "n_jobs": -1,
+        "verbosity": -1,
+    }
+    if config["model"]["use_class_weighting"]:
+        positive_count = int(train_frame["TARGET"].sum())
+        negative_count = len(train_frame) - positive_count
+        params["scale_pos_weight"] = negative_count / positive_count
+    return params
+
+
 def _feature_frame(frame: pd.DataFrame, feature_columns: list[str]) -> pd.DataFrame:
     features = frame[feature_columns].copy()
     return features.where(pd.notna(features), np.nan)
@@ -305,7 +454,7 @@ def _build_split_summary(
         row_count = len(frame)
         rows.append(
             {
-                "model_version": MODEL_VERSION,
+                "model_version": BASELINE_MODEL_VERSION,
                 "run_id": run_id,
                 "split": split_name,
                 "row_count": row_count,
@@ -319,6 +468,7 @@ def _build_split_summary(
 
 
 def _build_metric_rows(
+    model_version: str,
     pipeline: Pipeline,
     split_frames: dict[str, pd.DataFrame],
     feature_columns: list[str],
@@ -334,10 +484,11 @@ def _build_metric_rows(
             "brier_score": brier_score_loss(y_true, probabilities),
             "min_predicted_probability": float(np.min(probabilities)),
             "max_predicted_probability": float(np.max(probabilities)),
+            "top_decile_lift": _top_decile_lift(y_true, probabilities),
         }
         rows.extend(
             {
-                "model_version": MODEL_VERSION,
+                "model_version": model_version,
                 "split": split_name,
                 "metric_name": metric_name,
                 "metric_value": metric_value,
@@ -348,9 +499,51 @@ def _build_metric_rows(
     return rows
 
 
+def _top_decile_lift(y_true: pd.Series, probabilities: np.ndarray) -> float:
+    frame = pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
+    top_count = max(1, int(np.ceil(len(frame) * 0.10)))
+    top_positive_rate = frame.sort_values("probability", ascending=False).head(top_count)["target"].mean()
+    portfolio_positive_rate = frame["target"].mean()
+    return float(top_positive_rate / portfolio_positive_rate)
+
+
+def _build_model_comparison_rows(
+    baseline_metric_rows: list[dict[str, Any]],
+    lightgbm_metric_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    baseline_validation = {
+        row["metric_name"]: float(row["metric_value"])
+        for row in baseline_metric_rows
+        if row["split"] == "validation"
+    }
+    lightgbm_validation = {
+        row["metric_name"]: float(row["metric_value"])
+        for row in lightgbm_metric_rows
+        if row["split"] == "validation"
+    }
+    selected_model_type = (
+        LIGHTGBM_MODEL_TYPE
+        if lightgbm_validation["pr_auc"] >= baseline_validation["pr_auc"]
+        else BASELINE_MODEL_TYPE
+    )
+    return [
+        {
+            "metric_name": metric_name,
+            "baseline_metric_value": baseline_validation[metric_name],
+            "lightgbm_metric_value": lightgbm_validation[metric_name],
+            "lightgbm_minus_baseline": lightgbm_validation[metric_name]
+            - baseline_validation[metric_name],
+            "selected_model_type": selected_model_type,
+        }
+        for metric_name in baseline_validation
+    ]
+
+
 def _build_run_summary_row(
     config: dict[str, Any],
     run_id: str,
+    model_version: str,
+    model_type: str,
     split_summary_rows: list[dict[str, Any]],
     feature_count: int,
     created_at: str,
@@ -358,9 +551,9 @@ def _build_run_summary_row(
 ) -> dict[str, Any]:
     split_rows = {row["split"]: row for row in split_summary_rows}
     return {
-        "model_version": MODEL_VERSION,
+        "model_version": model_version,
         "run_id": run_id,
-        "model_type": MODEL_TYPE,
+        "model_type": model_type,
         "data_scope_version": config["project"]["data_scope_version"],
         "train_rows": split_rows["train"]["row_count"],
         "validation_rows": split_rows["validation"]["row_count"],

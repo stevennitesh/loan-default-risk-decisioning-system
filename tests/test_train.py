@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from src.train import (
+    MODEL_COMPARISON_SUMMARY_COLUMNS,
     MODEL_METRICS_SUMMARY_COLUMNS,
     MODEL_RUN_SUMMARY_COLUMNS,
     SPLIT_SUMMARY_COLUMNS,
@@ -21,6 +22,7 @@ REQUIRED_METRICS = {
     "brier_score",
     "min_predicted_probability",
     "max_predicted_probability",
+    "top_decile_lift",
 }
 
 FORBIDDEN_FEATURES = {
@@ -38,6 +40,8 @@ FORBIDDEN_FEATURES = {
     "CNT_CHILDREN",
     "CNT_FAM_MEMBERS",
 }
+
+pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
 
 
 def read_csv_rows(path: Path, expected_columns: list[str]) -> list[dict[str, str]]:
@@ -178,7 +182,7 @@ def test_training_fails_clearly_without_duckdb_database(
     assert not (scratch_path / "models" / "logistic_regression_baseline.joblib").exists()
 
 
-def test_run_training_creates_baseline_artifact_reports_and_duckdb_tables(
+def test_run_training_creates_model_artifacts_reports_and_duckdb_tables(
     scratch_path: Path,
     project_config_path: Path,
 ) -> None:
@@ -187,23 +191,34 @@ def test_run_training_creates_baseline_artifact_reports_and_duckdb_tables(
 
     result = run_training(project_config_path)
 
-    artifact_path = scratch_path / "models" / "logistic_regression_baseline.joblib"
-    assert artifact_path.exists()
-    artifact = joblib.load(artifact_path)
-    assert artifact["model_type"] == "logistic_regression"
-    assert artifact["model_version"] == "logistic_regression_baseline_v1"
-    assert artifact["feature_columns"] == result["feature_columns"]
-    assert artifact["numeric_feature_columns"]
-    assert artifact["categorical_feature_columns"] == ["category_feature"]
+    baseline_artifact_path = scratch_path / "models" / "logistic_regression_baseline.joblib"
+    lightgbm_artifact_path = scratch_path / "models" / "lightgbm_credit_risk.joblib"
+    assert baseline_artifact_path.exists()
+    assert lightgbm_artifact_path.exists()
+    baseline_artifact = joblib.load(baseline_artifact_path)
+    lightgbm_artifact = joblib.load(lightgbm_artifact_path)
+    assert baseline_artifact["model_type"] == "logistic_regression"
+    assert baseline_artifact["model_version"] == "logistic_regression_baseline_v1"
+    assert lightgbm_artifact["model_type"] == "lightgbm"
+    assert lightgbm_artifact["model_version"] == "lightgbm_credit_risk_v1"
+    assert set(result["artifacts"]) == {"logistic_regression", "lightgbm"}
+    assert baseline_artifact["feature_columns"] == lightgbm_artifact["feature_columns"]
+    assert baseline_artifact["feature_columns"] == result["feature_columns"]
+    assert baseline_artifact["split_applicant_ids"] == lightgbm_artifact["split_applicant_ids"]
+    assert baseline_artifact["numeric_feature_columns"]
+    assert baseline_artifact["categorical_feature_columns"] == ["category_feature"]
+    assert lightgbm_artifact["categorical_feature_columns"] == ["category_feature"]
+    assert lightgbm_artifact["lightgbm_params"]["scale_pos_weight"] == pytest.approx(1.0)
 
     assert {
         "credit_to_income_ratio",
         "bureau_credit_count",
         "payment_amount_ratio",
-    }.issubset(artifact["feature_columns"])
-    assert not FORBIDDEN_FEATURES.intersection(artifact["feature_columns"])
+    }.issubset(baseline_artifact["feature_columns"])
+    assert not FORBIDDEN_FEATURES.intersection(baseline_artifact["feature_columns"])
+    assert not FORBIDDEN_FEATURES.intersection(lightgbm_artifact["feature_columns"])
 
-    split_ids = {split: set(ids) for split, ids in artifact["split_applicant_ids"].items()}
+    split_ids = {split: set(ids) for split, ids in baseline_artifact["split_applicant_ids"].items()}
     assert split_ids["train"].isdisjoint(split_ids["validation"])
     assert split_ids["train"].isdisjoint(split_ids["test"])
     assert split_ids["validation"].isdisjoint(split_ids["test"])
@@ -213,7 +228,7 @@ def test_run_training_creates_baseline_artifact_reports_and_duckdb_tables(
         "test": 6,
     }
 
-    split_summary = artifact["split_summary"]
+    split_summary = baseline_artifact["split_summary"]
     assert {row["split"] for row in split_summary} == {"train", "validation", "test"}
     assert all(row["positive_count"] > 0 and row["negative_count"] > 0 for row in split_summary)
 
@@ -226,14 +241,16 @@ def test_run_training_creates_baseline_artifact_reports_and_duckdb_tables(
             ORDER BY SK_ID_CURR
             """
         ).fetch_df()
-        probabilities = artifact["pipeline"].predict_proba(labeled_frame[artifact["feature_columns"]])[:, 1]
-        assert len(probabilities) == len(labeled_frame)
-        assert probabilities.min() >= 0
-        assert probabilities.max() <= 1
+        for artifact in [baseline_artifact, lightgbm_artifact]:
+            probabilities = artifact["pipeline"].predict_proba(labeled_frame[artifact["feature_columns"]])[:, 1]
+            assert len(probabilities) == len(labeled_frame)
+            assert probabilities.min() >= 0
+            assert probabilities.max() <= 1
 
-        assert connection.execute("SELECT COUNT(*) FROM model_run_summary").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM model_run_summary").fetchone()[0] == 2
         assert connection.execute("SELECT COUNT(*) FROM split_summary").fetchone()[0] == 3
-        assert connection.execute("SELECT COUNT(*) FROM model_metrics_summary").fetchone()[0] == 15
+        assert connection.execute("SELECT COUNT(*) FROM model_metrics_summary").fetchone()[0] == 36
+        assert connection.execute("SELECT COUNT(*) FROM model_comparison_summary").fetchone()[0] == 6
 
     run_rows = read_csv_rows(scratch_path / "reports" / "model_run_summary.csv", MODEL_RUN_SUMMARY_COLUMNS)
     metrics_rows = read_csv_rows(
@@ -241,26 +258,46 @@ def test_run_training_creates_baseline_artifact_reports_and_duckdb_tables(
         MODEL_METRICS_SUMMARY_COLUMNS,
     )
     split_rows = read_csv_rows(scratch_path / "reports" / "split_summary.csv", SPLIT_SUMMARY_COLUMNS)
+    comparison_rows = read_csv_rows(
+        scratch_path / "reports" / "model_comparison_summary.csv",
+        MODEL_COMPARISON_SUMMARY_COLUMNS,
+    )
 
-    assert run_rows[0]["model_type"] == "logistic_regression"
-    assert run_rows[0]["train_rows"] == "28"
-    assert run_rows[0]["validation_rows"] == "6"
-    assert run_rows[0]["test_rows"] == "6"
-    assert int(run_rows[0]["feature_count"]) == len(artifact["feature_columns"])
+    assert {row["model_type"] for row in run_rows} == {"logistic_regression", "lightgbm"}
+    for row in run_rows:
+        assert row["train_rows"] == "28"
+        assert row["validation_rows"] == "6"
+        assert row["test_rows"] == "6"
+        assert int(row["feature_count"]) == len(baseline_artifact["feature_columns"])
     assert {row["split"] for row in split_rows} == {"train", "validation", "test"}
 
     metrics_by_split = {
-        split: {
+        (model_version, split): {
             row["metric_name"]: float(row["metric_value"])
             for row in metrics_rows
-            if row["split"] == split
+            if row["model_version"] == model_version and row["split"] == split
         }
+        for model_version in {"logistic_regression_baseline_v1", "lightgbm_credit_risk_v1"}
         for split in {"train", "validation", "test"}
     }
     for split_metrics in metrics_by_split.values():
         assert REQUIRED_METRICS.issubset(split_metrics)
         assert 0 <= split_metrics["min_predicted_probability"] <= 1
         assert 0 <= split_metrics["max_predicted_probability"] <= 1
+        assert split_metrics["top_decile_lift"] >= 0
+
+    assert {row["metric_name"] for row in comparison_rows} == REQUIRED_METRICS
+    assert {row["selected_model_type"] for row in comparison_rows}.issubset(
+        {"logistic_regression", "lightgbm"}
+    )
+    pr_auc_comparison = next(row for row in comparison_rows if row["metric_name"] == "pr_auc")
+    expected_selection = (
+        "lightgbm"
+        if float(pr_auc_comparison["lightgbm_metric_value"])
+        >= float(pr_auc_comparison["baseline_metric_value"])
+        else "logistic_regression"
+    )
+    assert pr_auc_comparison["selected_model_type"] == expected_selection
 
 
 def test_training_wraps_data_contract_failures(
