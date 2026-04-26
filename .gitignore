@@ -93,10 +93,12 @@ reports/model_confusion_matrix.csv
 reports/model_threshold_metrics.csv
 reports/validation_report.md
 reports/business_value_analysis.md
+reports/model_feature_importance.csv
 reports/figures/roc_curve.png
 reports/figures/pr_curve.png
 reports/figures/calibration_curve.png
 reports/figures/lift_chart.png
+reports/figures/shap_summary.png
 reports/dashboard_data/*
 reports/figures/generated/
 reports/tables/generated/
