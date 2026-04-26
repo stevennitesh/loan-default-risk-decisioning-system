@@ -86,7 +86,9 @@ def test_generated_artifact_paths_are_gitignored() -> None:
         "reports/figures/calibration_curve.png",
         "reports/figures/lift_chart.png",
         "reports/figures/shap_summary.png",
+        "reports/dashboard_data/credit_risk_scores.csv",
         "reports/dashboard_data/model_metrics_summary.csv",
+        "reports/dashboard_data/segment_performance_summary.csv",
         "reports/figures/generated/lift_chart.png",
         ".tmp/scratch.txt",
     ]

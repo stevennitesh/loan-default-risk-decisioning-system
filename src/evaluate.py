@@ -198,7 +198,14 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.export_dashboard_data:
-        raise SystemExit("Milestone 10 not implemented yet: dashboard exports require evaluation outputs.")
+        from src.dashboard_exports import DashboardExportError
+        from src.dashboard_exports import run_dashboard_export
+
+        try:
+            run_dashboard_export(args.config)
+        except DashboardExportError as error:
+            raise SystemExit(str(error)) from error
+        return
 
     try:
         run_evaluation(args.config)
