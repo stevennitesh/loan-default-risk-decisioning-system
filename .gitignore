@@ -80,6 +80,7 @@ artifacts/
 outputs/
 reports/generated/
 reports/ingestion_summary.csv
+reports/feature_mart_profile.csv
 reports/dashboard_data/*
 reports/figures/generated/
 reports/tables/generated/

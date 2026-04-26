@@ -1,2 +1,163 @@
--- Milestone 2 placeholder.
--- Responsibility: build f_applicant_static at one row per SK_ID_CURR and exclude model-risk fields.
+CREATE OR REPLACE TABLE f_applicant_static AS
+WITH application_rows AS (
+    SELECT
+        SK_ID_CURR,
+        'application_train' AS source_population,
+        TARGET,
+        NAME_CONTRACT_TYPE,
+        FLAG_OWN_CAR,
+        FLAG_OWN_REALTY,
+        AMT_INCOME_TOTAL,
+        AMT_CREDIT,
+        AMT_ANNUITY,
+        AMT_GOODS_PRICE,
+        NAME_INCOME_TYPE,
+        NAME_EDUCATION_TYPE,
+        NAME_HOUSING_TYPE,
+        REGION_POPULATION_RELATIVE,
+        DAYS_EMPLOYED,
+        DAYS_REGISTRATION,
+        DAYS_ID_PUBLISH,
+        OWN_CAR_AGE,
+        OCCUPATION_TYPE,
+        REGION_RATING_CLIENT,
+        REGION_RATING_CLIENT_W_CITY,
+        HOUR_APPR_PROCESS_START,
+        ORGANIZATION_TYPE,
+        EXT_SOURCE_1,
+        EXT_SOURCE_2,
+        EXT_SOURCE_3,
+        DAYS_LAST_PHONE_CHANGE
+    FROM stg_application_train
+
+    UNION ALL
+
+    SELECT
+        SK_ID_CURR,
+        'application_test' AS source_population,
+        CAST(NULL AS BIGINT) AS TARGET,
+        NAME_CONTRACT_TYPE,
+        FLAG_OWN_CAR,
+        FLAG_OWN_REALTY,
+        AMT_INCOME_TOTAL,
+        AMT_CREDIT,
+        AMT_ANNUITY,
+        AMT_GOODS_PRICE,
+        NAME_INCOME_TYPE,
+        NAME_EDUCATION_TYPE,
+        NAME_HOUSING_TYPE,
+        REGION_POPULATION_RELATIVE,
+        DAYS_EMPLOYED,
+        DAYS_REGISTRATION,
+        DAYS_ID_PUBLISH,
+        OWN_CAR_AGE,
+        OCCUPATION_TYPE,
+        REGION_RATING_CLIENT,
+        REGION_RATING_CLIENT_W_CITY,
+        HOUR_APPR_PROCESS_START,
+        ORGANIZATION_TYPE,
+        EXT_SOURCE_1,
+        EXT_SOURCE_2,
+        EXT_SOURCE_3,
+        DAYS_LAST_PHONE_CHANGE
+    FROM stg_application_test
+)
+SELECT
+    SK_ID_CURR,
+    source_population,
+    TARGET,
+    NAME_CONTRACT_TYPE,
+    FLAG_OWN_CAR,
+    FLAG_OWN_REALTY,
+    AMT_INCOME_TOTAL,
+    AMT_CREDIT,
+    AMT_ANNUITY,
+    AMT_GOODS_PRICE,
+    CASE WHEN AMT_INCOME_TOTAL IS NOT NULL AND AMT_INCOME_TOTAL <> 0 THEN AMT_CREDIT / AMT_INCOME_TOTAL END AS credit_to_income_ratio,
+    CASE WHEN AMT_INCOME_TOTAL IS NOT NULL AND AMT_INCOME_TOTAL <> 0 THEN AMT_ANNUITY / AMT_INCOME_TOTAL END AS annuity_to_income_ratio,
+    CASE WHEN AMT_INCOME_TOTAL IS NOT NULL AND AMT_INCOME_TOTAL <> 0 THEN AMT_GOODS_PRICE / AMT_INCOME_TOTAL END AS goods_price_to_income_ratio,
+    NAME_INCOME_TYPE,
+    NAME_EDUCATION_TYPE,
+    NAME_HOUSING_TYPE,
+    REGION_POPULATION_RELATIVE,
+    CASE WHEN DAYS_EMPLOYED < 0 THEN -DAYS_EMPLOYED END AS employment_length_days,
+    DAYS_REGISTRATION,
+    DAYS_ID_PUBLISH,
+    OWN_CAR_AGE,
+    OCCUPATION_TYPE,
+    REGION_RATING_CLIENT,
+    REGION_RATING_CLIENT_W_CITY,
+    HOUR_APPR_PROCESS_START,
+    ORGANIZATION_TYPE,
+    EXT_SOURCE_1,
+    EXT_SOURCE_2,
+    EXT_SOURCE_3,
+    CASE
+        WHEN (
+            CASE WHEN EXT_SOURCE_1 IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN EXT_SOURCE_2 IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN EXT_SOURCE_3 IS NOT NULL THEN 1 ELSE 0 END
+        ) > 0
+        THEN (
+            COALESCE(EXT_SOURCE_1, 0)
+          + COALESCE(EXT_SOURCE_2, 0)
+          + COALESCE(EXT_SOURCE_3, 0)
+        ) / (
+            CASE WHEN EXT_SOURCE_1 IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN EXT_SOURCE_2 IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN EXT_SOURCE_3 IS NOT NULL THEN 1 ELSE 0 END
+        )
+    END AS ext_source_mean,
+    LEAST(EXT_SOURCE_1, EXT_SOURCE_2, EXT_SOURCE_3) AS ext_source_min,
+    GREATEST(EXT_SOURCE_1, EXT_SOURCE_2, EXT_SOURCE_3) AS ext_source_max,
+    (
+        CASE WHEN EXT_SOURCE_1 IS NULL THEN 1 ELSE 0 END
+      + CASE WHEN EXT_SOURCE_2 IS NULL THEN 1 ELSE 0 END
+      + CASE WHEN EXT_SOURCE_3 IS NULL THEN 1 ELSE 0 END
+    ) AS ext_source_missing_count,
+    DAYS_LAST_PHONE_CHANGE
+FROM application_rows;
+
+CREATE OR REPLACE TABLE segment_diagnostics AS
+WITH diagnostic_rows AS (
+    SELECT
+        SK_ID_CURR,
+        'application_train' AS source_population,
+        TARGET,
+        CODE_GENDER,
+        NAME_FAMILY_STATUS,
+        DAYS_BIRTH,
+        CNT_CHILDREN,
+        CNT_FAM_MEMBERS
+    FROM stg_application_train
+
+    UNION ALL
+
+    SELECT
+        SK_ID_CURR,
+        'application_test' AS source_population,
+        CAST(NULL AS BIGINT) AS TARGET,
+        CODE_GENDER,
+        NAME_FAMILY_STATUS,
+        DAYS_BIRTH,
+        CNT_CHILDREN,
+        CNT_FAM_MEMBERS
+    FROM stg_application_test
+)
+SELECT
+    SK_ID_CURR,
+    source_population,
+    TARGET,
+    CODE_GENDER,
+    NAME_FAMILY_STATUS,
+    CASE WHEN DAYS_BIRTH < 0 THEN CAST(FLOOR(-DAYS_BIRTH / 365.25) AS BIGINT) END AS applicant_age_years,
+    CASE
+        WHEN DAYS_BIRTH IS NULL THEN NULL
+        WHEN FLOOR(-DAYS_BIRTH / 365.25) < 30 THEN 'under_30'
+        WHEN FLOOR(-DAYS_BIRTH / 365.25) < 45 THEN '30_to_44'
+        WHEN FLOOR(-DAYS_BIRTH / 365.25) < 60 THEN '45_to_59'
+        ELSE '60_plus'
+    END AS applicant_age_band,
+    CNT_CHILDREN,
+    CNT_FAM_MEMBERS
+FROM diagnostic_rows;

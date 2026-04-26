@@ -73,6 +73,8 @@ def test_excluded_feature_groups_cover_required_leakage_controls() -> None:
         "applicant_age_years",
         "applicant_age_band",
         "employment_to_age_ratio",
+        "CNT_CHILDREN",
+        "CNT_FAM_MEMBERS",
     }.issubset(excluded_features["sensitive_or_protected_status_like"])
 
 

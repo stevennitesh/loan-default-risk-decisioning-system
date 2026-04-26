@@ -44,6 +44,8 @@ excluded_features:
     - applicant_age_years
     - applicant_age_band
     - employment_to_age_ratio
+    - CNT_CHILDREN
+    - CNT_FAM_MEMBERS
 
 business_assumptions:
   expected_margin_per_good_loan: 1000
