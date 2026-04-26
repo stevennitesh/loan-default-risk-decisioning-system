@@ -87,6 +87,14 @@ reports/model_run_summary.csv
 reports/model_metrics_summary.csv
 reports/model_comparison_summary.csv
 reports/split_summary.csv
+reports/model_lift_by_decile.csv
+reports/model_calibration_bins.csv
+reports/model_confusion_matrix.csv
+reports/validation_report.md
+reports/figures/roc_curve.png
+reports/figures/pr_curve.png
+reports/figures/calibration_curve.png
+reports/figures/lift_chart.png
 reports/dashboard_data/*
 reports/figures/generated/
 reports/tables/generated/
