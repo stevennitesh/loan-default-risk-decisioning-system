@@ -68,6 +68,8 @@ def test_generated_artifact_paths_are_gitignored() -> None:
         "models/lightgbm_credit_risk.joblib",
         "reports/ingestion_summary.csv",
         "reports/feature_mart_profile.csv",
+        "reports/data_inventory.csv",
+        "reports/feature_inventory.csv",
         "reports/dashboard_data/model_metrics_summary.csv",
         "reports/figures/generated/lift_chart.png",
         ".tmp/scratch.txt",

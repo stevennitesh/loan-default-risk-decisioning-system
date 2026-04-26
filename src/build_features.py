@@ -9,6 +9,11 @@ from typing import Any
 import duckdb
 
 from src.config import load_config
+from src.data_contracts import DataContractError
+from src.data_contracts import build_data_inventory
+from src.data_contracts import build_feature_inventory
+from src.data_contracts import validate_data_contracts
+from src.data_contracts import write_contract_reports
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -67,8 +72,14 @@ def run_feature_build(config_path: str | Path = "configs/base.yaml") -> list[dic
             connection.execute(sql_path.read_text(encoding="utf-8"))
 
         profile_rows = _profile_feature_tables(connection)
+        _write_profile(report_dir / "feature_mart_profile.csv", profile_rows)
+        validate_data_contracts(connection, config)
+        write_contract_reports(
+            report_dir,
+            build_data_inventory(connection),
+            build_feature_inventory(connection, config),
+        )
 
-    _write_profile(report_dir / "feature_mart_profile.csv", profile_rows)
     return profile_rows
 
 
@@ -79,7 +90,7 @@ def main() -> None:
 
     try:
         run_feature_build(args.config)
-    except FeatureBuildError as error:
+    except (FeatureBuildError, DataContractError) as error:
         raise SystemExit(str(error)) from error
 
 

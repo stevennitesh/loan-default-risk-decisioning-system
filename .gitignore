@@ -81,6 +81,8 @@ outputs/
 reports/generated/
 reports/ingestion_summary.csv
 reports/feature_mart_profile.csv
+reports/data_inventory.csv
+reports/feature_inventory.csv
 reports/dashboard_data/*
 reports/figures/generated/
 reports/tables/generated/
