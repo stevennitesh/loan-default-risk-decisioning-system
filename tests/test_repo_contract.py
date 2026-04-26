@@ -66,6 +66,7 @@ def test_generated_artifact_paths_are_gitignored() -> None:
         "data/parquet/application_train.parquet",
         "data/db/credit_risk.duckdb",
         "models/lightgbm_credit_risk.joblib",
+        "reports/ingestion_summary.csv",
         "reports/dashboard_data/model_metrics_summary.csv",
         "reports/figures/generated/lift_chart.png",
         ".tmp/scratch.txt",

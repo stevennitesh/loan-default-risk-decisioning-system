@@ -39,7 +39,8 @@ coverage.xml
 htmlcov/
 
 # Local scratch
-.tmp/
+.tmp/*
+!.tmp/.gitkeep
 
 # Jupyter
 .ipynb_checkpoints/
@@ -78,7 +79,8 @@ wandb/
 artifacts/
 outputs/
 reports/generated/
-reports/dashboard_data/
+reports/ingestion_summary.csv
+reports/dashboard_data/*
 reports/figures/generated/
 reports/tables/generated/
 !reports/**/.gitkeep
