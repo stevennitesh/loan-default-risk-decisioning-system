@@ -86,6 +86,7 @@ reports/feature_inventory.csv
 reports/model_run_summary.csv
 reports/model_metrics_summary.csv
 reports/model_comparison_summary.csv
+reports/lightgbm_tuning_summary.csv
 reports/split_summary.csv
 reports/model_lift_by_decile.csv
 reports/model_calibration_bins.csv

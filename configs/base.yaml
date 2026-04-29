@@ -29,6 +29,9 @@ model:
   baseline_model: logistic_regression
   use_class_weighting: true
   calibrate_probabilities: true
+  lightgbm_tuning:
+    enabled: true
+    max_candidates: 8
 
 excluded_features:
   identifiers:

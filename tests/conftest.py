@@ -84,6 +84,10 @@ def write_config(scratch_path: Path) -> Path:
             "baseline_model": "logistic_regression",
             "use_class_weighting": True,
             "calibrate_probabilities": True,
+            "lightgbm_tuning": {
+                "enabled": True,
+                "max_candidates": 4,
+            },
         },
         "excluded_features": {
             "identifiers": ["SK_ID_CURR", "SK_ID_PREV", "SK_ID_BUREAU"],

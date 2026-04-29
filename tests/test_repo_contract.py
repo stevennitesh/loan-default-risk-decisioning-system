@@ -73,6 +73,7 @@ def test_generated_artifact_paths_are_gitignored() -> None:
         "reports/model_run_summary.csv",
         "reports/model_metrics_summary.csv",
         "reports/model_comparison_summary.csv",
+        "reports/lightgbm_tuning_summary.csv",
         "reports/split_summary.csv",
         "reports/model_lift_by_decile.csv",
         "reports/model_calibration_bins.csv",

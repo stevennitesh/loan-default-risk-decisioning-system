@@ -23,7 +23,34 @@ REQUIRED_METRICS = {
     "min_predicted_probability",
     "max_predicted_probability",
     "top_decile_lift",
+    "precision_at_top_decile",
+    "recall_at_manual_review_capacity",
 }
+
+LIGHTGBM_TUNING_SUMMARY_COLUMNS = [
+    "candidate_rank",
+    "selected",
+    "candidate_name",
+    "candidate_source",
+    "validation_selection_score",
+    "validation_pr_auc",
+    "validation_roc_auc",
+    "validation_brier_score",
+    "validation_top_decile_lift",
+    "validation_precision_at_top_decile",
+    "validation_recall_at_manual_review_capacity",
+    "n_estimators",
+    "learning_rate",
+    "num_leaves",
+    "max_depth",
+    "min_child_samples",
+    "subsample",
+    "colsample_bytree",
+    "reg_alpha",
+    "reg_lambda",
+    "scale_pos_weight",
+    "created_at",
+]
 
 FORBIDDEN_FEATURES = {
     "SK_ID_CURR",
@@ -209,6 +236,25 @@ def test_run_training_creates_model_artifacts_reports_and_duckdb_tables(
     assert baseline_artifact["categorical_feature_columns"] == ["category_feature"]
     assert lightgbm_artifact["categorical_feature_columns"] == ["category_feature"]
     assert lightgbm_artifact["lightgbm_params"]["scale_pos_weight"] == pytest.approx(1.0)
+    assert lightgbm_artifact["lightgbm_tuning"]["selection_metric_order"] == [
+        "nonconstant_score_distribution",
+        "pr_auc",
+        "top_decile_lift",
+        "recall_at_manual_review_capacity",
+        "roc_auc",
+        "brier_score",
+    ]
+    assert lightgbm_artifact["lightgbm_tuning"]["candidate_count"] == 4
+    assert (
+        lightgbm_artifact["lightgbm_tuning"]["selected_candidate"]["params"]
+        == lightgbm_artifact["lightgbm_params"]
+    )
+    selected_validation_metrics = lightgbm_artifact["lightgbm_tuning"]["selected_candidate"][
+        "validation_metrics"
+    ]
+    assert selected_validation_metrics["max_predicted_probability"] > selected_validation_metrics[
+        "min_predicted_probability"
+    ]
 
     assert {
         "credit_to_income_ratio",
@@ -249,8 +295,9 @@ def test_run_training_creates_model_artifacts_reports_and_duckdb_tables(
 
         assert connection.execute("SELECT COUNT(*) FROM model_run_summary").fetchone()[0] == 2
         assert connection.execute("SELECT COUNT(*) FROM split_summary").fetchone()[0] == 3
-        assert connection.execute("SELECT COUNT(*) FROM model_metrics_summary").fetchone()[0] == 36
-        assert connection.execute("SELECT COUNT(*) FROM model_comparison_summary").fetchone()[0] == 6
+        assert connection.execute("SELECT COUNT(*) FROM model_metrics_summary").fetchone()[0] == 48
+        assert connection.execute("SELECT COUNT(*) FROM model_comparison_summary").fetchone()[0] == 8
+        assert connection.execute("SELECT COUNT(*) FROM lightgbm_tuning_summary").fetchone()[0] == 4
 
     run_rows = read_csv_rows(scratch_path / "reports" / "model_run_summary.csv", MODEL_RUN_SUMMARY_COLUMNS)
     metrics_rows = read_csv_rows(
@@ -261,6 +308,10 @@ def test_run_training_creates_model_artifacts_reports_and_duckdb_tables(
     comparison_rows = read_csv_rows(
         scratch_path / "reports" / "model_comparison_summary.csv",
         MODEL_COMPARISON_SUMMARY_COLUMNS,
+    )
+    tuning_rows = read_csv_rows(
+        scratch_path / "reports" / "lightgbm_tuning_summary.csv",
+        LIGHTGBM_TUNING_SUMMARY_COLUMNS,
     )
 
     assert {row["model_type"] for row in run_rows} == {"logistic_regression", "lightgbm"}
@@ -298,6 +349,12 @@ def test_run_training_creates_model_artifacts_reports_and_duckdb_tables(
         else "logistic_regression"
     )
     assert pr_auc_comparison["selected_model_type"] == expected_selection
+    assert len(tuning_rows) == 4
+    assert {row["candidate_name"] for row in tuning_rows}.issuperset({"baseline_current"})
+    selected_tuning_rows = [row for row in tuning_rows if row["selected"] == "True"]
+    assert len(selected_tuning_rows) == 1
+    assert selected_tuning_rows[0]["validation_pr_auc"] != ""
+    assert selected_tuning_rows[0]["validation_recall_at_manual_review_capacity"] != ""
 
 
 def test_training_wraps_data_contract_failures(

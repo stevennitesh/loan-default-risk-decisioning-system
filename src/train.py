@@ -78,6 +78,40 @@ MODEL_COMPARISON_SUMMARY_COLUMNS = [
     "selected_model_type",
 ]
 
+LIGHTGBM_TUNING_SUMMARY_COLUMNS = [
+    "candidate_rank",
+    "selected",
+    "candidate_name",
+    "candidate_source",
+    "validation_selection_score",
+    "validation_pr_auc",
+    "validation_roc_auc",
+    "validation_brier_score",
+    "validation_top_decile_lift",
+    "validation_precision_at_top_decile",
+    "validation_recall_at_manual_review_capacity",
+    "n_estimators",
+    "learning_rate",
+    "num_leaves",
+    "max_depth",
+    "min_child_samples",
+    "subsample",
+    "colsample_bytree",
+    "reg_alpha",
+    "reg_lambda",
+    "scale_pos_weight",
+    "created_at",
+]
+
+LIGHTGBM_SELECTION_METRIC_ORDER = [
+    "nonconstant_score_distribution",
+    "pr_auc",
+    "top_decile_lift",
+    "recall_at_manual_review_capacity",
+    "roc_auc",
+    "brier_score",
+]
+
 
 class TrainingError(RuntimeError):
     """Raised when baseline training cannot satisfy the Milestone 4 contract."""
@@ -102,6 +136,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
     created_at = _created_at()
     run_id = f"model_training_v1_{created_at.replace('-', '').replace(':', '').replace('Z', '')}"
     random_seed = int(config["project"]["random_seed"])
+    manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
 
     with duckdb.connect(str(duckdb_path)) as connection:
         try:
@@ -123,21 +158,26 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
             categorical_features,
             random_seed,
         )
-        lightgbm_params = _lightgbm_params(
+        base_lightgbm_params = _lightgbm_params(
             config,
             split_frames["train"],
             random_seed,
-        )
-        lightgbm_pipeline = _build_lightgbm_pipeline(
-            numeric_features,
-            categorical_features,
-            lightgbm_params,
         )
 
         x_train = _feature_frame(split_frames["train"], feature_columns)
         y_train = split_frames["train"]["TARGET"].astype(int)
         baseline_pipeline.fit(x_train, y_train)
-        lightgbm_pipeline.fit(x_train, y_train)
+        lightgbm_tuning = _fit_tuned_lightgbm(
+            config,
+            numeric_features,
+            categorical_features,
+            base_lightgbm_params,
+            split_frames,
+            feature_columns,
+            manual_review_capacity_rate,
+        )
+        lightgbm_pipeline = lightgbm_tuning["pipeline"]
+        lightgbm_params = lightgbm_tuning["selected_candidate"]["params"]
 
         split_summary_rows = _build_split_summary(split_frames, run_id, created_at)
         baseline_metric_rows = _build_metric_rows(
@@ -146,6 +186,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
             split_frames,
             feature_columns,
             created_at,
+            manual_review_capacity_rate,
         )
         lightgbm_metric_rows = _build_metric_rows(
             LIGHTGBM_MODEL_VERSION,
@@ -153,9 +194,11 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
             split_frames,
             feature_columns,
             created_at,
+            manual_review_capacity_rate,
         )
         metric_rows = [*baseline_metric_rows, *lightgbm_metric_rows]
         comparison_rows = _build_model_comparison_rows(baseline_metric_rows, lightgbm_metric_rows)
+        tuning_summary_rows = _build_lightgbm_tuning_summary_rows(lightgbm_tuning, created_at)
         run_summary_rows = [
             _build_run_summary_row(
                 config,
@@ -208,6 +251,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
             "model_type": LIGHTGBM_MODEL_TYPE,
             "metric_rows": lightgbm_metric_rows,
             "lightgbm_params": lightgbm_params,
+            "lightgbm_tuning": _build_lightgbm_tuning_artifact(lightgbm_tuning),
         }
         joblib.dump(baseline_artifact, model_dir / BASELINE_MODEL_ARTIFACT_NAME)
         joblib.dump(lightgbm_artifact, model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME)
@@ -216,6 +260,11 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
         _write_csv(report_dir / "model_metrics_summary.csv", MODEL_METRICS_SUMMARY_COLUMNS, metric_rows)
         _write_csv(report_dir / "split_summary.csv", SPLIT_SUMMARY_COLUMNS, split_summary_rows)
         _write_csv(
+            report_dir / "lightgbm_tuning_summary.csv",
+            LIGHTGBM_TUNING_SUMMARY_COLUMNS,
+            tuning_summary_rows,
+        )
+        _write_csv(
             report_dir / "model_comparison_summary.csv",
             MODEL_COMPARISON_SUMMARY_COLUMNS,
             comparison_rows,
@@ -223,6 +272,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
         _replace_duckdb_table(connection, "model_run_summary", run_summary_rows)
         _replace_duckdb_table(connection, "model_metrics_summary", metric_rows)
         _replace_duckdb_table(connection, "split_summary", split_summary_rows)
+        _replace_duckdb_table(connection, "lightgbm_tuning_summary", tuning_summary_rows)
         _replace_duckdb_table(connection, "model_comparison_summary", comparison_rows)
 
     return {
@@ -236,6 +286,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
         "metric_rows": metric_rows,
         "comparison_rows": comparison_rows,
         "split_summary": split_summary_rows,
+        "lightgbm_tuning_rows": tuning_summary_rows,
     }
 
 
@@ -438,6 +489,287 @@ def _lightgbm_params(
     return params
 
 
+def _fit_tuned_lightgbm(
+    config: dict[str, Any],
+    numeric_features: list[str],
+    categorical_features: list[str],
+    base_params: dict[str, Any],
+    split_frames: dict[str, pd.DataFrame],
+    feature_columns: list[str],
+    manual_review_capacity_rate: float,
+) -> dict[str, Any]:
+    tuning_config = config["model"].get("lightgbm_tuning", {})
+    tuning_enabled = bool(tuning_config.get("enabled", True))
+    max_candidates = int(tuning_config.get("max_candidates", 8))
+    if max_candidates < 1:
+        raise TrainingError("model.lightgbm_tuning.max_candidates must be at least 1")
+
+    candidate_specs = _lightgbm_candidate_specs(base_params, max_candidates, tuning_enabled)
+    x_train = _feature_frame(split_frames["train"], feature_columns)
+    y_train = split_frames["train"]["TARGET"].astype(int)
+    validation_frame = split_frames["validation"]
+    y_validation = validation_frame["TARGET"].astype(int)
+    x_validation = _feature_frame(validation_frame, feature_columns)
+
+    candidates: list[dict[str, Any]] = []
+    for candidate_spec in candidate_specs:
+        pipeline = _build_lightgbm_pipeline(
+            numeric_features,
+            categorical_features,
+            candidate_spec["params"],
+        )
+        pipeline.fit(x_train, y_train)
+        validation_probabilities = pipeline.predict_proba(x_validation)[:, 1]
+        validation_metrics = _probability_metrics(
+            y_validation,
+            validation_probabilities,
+            manual_review_capacity_rate,
+        )
+        candidates.append(
+            {
+                **candidate_spec,
+                "pipeline": pipeline,
+                "validation_metrics": validation_metrics,
+                "selection_key": _lightgbm_selection_key(validation_metrics),
+                "validation_selection_score": _lightgbm_selection_score(validation_metrics),
+            }
+        )
+
+    ranked_candidates = sorted(
+        candidates,
+        key=lambda candidate: candidate["selection_key"],
+        reverse=True,
+    )
+    selected_candidate = ranked_candidates[0]
+    return {
+        "enabled": tuning_enabled,
+        "max_candidates": max_candidates,
+        "candidate_count": len(candidates),
+        "selection_metric_order": LIGHTGBM_SELECTION_METRIC_ORDER,
+        "candidates": candidates,
+        "ranked_candidates": ranked_candidates,
+        "selected_candidate": selected_candidate,
+        "pipeline": selected_candidate["pipeline"],
+    }
+
+
+def _lightgbm_candidate_specs(
+    base_params: dict[str, Any],
+    max_candidates: int,
+    tuning_enabled: bool,
+) -> list[dict[str, Any]]:
+    base_scale_pos_weight = float(base_params.get("scale_pos_weight", 1.0))
+    presets = [
+        (
+            "baseline_current",
+            "current_default",
+            {},
+        ),
+        (
+            "regularized_low_learning_rate",
+            "prior_informed",
+            {
+                "n_estimators": 500,
+                "learning_rate": 0.035,
+                "num_leaves": 31,
+                "max_depth": -1,
+                "min_child_samples": 50,
+                "subsample": 0.85,
+                "colsample_bytree": 0.85,
+                "reg_alpha": 0.05,
+                "reg_lambda": 4.0,
+            },
+        ),
+        (
+            "rank_focused_class_weighted",
+            "prior_informed",
+            {
+                "n_estimators": 650,
+                "learning_rate": 0.025,
+                "num_leaves": 63,
+                "max_depth": -1,
+                "min_child_samples": 35,
+                "subsample": 0.85,
+                "colsample_bytree": 0.80,
+                "reg_alpha": 0.0,
+                "reg_lambda": 3.0,
+                "scale_pos_weight": base_scale_pos_weight * 1.15,
+            },
+        ),
+        (
+            "shallow_calibrated",
+            "prior_informed",
+            {
+                "n_estimators": 250,
+                "learning_rate": 0.05,
+                "num_leaves": 7,
+                "max_depth": 3,
+                "min_child_samples": 5,
+                "subsample": 0.90,
+                "colsample_bytree": 0.90,
+                "reg_alpha": 0.10,
+                "reg_lambda": 8.0,
+            },
+        ),
+        (
+            "high_recall_weighted",
+            "prior_informed",
+            {
+                "n_estimators": 450,
+                "learning_rate": 0.04,
+                "num_leaves": 47,
+                "max_depth": -1,
+                "min_child_samples": 25,
+                "subsample": 0.80,
+                "colsample_bytree": 0.85,
+                "reg_alpha": 0.0,
+                "reg_lambda": 2.0,
+                "scale_pos_weight": base_scale_pos_weight * 1.35,
+            },
+        ),
+        (
+            "feature_subsample_regularized",
+            "prior_informed",
+            {
+                "n_estimators": 600,
+                "learning_rate": 0.03,
+                "num_leaves": 47,
+                "max_depth": -1,
+                "min_child_samples": 60,
+                "subsample": 0.75,
+                "colsample_bytree": 0.75,
+                "reg_alpha": 0.10,
+                "reg_lambda": 6.0,
+            },
+        ),
+        (
+            "compact_conservative",
+            "prior_informed",
+            {
+                "n_estimators": 350,
+                "learning_rate": 0.05,
+                "num_leaves": 11,
+                "max_depth": 4,
+                "min_child_samples": 60,
+                "subsample": 0.95,
+                "colsample_bytree": 0.95,
+                "reg_alpha": 0.20,
+                "reg_lambda": 8.0,
+            },
+        ),
+        (
+            "lighter_weight_calibrated",
+            "prior_informed",
+            {
+                "n_estimators": 500,
+                "learning_rate": 0.035,
+                "num_leaves": 31,
+                "max_depth": 6,
+                "min_child_samples": 45,
+                "subsample": 0.85,
+                "colsample_bytree": 0.90,
+                "reg_alpha": 0.05,
+                "reg_lambda": 4.0,
+                "scale_pos_weight": base_scale_pos_weight * 0.80,
+            },
+        ),
+    ]
+    candidate_limit = max_candidates if tuning_enabled else 1
+    specs: list[dict[str, Any]] = []
+    for candidate_name, candidate_source, overrides in presets[:candidate_limit]:
+        params = {**base_params, **overrides}
+        specs.append(
+            {
+                "candidate_name": candidate_name,
+                "candidate_source": candidate_source,
+                "params": params,
+            }
+        )
+    return specs
+
+
+def _lightgbm_selection_key(metrics: dict[str, float]) -> tuple[float, float, float, float, float, float]:
+    return (
+        1.0 if _has_nonconstant_score_distribution(metrics) else 0.0,
+        metrics["pr_auc"],
+        metrics["top_decile_lift"],
+        metrics["recall_at_manual_review_capacity"],
+        metrics["roc_auc"],
+        -metrics["brier_score"],
+    )
+
+
+def _lightgbm_selection_score(metrics: dict[str, float]) -> float:
+    return float(metrics["pr_auc"])
+
+
+def _has_nonconstant_score_distribution(metrics: dict[str, float]) -> bool:
+    return metrics["max_predicted_probability"] > metrics["min_predicted_probability"]
+
+
+def _build_lightgbm_tuning_summary_rows(
+    tuning_result: dict[str, Any],
+    created_at: str,
+) -> list[dict[str, Any]]:
+    selected_name = tuning_result["selected_candidate"]["candidate_name"]
+    rows: list[dict[str, Any]] = []
+    for rank, candidate in enumerate(tuning_result["ranked_candidates"], start=1):
+        metrics = candidate["validation_metrics"]
+        params = candidate["params"]
+        rows.append(
+            {
+                "candidate_rank": rank,
+                "selected": candidate["candidate_name"] == selected_name,
+                "candidate_name": candidate["candidate_name"],
+                "candidate_source": candidate["candidate_source"],
+                "validation_selection_score": candidate["validation_selection_score"],
+                "validation_pr_auc": metrics["pr_auc"],
+                "validation_roc_auc": metrics["roc_auc"],
+                "validation_brier_score": metrics["brier_score"],
+                "validation_top_decile_lift": metrics["top_decile_lift"],
+                "validation_precision_at_top_decile": metrics["precision_at_top_decile"],
+                "validation_recall_at_manual_review_capacity": metrics[
+                    "recall_at_manual_review_capacity"
+                ],
+                "n_estimators": params.get("n_estimators"),
+                "learning_rate": params.get("learning_rate"),
+                "num_leaves": params.get("num_leaves"),
+                "max_depth": params.get("max_depth"),
+                "min_child_samples": params.get("min_child_samples"),
+                "subsample": params.get("subsample"),
+                "colsample_bytree": params.get("colsample_bytree"),
+                "reg_alpha": params.get("reg_alpha"),
+                "reg_lambda": params.get("reg_lambda"),
+                "scale_pos_weight": params.get("scale_pos_weight"),
+                "created_at": created_at,
+            }
+        )
+    return rows
+
+
+def _build_lightgbm_tuning_artifact(tuning_result: dict[str, Any]) -> dict[str, Any]:
+    selected = tuning_result["selected_candidate"]
+    selected_rank = next(
+        rank
+        for rank, candidate in enumerate(tuning_result["ranked_candidates"], start=1)
+        if candidate["candidate_name"] == selected["candidate_name"]
+    )
+    return {
+        "enabled": tuning_result["enabled"],
+        "max_candidates": tuning_result["max_candidates"],
+        "candidate_count": tuning_result["candidate_count"],
+        "selection_metric_order": tuning_result["selection_metric_order"],
+        "selected_candidate": {
+            "candidate_rank": selected_rank,
+            "candidate_name": selected["candidate_name"],
+            "candidate_source": selected["candidate_source"],
+            "validation_selection_score": selected["validation_selection_score"],
+            "validation_metrics": selected["validation_metrics"],
+            "params": selected["params"],
+        },
+    }
+
+
 def _feature_frame(frame: pd.DataFrame, feature_columns: list[str]) -> pd.DataFrame:
     features = frame[feature_columns].copy()
     return features.where(pd.notna(features), np.nan)
@@ -473,19 +805,13 @@ def _build_metric_rows(
     split_frames: dict[str, pd.DataFrame],
     feature_columns: list[str],
     created_at: str,
+    manual_review_capacity_rate: float,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for split_name, frame in split_frames.items():
         y_true = frame["TARGET"].astype(int)
         probabilities = pipeline.predict_proba(_feature_frame(frame, feature_columns))[:, 1]
-        metrics = {
-            "roc_auc": roc_auc_score(y_true, probabilities),
-            "pr_auc": average_precision_score(y_true, probabilities),
-            "brier_score": brier_score_loss(y_true, probabilities),
-            "min_predicted_probability": float(np.min(probabilities)),
-            "max_predicted_probability": float(np.max(probabilities)),
-            "top_decile_lift": _top_decile_lift(y_true, probabilities),
-        }
+        metrics = _probability_metrics(y_true, probabilities, manual_review_capacity_rate)
         rows.extend(
             {
                 "model_version": model_version,
@@ -499,12 +825,51 @@ def _build_metric_rows(
     return rows
 
 
+def _probability_metrics(
+    y_true: pd.Series,
+    probabilities: np.ndarray,
+    manual_review_capacity_rate: float,
+) -> dict[str, float]:
+    return {
+        "roc_auc": roc_auc_score(y_true, probabilities),
+        "pr_auc": average_precision_score(y_true, probabilities),
+        "brier_score": brier_score_loss(y_true, probabilities),
+        "min_predicted_probability": float(np.min(probabilities)),
+        "max_predicted_probability": float(np.max(probabilities)),
+        "top_decile_lift": _top_decile_lift(y_true, probabilities),
+        "precision_at_top_decile": _precision_at_rate(y_true, probabilities, 0.10),
+        "recall_at_manual_review_capacity": _recall_at_rate(
+            y_true,
+            probabilities,
+            manual_review_capacity_rate,
+        ),
+    }
+
+
 def _top_decile_lift(y_true: pd.Series, probabilities: np.ndarray) -> float:
+    portfolio_positive_rate = float(y_true.mean())
+    top_precision = _precision_at_rate(y_true, probabilities, 0.10)
+    return float(top_precision / portfolio_positive_rate)
+
+
+def _precision_at_rate(y_true: pd.Series, probabilities: np.ndarray, rate: float) -> float:
+    top_count = _top_count(len(y_true), rate)
     frame = pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
-    top_count = max(1, int(np.ceil(len(frame) * 0.10)))
-    top_positive_rate = frame.sort_values("probability", ascending=False).head(top_count)["target"].mean()
-    portfolio_positive_rate = frame["target"].mean()
-    return float(top_positive_rate / portfolio_positive_rate)
+    return float(frame.sort_values("probability", ascending=False).head(top_count)["target"].mean())
+
+
+def _recall_at_rate(y_true: pd.Series, probabilities: np.ndarray, rate: float) -> float:
+    top_count = _top_count(len(y_true), rate)
+    frame = pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
+    positives_in_top = int(frame.sort_values("probability", ascending=False).head(top_count)["target"].sum())
+    total_positives = int(frame["target"].sum())
+    return float(positives_in_top / total_positives) if total_positives else 0.0
+
+
+def _top_count(row_count: int, rate: float) -> int:
+    if rate <= 0 or rate > 1:
+        raise TrainingError(f"Selection rate must be in (0, 1], got {rate}")
+    return max(1, int(np.ceil(row_count * rate)))
 
 
 def _build_model_comparison_rows(
