@@ -12,7 +12,7 @@
 | Primary use | Portfolio decision-support simulation |
 | Production readiness | Not production-ready |
 
-This model produces an applicant-level repayment-difficulty risk score. Scores are used to demonstrate threshold tradeoffs, batch scoring, explainability, and Power BI reporting. v1 scores should be treated as ranking scores, not fitted calibrated default probabilities.
+This model card preserves the frozen v1 baseline and summarizes the post-v1 improvement path. Scores are used to demonstrate threshold tradeoffs, batch scoring, explainability, and Power BI reporting. v1 scores should be treated as ranking scores, not fitted calibrated default probabilities.
 
 ## Intended Use
 
@@ -60,6 +60,8 @@ Feature groups include:
 
 Identifiers, target fields, and v1 demographic/protected-status-like exclusions are removed from the model feature list. Excluded diagnostic fields may be inspected separately for limitation checks, but they are not model drivers.
 
+The active post-v1 candidate extends this feature scope with monthly bureau-balance, POS-cash, credit-card, recency-deterioration, and last-k temporal repayment behavior features.
+
 ## Training and Selection
 
 The pipeline trains:
@@ -82,15 +84,19 @@ Post-v1 Experiment 004 fits a separate sigmoid calibration layer on the validati
 
 Batch scoring and dashboard exports now retain both `raw_risk_score` and `calibrated_risk_score`, with `calibration_method` documenting the applied sigmoid layer. The original `score` column remains the rank-policy score used by the current threshold workflow.
 
-Post-v1 Experiments 005-010 explored simplification, stability, risk-pressure interactions, and recency-deterioration features. The first repeated-seed stability check selected the full 140-feature setup over the `top_100` simplification. Experiment 010 then promoted the 152-feature recency-deterioration setup as the leading post-v1 ranking/calibration candidate: repeated-seed mean validation PR-AUC, ROC-AUC, calibrated Brier, lift, precision, recall, and weighted calibration error improved slightly versus the 140-feature calibrated baseline. Mean validation expected value was slightly lower, so the 140-feature model remains a competitive alternative if expected value becomes the dominant selection objective.
+Post-v1 Experiments 005-014 form a validation-first learning trail rather than a leaderboard replication. The sequence tested simplification, repeated-seed stability, risk-pressure interactions, recency deterioration, source-informed last-k temporal repayment behavior, and final cleanup. Experiment 012 promotes the 168-feature last-k temporal setup after repeated-seed validation improved mean PR-AUC, PR-AUC stability, ROC-AUC, calibrated Brier, lift, precision, recall, and balanced expected value versus the prior 152-feature candidate. Experiments 013 and 014 then tested whether a smaller SHAP-ranked surface could preserve those gains; it could not, so feature expansion stops at the 168-feature candidate.
 
-Selected candidate from `reports/lightgbm_tuning_summary.csv`:
+The post-v1 caveat is calibration-bin behavior: weighted calibration error worsens slightly versus the prior post-v1 candidate, even though Brier improves. The full v1-to-post-v1 summary is in `reports/experiments/v1_to_post_v1_model_diff.md`.
+
+Frozen v1 selected candidate from `reports/lightgbm_tuning_summary.csv`:
 
 | Candidate | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |
 |---|---:|---:|---:|---:|---:|
 | `feature_subsample_regularized` | 0.258667 | 0.769216 | 0.171864 | 3.506754 | 0.350698 |
 
 ## Metrics
+
+Frozen v1 LightGBM metrics:
 
 | Split | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |
 |---|---:|---:|---:|---:|---:|
@@ -106,6 +112,20 @@ Validation comparison to logistic regression:
 | Brier score | 0.200474 | 0.171864 | -0.028610 |
 | Top-decile lift | 3.337592 | 3.506754 | +0.169162 |
 | Recall at 10% review capacity | 0.333781 | 0.350698 | +0.016917 |
+
+Post-v1 improvement summary:
+
+| Metric | Frozen v1 | Best post-v1 | Difference |
+|---|---:|---:|---:|
+| Feature count | 68 | 168 | +100 |
+| Validation PR-AUC | 0.258667 | 0.271879 | +0.013212 |
+| Validation ROC-AUC | 0.769216 | 0.780531 | +0.011315 |
+| Validation Brier score | 0.171864 | 0.066419 | -0.105445 |
+| Validation top-decile lift | 3.506754 | 3.651750 | +0.144996 |
+| Validation recall at 10% review capacity | 0.350698 | 0.365199 | +0.014501 |
+| Validation balanced EV / applicant | 570.48 | 580.80 | +10.32 |
+
+The post-v1 values summarize the promoted 168-feature candidate from repeated-seed validation. Held-out test remains a post-selection generalization check and is reported in `reports/experiments/v1_to_post_v1_model_diff.md`.
 
 ## Threshold Policy
 
@@ -168,7 +188,7 @@ SHAP outputs are not adverse-action notices and should not be presented as legal
 - Expected-value assumptions are simplified scenario parameters.
 - Threshold actions are simulated and not policy-approved credit decisions.
 - No production monitoring, drift management, fair-lending review, compliance approval, or model governance is implemented.
-- The frozen v1 model excludes richer monthly history tables; post-v1 experiments now include them, but promotion depends on validation stability.
+- The frozen v1 model excludes richer monthly history tables; post-v1 experiments now include them, including recency and last-k temporal candidates. The active post-v1 candidate is the 168-feature last-k temporal model; cleanup experiments did not justify a smaller promoted surface.
 - Calibration is evaluated with Brier score and calibration bins; no final Platt or isotonic calibration model is fitted in v1.
 
 ## Reproducibility

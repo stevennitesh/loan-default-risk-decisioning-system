@@ -77,6 +77,9 @@ def run_feature_selection_experiment(
     config_path: str | Path = "configs/base.yaml",
     feature_limits: tuple[int, ...] = DEFAULT_FEATURE_LIMITS,
     include_full: bool = True,
+    comparison_name: str = "feature_selection_comparison.csv",
+    selected_features_name: str = SELECTED_FEATURES_NAME,
+    report_name: str = FEATURE_SELECTION_REPORT_NAME,
 ) -> dict[str, Any]:
     config = load_config(config_path)
     duckdb_path = _resolve_project_path(config["paths"]["duckdb_path"])
@@ -133,16 +136,16 @@ def run_feature_selection_experiment(
     report_dir.mkdir(parents=True, exist_ok=True)
     experiments_dir = report_dir / "experiments"
     experiments_dir.mkdir(parents=True, exist_ok=True)
-    comparison_path = report_dir / "feature_selection_comparison.csv"
-    report_path = experiments_dir / FEATURE_SELECTION_REPORT_NAME
-    selected_features_path = experiments_dir / SELECTED_FEATURES_NAME
+    comparison_path = report_dir / comparison_name
+    report_path = experiments_dir / report_name
+    selected_features_path = experiments_dir / selected_features_name
     _write_csv(comparison_path, FEATURE_SELECTION_COMPARISON_COLUMNS, rows)
     _write_csv(
         selected_features_path,
         SELECTED_FEATURE_COLUMNS,
         _selected_feature_rows(selected_feature_set, features_by_set[selected_feature_set]),
     )
-    _write_report(report_path, rows, selected_feature_set)
+    _write_report(report_path, rows, selected_feature_set, selected_features_name)
 
     return {
         "selected_feature_set": selected_feature_set,
@@ -164,6 +167,21 @@ def main() -> None:
         help="Comma-separated top-N feature limits to compare.",
     )
     parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
+    parser.add_argument(
+        "--comparison-name",
+        default="feature_selection_comparison.csv",
+        help="CSV filename for feature-selection comparison rows under the report directory.",
+    )
+    parser.add_argument(
+        "--selected-features-name",
+        default=SELECTED_FEATURES_NAME,
+        help="CSV filename for selected feature rows under reports/experiments.",
+    )
+    parser.add_argument(
+        "--report-name",
+        default=FEATURE_SELECTION_REPORT_NAME,
+        help="Markdown report filename under reports/experiments.",
+    )
     args = parser.parse_args()
     feature_limits = tuple(int(value.strip()) for value in args.feature_limits.split(",") if value.strip())
 
@@ -172,6 +190,9 @@ def main() -> None:
             args.config,
             feature_limits=feature_limits,
             include_full=not args.skip_full,
+            comparison_name=args.comparison_name,
+            selected_features_name=args.selected_features_name,
+            report_name=args.report_name,
         )
     except FeatureSelectionError as error:
         raise SystemExit(str(error)) from error
@@ -510,7 +531,12 @@ def _feature_set_selection_key(row: dict[str, Any]) -> tuple[float, float, float
     )
 
 
-def _write_report(path: Path, rows: list[dict[str, Any]], selected_feature_set: str) -> None:
+def _write_report(
+    path: Path,
+    rows: list[dict[str, Any]],
+    selected_feature_set: str,
+    selected_features_name: str = SELECTED_FEATURES_NAME,
+) -> None:
     table_lines = "\n".join(
         "| {feature_set} | {feature_count} | {selected_calibration_method} | "
         "{validation_pr_auc:.6f} | {validation_brier_score:.6f} | "
@@ -541,7 +567,7 @@ Feature subsets are selected from `reports/model_feature_importance.csv`, mappin
 
 Selected feature set: `{selected_feature_set}` with {selected_row['feature_count']} features and `{selected_row['selected_calibration_method']}` calibration.
 
-Selected raw feature columns are written to `reports/experiments/{SELECTED_FEATURES_NAME}`.
+Selected raw feature columns are written to `reports/experiments/{selected_features_name}`.
 
 ## Interpretation
 

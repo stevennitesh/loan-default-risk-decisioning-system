@@ -80,5 +80,10 @@ Do not promote or demote an experiment because held-out test looks better or wor
 008_narrow_pressure_features.md
 009_recency_deterioration_features.md
 010_recency_model_stability.md
+011_last_k_temporal_features.md
+012_last_k_model_stability.md
+013_feature_cleanup.md
+014_feature_cleanup_stability.md
+v1_to_post_v1_model_diff.md
 post_v1_results_summary.md
 ```

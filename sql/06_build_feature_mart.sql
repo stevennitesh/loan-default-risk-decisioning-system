@@ -96,6 +96,22 @@ SELECT
     recency_deterioration.credit_card_recent_balance_ratio_delta,
     recency_deterioration.credit_card_recent_drawings_ratio_delta,
     recency_deterioration.credit_card_recent_dpd_rate_delta,
+    last_k_temporal.installments_last_3_late_payment_rate,
+    last_k_temporal.installments_last_3_underpayment_rate,
+    last_k_temporal.installments_last_3_avg_payment_delay_days,
+    last_k_temporal.installments_last_3_payment_amount_ratio,
+    last_k_temporal.installments_last_payment_delay_days,
+    last_k_temporal.installments_last_payment_ratio,
+    last_k_temporal.pos_cash_last_3_dpd_rate,
+    last_k_temporal.pos_cash_last_3_dpd_def_rate,
+    last_k_temporal.pos_cash_last_3_future_installment_ratio,
+    last_k_temporal.pos_cash_last_3_dpd_rate_delta,
+    last_k_temporal.pos_cash_last_loan_dpd_rate,
+    last_k_temporal.credit_card_last_3_credit_utilization,
+    last_k_temporal.credit_card_last_3_payment_to_min_ratio,
+    last_k_temporal.credit_card_last_3_drawing_count,
+    last_k_temporal.credit_card_last_3_dpd_rate,
+    last_k_temporal.credit_card_last_3_utilization_delta,
     previous.previous_application_count,
     previous.approved_application_count,
     previous.refused_application_count,
@@ -140,4 +156,7 @@ LEFT JOIN f_risk_pressure_features AS risk_pressure
     AND applicant.source_population = risk_pressure.source_population
 LEFT JOIN f_recency_deterioration_features AS recency_deterioration
     ON applicant.SK_ID_CURR = recency_deterioration.SK_ID_CURR
-    AND applicant.source_population = recency_deterioration.source_population;
+    AND applicant.source_population = recency_deterioration.source_population
+LEFT JOIN f_last_k_temporal_features AS last_k_temporal
+    ON applicant.SK_ID_CURR = last_k_temporal.SK_ID_CURR
+    AND applicant.source_population = last_k_temporal.source_population;

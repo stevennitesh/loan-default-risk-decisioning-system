@@ -4,7 +4,7 @@
 
 ## Overview
 
-This project simulates a financial-services decision-support workflow. It converts public loan-application data into applicant-level risk-ranking scores, evaluates ranking and uncalibrated score behavior on labeled holdout data, assigns applicants to risk-based action bands, writes batch predictions to DuckDB, and visualizes threshold tradeoffs in Power BI.
+This project simulates a financial-services decision-support workflow. It converts public loan-application data into applicant-level risk-ranking scores, evaluates ranking, calibration, and threshold behavior on labeled holdout data, assigns applicants to risk-based action bands, writes batch predictions to DuckDB, and visualizes threshold tradeoffs in Power BI.
 
 The goal is not production underwriting. The goal is to show an applied ML engineering workflow that connects data contracts, feature engineering, model validation, business thresholds, explainability, and dashboard-ready outputs.
 
@@ -81,13 +81,15 @@ Post-v1 Experiment 004 adds a separate sigmoid calibration artifact for the Expe
 
 Batch scoring and dashboard exports keep the original rank score as `score` / `raw_risk_score` and add `calibrated_risk_score` plus `calibration_method`. This preserves the existing threshold-policy audit trail while making calibrated score quality visible downstream.
 
-Post-v1 feature experiments are tracked under `reports/experiments/`. The current fully supported evidence promotes the 152-feature recency-deterioration model as the leading post-v1 ranking/calibration candidate: Experiment 010 improves repeated-seed mean validation PR-AUC, ROC-AUC, calibrated Brier, top-decile lift, precision, recall, and weighted calibration error versus the 140-feature calibrated baseline. The caveat is that mean validation expected value is slightly lower and PR-AUC variance is higher, so the 140-feature calibrated model remains competitive if expected value becomes the dominant objective.
+Post-v1 feature experiments are tracked under `reports/experiments/`. The current fully supported evidence promotes the 168-feature last-k temporal model as the leading post-v1 ranking/calibration/business-value candidate. The concise recruiter-facing version of that trail is documented in `reports/experiments/v1_to_post_v1_model_diff.md`.
+
+The learning loop was deliberate: add richer monthly repayment history, fix calibration honestly, test stability across seeds, explore recency and last-k repayment behavior, then run cleanup to see whether a smaller surface could keep the gains. Smaller SHAP-ranked surfaces did not beat the full 168-feature setup on repeated-seed validation aggregates, so the project stops feature expansion here.
 
 Accuracy is not used as the headline metric because repayment difficulty is an imbalanced outcome.
 
-## Final Model Results
+## Frozen V1 Model Results
 
-Selected model: `lightgbm` (`lightgbm_credit_risk_v1`).
+Selected v1 model: `lightgbm` (`lightgbm_credit_risk_v1`).
 
 | Split | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |
 |---|---:|---:|---:|---:|---:|
@@ -103,6 +105,22 @@ Validation comparison against the logistic regression baseline:
 | Brier score | 0.200474 | 0.171864 | -0.028610 |
 | Top-decile lift | 3.337592 | 3.506754 | +0.169162 |
 | Recall at 10% review capacity | 0.333781 | 0.350698 | +0.016917 |
+
+## Post-v1 Improvement Summary
+
+The best post-v1 candidate is the 168-feature last-k temporal LightGBM setup with sigmoid calibration. It is documented as an experimental portfolio improvement over the frozen v1 baseline, not as production underwriting readiness.
+
+| Metric | Frozen v1 | Best post-v1 | Difference |
+|---|---:|---:|---:|
+| Feature count | 68 | 168 | +100 |
+| Validation PR-AUC | 0.258667 | 0.271879 | +0.013212 |
+| Validation ROC-AUC | 0.769216 | 0.780531 | +0.011315 |
+| Validation Brier score | 0.171864 | 0.066419 | -0.105445 |
+| Validation top-decile lift | 3.506754 | 3.651750 | +0.144996 |
+| Validation recall at 10% review capacity | 0.350698 | 0.365199 | +0.014501 |
+| Validation balanced EV / applicant | 570.48 | 580.80 | +10.32 |
+
+The biggest lesson was not "more features always win." The experiment trail showed that calibration gave the cleanest probability-quality gain, recent repayment behavior was the strongest feature-engineering direction, and cleanup did not justify dropping the final 16 features. Held-out test remains a post-selection generalization check, not the optimization target.
 
 ## Decision Policy
 
@@ -167,6 +185,7 @@ Power BI consumes CSV exports from `reports/dashboard_data/`, which are generate
 | `reports/model_feature_importance.csv` | SHAP global feature importance |
 | `reports/model_card.md` | Intended use, limitations, and validation summary |
 | `reports/experiments/` | Post-v1 experiment reports and comparison log |
+| `reports/experiments/v1_to_post_v1_model_diff.md` | Recruiter-friendly v1 to best post-v1 improvement summary |
 | `reports/dashboard_data/` | Power BI-ready export tables |
 | `powerbi/screenshots/` | Dashboard screenshots |
 
@@ -221,4 +240,4 @@ The target is a proxy for observed repayment difficulty, not a complete loss/def
 
 Direct demographic and protected-status-like fields are excluded from v1 model features. If age, gender, marital status, or family-status-like fields are inspected, they are retained only in a separate diagnostic layer for limitation checks, not model training or deployment approval.
 
-Post-v1 experiments have added richer monthly history tables such as `bureau_balance`, `POS_CASH_balance`, and `credit_card_balance`, plus recency feature candidates. Promotion still depends on validation stability, and deeper monitoring remains future work outside the v1 scope.
+Post-v1 experiments have added richer monthly history tables such as `bureau_balance`, `POS_CASH_balance`, and `credit_card_balance`, plus recency and last-k temporal feature candidates. Cleanup experiments did not justify a smaller promoted surface, so the active post-v1 candidate remains the 168-feature last-k temporal model. Deeper monitoring remains future work outside the v1 scope.

@@ -39,6 +39,7 @@ FEATURE_SQL_FILES = [
     "sql/05_feature_installments.sql",
     "sql/05b_feature_risk_pressure.sql",
     "sql/05c_feature_recency_deterioration.sql",
+    "sql/05d_feature_last_k_temporal.sql",
     "sql/06_build_feature_mart.sql",
 ]
 
@@ -53,6 +54,7 @@ PROFILE_TABLES = [
     "f_installments_agg",
     "f_risk_pressure_features",
     "f_recency_deterioration_features",
+    "f_last_k_temporal_features",
     "mart_credit_risk_features",
 ]
 

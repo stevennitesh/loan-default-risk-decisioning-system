@@ -81,6 +81,39 @@ def test_feature_selection_experiment_writes_comparison_and_report(
         assert float(row["validation_balanced_ev_per_applicant"]) != 0
 
 
+def test_feature_selection_experiment_can_write_named_outputs(
+    scratch_path: Path,
+    project_config_path: Path,
+) -> None:
+    database_path = scratch_path / "db" / "credit_risk.duckdb"
+    create_training_database(database_path, train_rows=80, test_rows=12)
+    training_result = run_training(project_config_path)
+    report_dir = scratch_path / "reports"
+    _write_feature_importance(
+        report_dir / "model_feature_importance.csv",
+        training_result["feature_columns"],
+    )
+
+    result = run_feature_selection_experiment(
+        project_config_path,
+        feature_limits=(3,),
+        include_full=True,
+        comparison_name="013_feature_cleanup_comparison.csv",
+        selected_features_name="013_selected_features.csv",
+        report_name="013_feature_cleanup.md",
+    )
+
+    assert result["comparison_path"] == report_dir / "013_feature_cleanup_comparison.csv"
+    assert result["selected_features_path"] == report_dir / "experiments" / "013_selected_features.csv"
+    assert result["report_path"] == report_dir / "experiments" / "013_feature_cleanup.md"
+    assert result["comparison_path"].exists()
+    assert result["selected_features_path"].exists()
+    assert result["report_path"].exists()
+    report_text = result["report_path"].read_text(encoding="utf-8")
+    assert "reports/experiments/013_selected_features.csv" in report_text
+    assert not (report_dir / "experiments" / "005_feature_selection.md").exists()
+
+
 def _write_feature_importance(path: Path, feature_columns: list[str]) -> None:
     with path.open("w", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(
