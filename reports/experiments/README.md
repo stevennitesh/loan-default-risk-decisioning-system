@@ -65,7 +65,7 @@ Do not optimize on accuracy. Accuracy is not a useful headline metric for this i
 
 Model and threshold choices must be made using training/validation data only. Held-out test metrics are for final reporting after the experiment choice is fixed.
 
-If a change improves validation but degrades held-out test behavior, record the gap rather than hiding it.
+Do not promote or demote an experiment because held-out test looks better or worse than the validation-selected choice. If held-out test diverges materially from validation, record the gap as a stability/generalization signal and improve the model-generation method in a follow-up experiment.
 
 ## Suggested File Naming
 
@@ -73,6 +73,6 @@ If a change improves validation but degrades held-out test behavior, record the 
 001_bureau_balance_features.md
 002_pos_cash_features.md
 003_credit_card_features.md
-004_all_monthly_features.md
-005_calibration_comparison.md
+004_calibration_experiment.md
+005_feature_selection.md
 ```
