@@ -85,8 +85,10 @@ Adding credit-card monthly balance, utilization, drawing, repayment, and delinqu
 
 ## Conclusion
 
-Improved with a calibration tradeoff. Credit-card features improve the ranking and business-value story against both frozen v1 and Experiment 002: validation/test PR-AUC, ROC-AUC, top-decile lift, precision, recall at review capacity, expected value, and high-risk default capture all increase. The drawback is worse Brier score, so this is a stronger ranking model but not a better-calibrated probability model. If this feature set becomes the preferred post-v1 direction, a calibration-focused experiment should follow before presenting probability quality as improved.
+Improved with a calibration tradeoff. Credit-card features improve the ranking and business-value story against both frozen v1 and Experiment 002: validation/test PR-AUC, ROC-AUC, top-decile lift, precision, recall at review capacity, expected value, and high-risk default capture all increase. The drawback is worse Brier score, so this is a stronger ranking model but not a better-calibrated probability model on its own.
+
+Follow-up: Experiment 004 directly addressed this drawback. Sigmoid calibration reduced held-out test Brier score from 0.174848 to 0.066550 and weighted calibration-bin error from 0.295293 to 0.002823 while preserving the Experiment 003 ranking metrics.
 
 ## Next Action
 
-Run a calibration comparison on the current best feature set, or first run `004_all_monthly_features` only if we want to test whether adding the remaining monthly table changes ranking enough to justify the extra complexity.
+Use Experiment 004 as the calibration follow-up for this feature set, then decide whether to integrate calibrated scores into downstream scoring/dashboard exports or keep them as a documented post-v1 artifact.

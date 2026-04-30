@@ -71,7 +71,14 @@ LightGBM tuning is bounded and validation-only. Candidate selection uses a non-d
 
 No Platt/sigmoid or isotonic calibration layer is fitted in v1. Brier score and calibration bins are reported to evaluate score quality, but they do not make the raw LightGBM scores calibrated probabilities.
 
-Post-v1 Experiment 004 fits a separate sigmoid calibration layer on the validation split for the Experiment 003 LightGBM model. It is documented as an experiment artifact, not as a v1 production probability-of-default model.
+Post-v1 Experiment 004 fits a separate sigmoid calibration layer on the validation split for the Experiment 003 LightGBM model. This materially improves probability-quality metrics while preserving rank metrics, and it is documented as an experiment artifact rather than a v1 production probability-of-default model.
+
+| Post-v1 calibration result | Uncalibrated | Sigmoid calibrated | Difference |
+|---|---:|---:|---:|
+| Validation Brier score | 0.175712 | 0.066535 | -0.109176 |
+| Held-out test Brier score | 0.174848 | 0.066550 | -0.108298 |
+| Validation weighted bin error | 0.296805 | 0.002704 | -0.294101 |
+| Held-out test weighted bin error | 0.295293 | 0.002823 | -0.292470 |
 
 Selected candidate from `reports/lightgbm_tuning_summary.csv`:
 

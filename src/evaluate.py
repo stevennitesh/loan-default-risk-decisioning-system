@@ -523,6 +523,7 @@ def _write_validation_report(
         f"expected_value_per_applicant={row['expected_value_per_applicant']:.2f}"
         for row in balanced_rows
     )
+    calibration_experiment_section = _build_post_v1_calibration_section(path.parent)
     text = f"""# Validation Report
 
 ## Executive Summary
@@ -542,6 +543,8 @@ Kaggle application_test rows are not used for evaluation metrics. The test resul
 ## Calibration Analysis
 
 Calibration is evaluated with Brier score and calibration bins. No calibration layer is fitted by the Milestone 6 evaluation path; post-v1 calibration experiments are reported separately.
+
+{calibration_experiment_section}
 
 ## Lift and Decile Analysis
 
@@ -576,6 +579,39 @@ This is a portfolio decision-support simulation, not a production credit-decisio
     path.write_text(text, encoding="utf-8")
 
 
+def _build_post_v1_calibration_section(report_dir: Path) -> str:
+    comparison_path = report_dir / "model_calibration_comparison.csv"
+    if not comparison_path.exists():
+        return ""
+
+    with comparison_path.open(newline="", encoding="utf-8") as csv_file:
+        rows = list(csv.DictReader(csv_file))
+
+    row_lookup = {
+        (row["calibration_method"], row["split"]): row
+        for row in rows
+    }
+    required_keys = [
+        ("uncalibrated", "validation"),
+        ("uncalibrated", "test"),
+        ("sigmoid", "validation"),
+        ("sigmoid", "test"),
+    ]
+    if any(key not in row_lookup for key in required_keys):
+        return ""
+
+    validation_uncalibrated = row_lookup[("uncalibrated", "validation")]
+    validation_sigmoid = row_lookup[("sigmoid", "validation")]
+    test_uncalibrated = row_lookup[("uncalibrated", "test")]
+    test_sigmoid = row_lookup[("sigmoid", "test")]
+    return f"""Post-v1 Experiment 004 adds a separate sigmoid calibration layer for the Experiment 003 LightGBM model. This is a large improvement in probability quality: held-out test Brier score improves from {float(test_uncalibrated['brier_score']):.6f} to {float(test_sigmoid['brier_score']):.6f}, and held-out test weighted calibration-bin error improves from {float(test_uncalibrated['weighted_calibration_error']):.6f} to {float(test_sigmoid['weighted_calibration_error']):.6f}. PR-AUC, ROC-AUC, top-decile lift, precision at top decile, recall at review capacity, and expected value are unchanged because sigmoid calibration is monotonic.
+
+| Split | Uncalibrated Brier | Sigmoid Brier | Uncalibrated weighted bin error | Sigmoid weighted bin error |
+|---|---:|---:|---:|---:|
+| validation | {float(validation_uncalibrated['brier_score']):.6f} | {float(validation_sigmoid['brier_score']):.6f} | {float(validation_uncalibrated['weighted_calibration_error']):.6f} | {float(validation_sigmoid['weighted_calibration_error']):.6f} |
+| test | {float(test_uncalibrated['brier_score']):.6f} | {float(test_sigmoid['brier_score']):.6f} | {float(test_uncalibrated['weighted_calibration_error']):.6f} | {float(test_sigmoid['weighted_calibration_error']):.6f} |"""
+
+
 def _write_business_value_report(
     path: Path,
     selected_model_type: str,
@@ -594,6 +630,7 @@ def _write_business_value_report(
         "{expected_value_per_applicant:.2f} |".format(**row)
         for row in rows
     )
+    calibration_note = _build_business_value_calibration_note(path.parent)
     text = f"""# Business Value Analysis
 
 Selected model: `{selected_model_type}` (`{selected_model_version}`).
@@ -622,8 +659,32 @@ The expected-value formula is:
 `approved_good_count * expected_margin_per_good_loan - approved_bad_count * expected_loss_per_bad_loan - manual_review_count * manual_review_cost`.
 
 High-risk applicants contribute no approved-loan margin or loss in this simulation.
+
+{calibration_note}
 """
     path.write_text(text, encoding="utf-8")
+
+
+def _build_business_value_calibration_note(report_dir: Path) -> str:
+    comparison_path = report_dir / "model_calibration_comparison.csv"
+    if not comparison_path.exists():
+        return ""
+
+    with comparison_path.open(newline="", encoding="utf-8") as csv_file:
+        rows = list(csv.DictReader(csv_file))
+
+    row_lookup = {
+        (row["calibration_method"], row["split"]): row
+        for row in rows
+    }
+    if ("uncalibrated", "test") not in row_lookup or ("sigmoid", "test") not in row_lookup:
+        return ""
+
+    test_uncalibrated = row_lookup[("uncalibrated", "test")]
+    test_sigmoid = row_lookup[("sigmoid", "test")]
+    return f"""## Calibration Note
+
+Post-v1 Experiment 004 materially improves probability quality with a separate sigmoid calibration layer. Because the current threshold and expected-value workflow is rank-based, sigmoid calibration does not change the action ordering, scenario thresholds, or expected-value metrics shown above. It does improve the interpretability of the model score scale: held-out test Brier score improves from {float(test_uncalibrated['brier_score']):.6f} to {float(test_sigmoid['brier_score']):.6f}, and held-out test weighted calibration-bin error improves from {float(test_uncalibrated['weighted_calibration_error']):.6f} to {float(test_sigmoid['weighted_calibration_error']):.6f}."""
 
 
 def _write_figures(
