@@ -71,6 +71,8 @@ LightGBM tuning is bounded and validation-only. Candidate selection uses a non-d
 
 No Platt/sigmoid or isotonic calibration layer is fitted in v1. Brier score and calibration bins are reported to evaluate score quality, but they do not make the raw LightGBM scores calibrated probabilities.
 
+Post-v1 Experiment 004 fits a separate sigmoid calibration layer on the validation split for the Experiment 003 LightGBM model. It is documented as an experiment artifact, not as a v1 production probability-of-default model.
+
 Selected candidate from `reports/lightgbm_tuning_summary.csv`:
 
 | Candidate | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |

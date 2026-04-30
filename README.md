@@ -70,6 +70,8 @@ The project trains a logistic regression baseline and a tuned LightGBM primary m
 
 v1 scores are not fitted calibrated default probabilities. The project evaluates probability quality with Brier score and calibration bins, but no Platt/sigmoid or isotonic calibration layer is fitted in v1. Treat score thresholds as validation-derived ranking cutoffs, not as literal default-probability policy thresholds.
 
+Post-v1 Experiment 004 adds a separate sigmoid calibration artifact for the Experiment 003 LightGBM model. It improves held-out test Brier score from `0.174848` to `0.066550` and weighted calibration-bin error from `0.295293` to `0.002823` without changing rank metrics.
+
 Accuracy is not used as the headline metric because repayment difficulty is an imbalanced outcome.
 
 ## Final Model Results

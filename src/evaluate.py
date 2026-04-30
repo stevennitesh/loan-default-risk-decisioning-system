@@ -541,7 +541,7 @@ Kaggle application_test rows are not used for evaluation metrics. The test resul
 
 ## Calibration Analysis
 
-Calibration is evaluated with Brier score and calibration bins. No Platt or isotonic calibration model is fitted in Milestone 6.
+Calibration is evaluated with Brier score and calibration bins. No calibration layer is fitted by the Milestone 6 evaluation path; post-v1 calibration experiments are reported separately.
 
 ## Lift and Decile Analysis
 
