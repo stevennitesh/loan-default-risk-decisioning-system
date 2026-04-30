@@ -85,6 +85,12 @@ def test_run_dashboard_export_creates_power_bi_csv_bundle_and_segment_table(
         assert export_path.exists()
         rows = read_csv_rows(export_path, expected_columns)
         assert len(rows) == result["row_counts"][table_name]
+        if table_name == "credit_risk_scores":
+            assert all(row["raw_risk_score"] != "" for row in rows)
+            assert all(row["calibrated_risk_score"] != "" for row in rows)
+            assert {row["calibration_method"] for row in rows} == {"uncalibrated"}
+            assert all(0 <= float(row["raw_risk_score"]) <= 1 for row in rows)
+            assert all(0 <= float(row["calibrated_risk_score"]) <= 1 for row in rows)
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
         table_names = {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
@@ -255,6 +261,9 @@ def _score_rows(
                 "scoring_population": scoring_population,
                 "observed_target": None if pd.isna(record["TARGET"]) else int(record["TARGET"]),
                 "score": score,
+                "raw_risk_score": score,
+                "calibrated_risk_score": score,
+                "calibration_method": "uncalibrated",
                 "score_decile": max(1, min(10, int(np.ceil((index + 1) * 10 / len(frame))))),
                 "risk_band": "high_risk" if score >= 0.7 else "medium_risk" if score >= 0.3 else "low_risk",
                 "recommended_action": "high_priority_review"

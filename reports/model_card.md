@@ -80,6 +80,8 @@ Post-v1 Experiment 004 fits a separate sigmoid calibration layer on the validati
 | Validation weighted bin error | 0.296805 | 0.002704 | -0.294101 |
 | Held-out test weighted bin error | 0.295293 | 0.002823 | -0.292470 |
 
+Batch scoring and dashboard exports now retain both `raw_risk_score` and `calibrated_risk_score`, with `calibration_method` documenting the applied sigmoid layer. The original `score` column remains the rank-policy score used by the current threshold workflow.
+
 Selected candidate from `reports/lightgbm_tuning_summary.csv`:
 
 | Candidate | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |

@@ -10,6 +10,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from src.calibrate import CALIBRATION_ARTIFACT_NAME
 from src.config import load_config
 from src.thresholding import assign_risk_bands
 from src.train import BASELINE_MODEL_ARTIFACT_NAME
@@ -27,6 +28,9 @@ CREDIT_RISK_SCORE_COLUMNS = [
     "scoring_population",
     "observed_target",
     "score",
+    "raw_risk_score",
+    "calibrated_risk_score",
+    "calibration_method",
     "score_decile",
     "risk_band",
     "recommended_action",
@@ -66,6 +70,7 @@ def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
     with duckdb.connect(str(duckdb_path)) as connection:
         selected_model_type = _load_selected_model_type(connection)
         artifact = _load_selected_artifact(model_dir, selected_model_type)
+        calibration_artifact = _load_calibration_artifact(model_dir, artifact)
         feature_columns = list(artifact["feature_columns"])
         split_applicant_ids = _normalize_split_ids(artifact)
         threshold_policy = _load_balanced_threshold_policy(connection, str(artifact["model_version"]))
@@ -83,6 +88,7 @@ def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
                 feature_columns,
                 "holdout_test",
                 threshold_policy,
+                calibration_artifact,
                 scored_at,
             ),
             *_score_population(
@@ -91,6 +97,7 @@ def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
                 feature_columns,
                 "kaggle_test",
                 threshold_policy,
+                calibration_artifact,
                 scored_at,
             ),
         ]
@@ -102,6 +109,7 @@ def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
         "scoring_populations": sorted({row["scoring_population"] for row in score_rows}),
         "model_version": artifact["model_version"],
         "threshold_version": threshold_policy["threshold_version"],
+        "calibration_method": calibration_artifact["selected_method"],
     }
 
 
@@ -164,6 +172,33 @@ def _load_selected_artifact(model_dir: Path, selected_model_type: str) -> dict[s
     if not artifact["feature_columns"]:
         raise ScoringError("Selected model artifact does not contain feature_columns")
     return artifact
+
+
+def _load_calibration_artifact(model_dir: Path, selected_artifact: dict[str, Any]) -> dict[str, Any]:
+    artifact_path = model_dir / CALIBRATION_ARTIFACT_NAME
+    if selected_artifact["model_type"] != LIGHTGBM_MODEL_TYPE or not artifact_path.exists():
+        return {"selected_method": "uncalibrated", "calibrators": {}}
+
+    calibration_artifact = joblib.load(artifact_path)
+    if not isinstance(calibration_artifact, dict):
+        raise ScoringError(f"Calibration artifact must be a dict: {artifact_path}")
+    required_keys = {"base_model_version", "selected_method", "calibrators"}
+    missing_keys = sorted(required_keys.difference(calibration_artifact))
+    if missing_keys:
+        raise ScoringError(f"Calibration artifact is missing required keys: {missing_keys}")
+    if calibration_artifact["base_model_version"] != selected_artifact["model_version"]:
+        raise ScoringError(
+            "Calibration artifact base_model_version does not match selected model_version: "
+            f"{calibration_artifact['base_model_version']} != {selected_artifact['model_version']}"
+        )
+
+    selected_method = str(calibration_artifact["selected_method"])
+    if selected_method not in {"uncalibrated", "sigmoid", "isotonic"}:
+        raise ScoringError(f"Unsupported calibration method: {selected_method}")
+    calibrators = calibration_artifact["calibrators"]
+    if selected_method != "uncalibrated" and selected_method not in calibrators:
+        raise ScoringError(f"Calibration artifact does not contain selected calibrator: {selected_method}")
+    return calibration_artifact
 
 
 def _normalize_split_ids(artifact: dict[str, Any]) -> dict[str, list[int]]:
@@ -267,16 +302,21 @@ def _score_population(
     feature_columns: list[str],
     scoring_population: str,
     threshold_policy: dict[str, Any],
+    calibration_artifact: dict[str, Any],
     scored_at: datetime,
 ) -> list[dict[str, Any]]:
-    probabilities = artifact["pipeline"].predict_proba(_feature_frame(frame, feature_columns))[:, 1]
-    _validate_scores(probabilities, scoring_population)
-    risk_actions = assign_risk_bands(probabilities, threshold_policy)
+    raw_probabilities = artifact["pipeline"].predict_proba(_feature_frame(frame, feature_columns))[:, 1]
+    _validate_scores(raw_probabilities, scoring_population)
+    calibrated_probabilities = _calibrated_probabilities(raw_probabilities, calibration_artifact)
+    _validate_scores(calibrated_probabilities, f"{scoring_population} calibrated")
+    risk_actions = assign_risk_bands(raw_probabilities, threshold_policy)
     ranked_frame = pd.DataFrame(
         {
             "applicant_id": frame["SK_ID_CURR"].astype(int),
             "observed_target": frame["TARGET"],
-            "score": probabilities.astype(float),
+            "score": raw_probabilities.astype(float),
+            "raw_risk_score": raw_probabilities.astype(float),
+            "calibrated_risk_score": calibrated_probabilities.astype(float),
             "risk_action": risk_actions,
         }
     )
@@ -294,6 +334,9 @@ def _score_population(
                 if pd.isna(observed_target)
                 else int(observed_target),
                 "score": float(record["score"]),
+                "raw_risk_score": float(record["raw_risk_score"]),
+                "calibrated_risk_score": float(record["calibrated_risk_score"]),
+                "calibration_method": calibration_artifact["selected_method"],
                 "score_decile": int(record["score_decile"]),
                 "risk_band": risk_band,
                 "recommended_action": recommended_action,
@@ -306,6 +349,27 @@ def _score_population(
             }
         )
     return rows
+
+
+def _calibrated_probabilities(
+    raw_probabilities: np.ndarray,
+    calibration_artifact: dict[str, Any],
+) -> np.ndarray:
+    method = str(calibration_artifact["selected_method"])
+    if method == "uncalibrated":
+        return raw_probabilities.astype(float)
+    if method == "sigmoid":
+        return calibration_artifact["calibrators"]["sigmoid"].predict_proba(
+            _logit_features(raw_probabilities),
+        )[:, 1]
+    if method == "isotonic":
+        return calibration_artifact["calibrators"]["isotonic"].predict(raw_probabilities)
+    raise ScoringError(f"Unsupported calibration method: {method}")
+
+
+def _logit_features(probabilities: np.ndarray) -> np.ndarray:
+    clipped = np.clip(probabilities.astype(float), 1e-6, 1 - 1e-6)
+    return np.log(clipped / (1 - clipped)).reshape(-1, 1)
 
 
 def _score_deciles(frame: pd.DataFrame) -> pd.Series:
@@ -331,6 +395,9 @@ def _validate_output_rows(rows: list[dict[str, Any]]) -> None:
         raise ScoringError(f"Duplicate credit_risk_scores output keys: {duplicate_count}")
     if frame["risk_band"].isna().any() or frame["recommended_action"].isna().any():
         raise ScoringError("Every scored row must have risk_band and recommended_action")
+    score_columns = ["score", "raw_risk_score", "calibrated_risk_score"]
+    if frame[score_columns].isna().any().any():
+        raise ScoringError("Every scored row must have raw and calibrated score values")
 
 
 def _validate_scores(probabilities: np.ndarray, scoring_population: str) -> None:

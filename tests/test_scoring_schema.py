@@ -6,6 +6,7 @@ import duckdb
 import joblib
 import pytest
 
+from src.calibrate import run_calibration_experiment
 from src.evaluate import run_evaluation
 from src.score_batch import CREDIT_RISK_SCORE_COLUMNS
 from src.score_batch import ScoringError
@@ -80,6 +81,7 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
     create_training_database(database_path, train_rows=80, test_rows=12)
     run_training(project_config_path)
     run_evaluation(project_config_path)
+    calibration_result = run_calibration_experiment(project_config_path)
 
     result = run_scoring(project_config_path)
 
@@ -144,8 +146,41 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
             "SELECT MIN(score), MAX(score) FROM credit_risk_scores"
         ).fetchone()
         assert 0 <= min_score <= max_score <= 1
+        raw_min, raw_max, calibrated_min, calibrated_max = connection.execute(
+            """
+            SELECT
+                MIN(raw_risk_score),
+                MAX(raw_risk_score),
+                MIN(calibrated_risk_score),
+                MAX(calibrated_risk_score)
+            FROM credit_risk_scores
+            """
+        ).fetchone()
+        assert 0 <= raw_min <= raw_max <= 1
+        assert 0 <= calibrated_min <= calibrated_max <= 1
         assert connection.execute(
             "SELECT COUNT(*) FROM credit_risk_scores WHERE score < 0 OR score > 1"
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM credit_risk_scores
+            WHERE raw_risk_score < 0
+               OR raw_risk_score > 1
+               OR calibrated_risk_score < 0
+               OR calibrated_risk_score > 1
+            """
+        ).fetchone()[0] == 0
+        assert {
+            row[0]
+            for row in connection.execute("SELECT DISTINCT calibration_method FROM credit_risk_scores").fetchall()
+        } == {calibration_result["selected_method"]}
+        assert connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM credit_risk_scores
+            WHERE ABS(score - raw_risk_score) > 1e-12
+            """
         ).fetchone()[0] == 0
         assert {
             row[0]

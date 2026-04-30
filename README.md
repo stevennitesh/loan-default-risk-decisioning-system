@@ -79,6 +79,8 @@ Post-v1 Experiment 004 adds a separate sigmoid calibration artifact for the Expe
 | Validation weighted bin error | 0.296805 | 0.002704 | -0.294101 |
 | Test weighted bin error | 0.295293 | 0.002823 | -0.292470 |
 
+Batch scoring and dashboard exports keep the original rank score as `score` / `raw_risk_score` and add `calibrated_risk_score` plus `calibration_method`. This preserves the existing threshold-policy audit trail while making calibrated score quality visible downstream.
+
 Accuracy is not used as the headline metric because repayment difficulty is an imbalanced outcome.
 
 ## Final Model Results

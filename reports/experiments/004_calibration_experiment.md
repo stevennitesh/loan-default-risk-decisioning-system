@@ -73,6 +73,10 @@ Isotonic has the best validation Brier and bin error, but its gain over sigmoid 
 
 Improved calibration with no ranking loss. The selected sigmoid calibration layer fixes the main Experiment 003 drawback: probability quality. The post-v1 model story is now stronger if presented as a ranked risk model with a separately validated calibration layer, not as a production underwriting model.
 
+## Integration Status
+
+The calibrated score is now available in batch scoring and dashboard exports as `calibrated_risk_score`, alongside `score` / `raw_risk_score` and `calibration_method`. The current threshold workflow still uses the raw rank score, preserving the existing action-policy audit trail while exposing calibrated score quality for reporting.
+
 ## Next Action
 
-Decide whether to integrate the selected sigmoid-calibrated scores into downstream scoring/dashboard exports, or keep calibration as a documented post-v1 experiment artifact while moving to feature-selection and simplification.
+Run feature-selection and simplification experiments to see whether the 140-feature post-v1 model can keep most of the ranking and calibration gains with a cleaner feature set.
