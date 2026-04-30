@@ -65,11 +65,17 @@ REQUIRED_TABLES = [
     TableContract("stg_application_train", "staging", ("SK_ID_CURR",)),
     TableContract("stg_application_test", "staging", ("SK_ID_CURR",)),
     TableContract("stg_bureau", "staging", ("SK_ID_BUREAU",)),
+    TableContract("stg_bureau_balance", "staging", ("SK_ID_BUREAU", "MONTHS_BALANCE")),
+    TableContract("stg_pos_cash_balance", "staging", ("SK_ID_PREV", "MONTHS_BALANCE")),
+    TableContract("stg_credit_card_balance", "staging", ("SK_ID_PREV", "MONTHS_BALANCE")),
     TableContract("stg_previous_application", "staging", ("SK_ID_PREV",)),
     TableContract("stg_installments_payments", "staging", ("SK_ID_CURR",)),
     TableContract("f_applicant_static", "feature", ("SK_ID_CURR", "source_population")),
     TableContract(DIAGNOSTIC_TABLE, "diagnostic", ("SK_ID_CURR", "source_population")),
     TableContract("f_bureau_agg", "feature", ("SK_ID_CURR",)),
+    TableContract("f_bureau_balance_agg", "feature", ("SK_ID_CURR",)),
+    TableContract("f_pos_cash_agg", "feature", ("SK_ID_CURR",)),
+    TableContract("f_credit_card_agg", "feature", ("SK_ID_CURR",)),
     TableContract("f_previous_application_agg", "feature", ("SK_ID_CURR",)),
     TableContract("f_installments_agg", "feature", ("SK_ID_CURR",)),
     TableContract(MART_TABLE, "mart", ("SK_ID_CURR", "source_population")),
@@ -79,6 +85,9 @@ FEATURE_INVENTORY_TABLES = [
     "f_applicant_static",
     DIAGNOSTIC_TABLE,
     "f_bureau_agg",
+    "f_bureau_balance_agg",
+    "f_pos_cash_agg",
+    "f_credit_card_agg",
     "f_previous_application_agg",
     "f_installments_agg",
     MART_TABLE,
@@ -86,6 +95,9 @@ FEATURE_INVENTORY_TABLES = [
 
 AGGREGATE_TABLES = [
     "f_bureau_agg",
+    "f_bureau_balance_agg",
+    "f_pos_cash_agg",
+    "f_credit_card_agg",
     "f_previous_application_agg",
     "f_installments_agg",
 ]
@@ -145,9 +157,10 @@ def build_data_inventory(
                     connection,
                     f"SELECT COUNT(*) FROM {_sql_identifier(table.table_name)}",
                 ),
-                "distinct_applicant_count": _fetch_count(
+                "distinct_applicant_count": _distinct_applicant_count(
                     connection,
-                    f"SELECT COUNT(DISTINCT SK_ID_CURR) FROM {_sql_identifier(table.table_name)}",
+                    table.table_name,
+                    columns,
                 ),
                 "duplicate_grain_key_count": _duplicate_key_count(
                     connection,
@@ -165,6 +178,19 @@ def build_data_inventory(
             }
         )
     return rows
+
+
+def _distinct_applicant_count(
+    connection: duckdb.DuckDBPyConnection,
+    table_name: str,
+    columns: dict[str, str],
+) -> int | None:
+    if "SK_ID_CURR" not in columns:
+        return None
+    return _fetch_count(
+        connection,
+        f"SELECT COUNT(DISTINCT SK_ID_CURR) FROM {_sql_identifier(table_name)}",
+    )
 
 
 def build_feature_inventory(

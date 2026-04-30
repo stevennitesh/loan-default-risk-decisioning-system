@@ -18,6 +18,9 @@ STAGING_TABLES = {
     "application_train": "stg_application_train",
     "application_test": "stg_application_test",
     "bureau": "stg_bureau",
+    "bureau_balance": "stg_bureau_balance",
+    "pos_cash_balance": "stg_pos_cash_balance",
+    "credit_card_balance": "stg_credit_card_balance",
     "previous_application": "stg_previous_application",
     "installments_payments": "stg_installments_payments",
 }

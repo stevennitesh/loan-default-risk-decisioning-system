@@ -21,6 +21,9 @@ REQUIRED_SOURCE_FILES = {
     "application_train",
     "application_test",
     "bureau",
+    "bureau_balance",
+    "pos_cash_balance",
+    "credit_card_balance",
     "previous_application",
     "installments_payments",
 }

@@ -4,7 +4,7 @@
 
 ## Overview
 
-This project simulates a financial-services decision-support workflow. It converts public loan-application data into applicant-level risk scores, evaluates ranking and calibration behavior on labeled holdout data, assigns applicants to risk-based action bands, writes batch predictions to DuckDB, and visualizes threshold tradeoffs in Power BI.
+This project simulates a financial-services decision-support workflow. It converts public loan-application data into applicant-level risk-ranking scores, evaluates ranking and uncalibrated score behavior on labeled holdout data, assigns applicants to risk-based action bands, writes batch predictions to DuckDB, and visualizes threshold tradeoffs in Power BI.
 
 The goal is not production underwriting. The goal is to show an applied ML engineering workflow that connects data contracts, feature engineering, model validation, business thresholds, explainability, and dashboard-ready outputs.
 
@@ -68,6 +68,8 @@ Kaggle `application_test` rows are scored for production-like demonstration only
 
 The project trains a logistic regression baseline and a tuned LightGBM primary model. The LightGBM search is intentionally bounded: it compares a small set of prior-informed candidates using validation-only selection, with PR-AUC as the main ranking metric and lift, recall-at-review-capacity, ROC-AUC, Brier score, and non-degenerate score distribution as guardrails.
 
+v1 scores are not fitted calibrated default probabilities. The project evaluates probability quality with Brier score and calibration bins, but no Platt/sigmoid or isotonic calibration layer is fitted in v1. Treat score thresholds as validation-derived ranking cutoffs, not as literal default-probability policy thresholds.
+
 Accuracy is not used as the headline metric because repayment difficulty is an imbalanced outcome.
 
 ## Final Model Results
@@ -100,6 +102,8 @@ Model scores are converted into simulated business actions:
 | `>= T_high` | High risk | Decline or high-priority review |
 
 Thresholds are selected using validation-set scores and explicit business assumptions. The selected balanced scenario uses:
+
+These thresholds are score cutoffs from the selected uncalibrated model. They are useful for comparing rank-based action policies in this portfolio simulation, but they should not be read as calibrated probability-of-default cutoffs.
 
 | Scenario | `T_low` | `T_high` | Test approval rate | Test review rate | Test high-risk rate | Test EV / applicant |
 |---|---:|---:|---:|---:|---:|---:|

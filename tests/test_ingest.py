@@ -15,6 +15,9 @@ SOURCE_FILES = {
     "application_train": "application_train.csv",
     "application_test": "application_test.csv",
     "bureau": "bureau.csv",
+    "bureau_balance": "bureau_balance.csv",
+    "pos_cash_balance": "POS_CASH_balance.csv",
+    "credit_card_balance": "credit_card_balance.csv",
     "previous_application": "previous_application.csv",
     "installments_payments": "installments_payments.csv",
 }
@@ -23,6 +26,9 @@ EXPECTED_STAGING_TABLES = {
     "application_train": "stg_application_train",
     "application_test": "stg_application_test",
     "bureau": "stg_bureau",
+    "bureau_balance": "stg_bureau_balance",
+    "pos_cash_balance": "stg_pos_cash_balance",
+    "credit_card_balance": "stg_credit_card_balance",
     "previous_application": "stg_previous_application",
     "installments_payments": "stg_installments_payments",
 }
@@ -80,7 +86,7 @@ def write_config(tmp_path: Path) -> Path:
             "primary_model": "lightgbm",
             "baseline_model": "logistic_regression",
             "use_class_weighting": True,
-            "calibrate_probabilities": True,
+            "calibrate_probabilities": False,
         },
         "excluded_features": {
             "identifiers": ["SK_ID_CURR", "SK_ID_PREV", "SK_ID_BUREAU"],
@@ -132,6 +138,31 @@ def write_required_csvs(raw_dir: Path) -> None:
             "100001,500001,Active\n"
             "100001,500002,Closed\n"
             "200001,500003,Active\n"
+        ),
+        "bureau_balance.csv": (
+            "SK_ID_BUREAU,MONTHS_BALANCE,STATUS\n"
+            "500001,0,0\n"
+            "500001,-1,1\n"
+            "500002,-2,C\n"
+            "500003,-3,X\n"
+        ),
+        "POS_CASH_balance.csv": (
+            "SK_ID_PREV,SK_ID_CURR,MONTHS_BALANCE,CNT_INSTALMENT,CNT_INSTALMENT_FUTURE,"
+            "NAME_CONTRACT_STATUS,SK_DPD,SK_DPD_DEF\n"
+            "700001,100001,0,12,10,Active,0,0\n"
+            "700001,100001,-1,12,9,Active,3,1\n"
+            "700002,100002,-2,6,4,Demand,7,2\n"
+            "700003,200001,-3,10,8,Completed,0,0\n"
+        ),
+        "credit_card_balance.csv": (
+            "SK_ID_PREV,SK_ID_CURR,MONTHS_BALANCE,AMT_BALANCE,AMT_CREDIT_LIMIT_ACTUAL,"
+            "AMT_DRAWINGS_CURRENT,AMT_INST_MIN_REGULARITY,AMT_PAYMENT_CURRENT,"
+            "AMT_PAYMENT_TOTAL_CURRENT,AMT_TOTAL_RECEIVABLE,CNT_DRAWINGS_CURRENT,"
+            "NAME_CONTRACT_STATUS,SK_DPD,SK_DPD_DEF\n"
+            "800001,100001,0,100,1000,50,20,25,25,100,1,Active,0,0\n"
+            "800001,100001,-1,500,1000,100,50,25,25,500,2,Active,5,2\n"
+            "800002,100002,-2,300,1500,0,30,10,10,300,0,Demand,4,1\n"
+            "800003,200001,-3,200,2000,40,10,20,20,200,1,Completed,0,0\n"
         ),
         "previous_application.csv": (
             "SK_ID_CURR,SK_ID_PREV,NAME_CONTRACT_STATUS\n"

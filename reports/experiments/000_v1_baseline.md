@@ -39,6 +39,8 @@ v1 source files:
 | Precision at top decile | 0.283113 |
 | Recall at 10% review capacity | 0.350698 |
 
+Calibration note: v1 reports Brier score and calibration bins, but it does not fit a Platt/sigmoid or isotonic calibration layer. Scores should be treated as ranking scores, not calibrated default probabilities.
+
 ## Held-Out Test Metrics
 
 | Metric | Value |

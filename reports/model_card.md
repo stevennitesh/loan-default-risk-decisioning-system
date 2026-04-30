@@ -12,7 +12,7 @@
 | Primary use | Portfolio decision-support simulation |
 | Production readiness | Not production-ready |
 
-This model estimates the probability that an applicant belongs to the observed repayment-difficulty class. Scores are used to demonstrate threshold tradeoffs, batch scoring, explainability, and Power BI reporting.
+This model produces an applicant-level repayment-difficulty risk score. Scores are used to demonstrate threshold tradeoffs, batch scoring, explainability, and Power BI reporting. v1 scores should be treated as ranking scores, not fitted calibrated default probabilities.
 
 ## Intended Use
 
@@ -69,6 +69,8 @@ The pipeline trains:
 
 LightGBM tuning is bounded and validation-only. Candidate selection uses a non-degenerate score-distribution guard, then ranks by PR-AUC, top-decile lift, recall at manual-review capacity, ROC-AUC, and Brier score. Final test metrics are reported after model and threshold choices are fixed.
 
+No Platt/sigmoid or isotonic calibration layer is fitted in v1. Brier score and calibration bins are reported to evaluate score quality, but they do not make the raw LightGBM scores calibrated probabilities.
+
 Selected candidate from `reports/lightgbm_tuning_summary.csv`:
 
 | Candidate | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |
@@ -103,6 +105,8 @@ Scores are mapped to simulated actions:
 | `>= T_high` | High risk | Decline or high-priority review |
 
 Thresholds are selected from validation scores and applied unchanged to the held-out labeled test split.
+
+The thresholds below are cutoffs on uncalibrated model scores. They are valid for rank-based scenario comparison in this project, but they should not be interpreted as calibrated default-probability thresholds.
 
 | Scenario | `T_low` | `T_high` | Test approval rate | Test review rate | Test high-risk rate | Test EV / applicant |
 |---|---:|---:|---:|---:|---:|---:|

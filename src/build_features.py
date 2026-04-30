@@ -22,6 +22,9 @@ REQUIRED_STAGING_TABLES = [
     "stg_application_train",
     "stg_application_test",
     "stg_bureau",
+    "stg_bureau_balance",
+    "stg_pos_cash_balance",
+    "stg_credit_card_balance",
     "stg_previous_application",
     "stg_installments_payments",
 ]
@@ -29,7 +32,10 @@ REQUIRED_STAGING_TABLES = [
 FEATURE_SQL_FILES = [
     "sql/02_feature_applicant.sql",
     "sql/03_feature_bureau.sql",
+    "sql/03b_feature_bureau_balance.sql",
     "sql/04_feature_previous_applications.sql",
+    "sql/04b_feature_pos_cash.sql",
+    "sql/04c_feature_credit_card.sql",
     "sql/05_feature_installments.sql",
     "sql/06_build_feature_mart.sql",
 ]
@@ -38,6 +44,9 @@ PROFILE_TABLES = [
     "f_applicant_static",
     "segment_diagnostics",
     "f_bureau_agg",
+    "f_bureau_balance_agg",
+    "f_pos_cash_agg",
+    "f_credit_card_agg",
     "f_previous_application_agg",
     "f_installments_agg",
     "mart_credit_risk_features",

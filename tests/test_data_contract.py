@@ -53,6 +53,9 @@ def test_data_contract_accepts_valid_mart_and_writes_inventory_reports(
     assert {
         "credit_to_income_ratio",
         "bureau_credit_count",
+        "bureau_balance_dpd_1plus_rate",
+        "pos_cash_dpd_month_rate",
+        "credit_card_avg_credit_utilization",
         "payment_amount_ratio",
     }.issubset(model_features)
     assert not {
@@ -105,7 +108,7 @@ def test_data_contract_accepts_valid_mart_and_writes_inventory_reports(
         staged_feature_fixture.scratch_path / "reports" / "feature_inventory.csv",
         FEATURE_INVENTORY_COLUMNS,
     )
-    assert len(data_report) == 11
+    assert len(data_report) == 17
     assert any(
         row["table_name"] == "mart_credit_risk_features"
         and row["duplicate_grain_key_count"] == "0"

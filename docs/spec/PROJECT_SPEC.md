@@ -324,18 +324,18 @@ Calibration will be evaluated using:
 - calibration curve;
 - predicted versus observed default rate by score bucket.
 
-Calibration may be improved using:
+Calibration may be improved in a future or post-v1 experiment using:
 
 - Platt scaling;
 - isotonic regression.
 
-Calibration will be evaluated on validation/test data only.
+For v1, calibration is evaluated on validation/test data using Brier score, calibration curves, and predicted-versus-observed score buckets. Platt or isotonic calibration requires a separate implemented experiment before it can be described as fitted calibration.
 
 ---
 
 ## 10. Decision Policy and Threshold Analysis
 
-The model will output a probability-like risk score. A decision policy will convert scores into simulated business actions.
+The model will output a risk score. A decision policy will convert scores into simulated business actions.
 
 ### 10.1 Risk bands
 

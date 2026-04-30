@@ -70,6 +70,9 @@ def write_config(scratch_path: Path) -> Path:
             "application_train": "application_train.csv",
             "application_test": "application_test.csv",
             "bureau": "bureau.csv",
+            "bureau_balance": "bureau_balance.csv",
+            "pos_cash_balance": "POS_CASH_balance.csv",
+            "credit_card_balance": "credit_card_balance.csv",
             "previous_application": "previous_application.csv",
             "installments_payments": "installments_payments.csv",
         },
@@ -83,7 +86,7 @@ def write_config(scratch_path: Path) -> Path:
             "primary_model": "lightgbm",
             "baseline_model": "logistic_regression",
             "use_class_weighting": True,
-            "calibrate_probabilities": True,
+            "calibrate_probabilities": False,
             "lightgbm_tuning": {
                 "enabled": True,
                 "max_candidates": 4,
@@ -250,6 +253,26 @@ def create_staging_tables(database_path: Path) -> None:
         )
         connection.execute(
             """
+            CREATE TABLE stg_bureau_balance (
+                SK_ID_BUREAU BIGINT,
+                MONTHS_BALANCE BIGINT,
+                STATUS VARCHAR
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO stg_bureau_balance VALUES
+            (1, 0, '0'),
+            (1, -1, '1'),
+            (1, -13, '2'),
+            (2, -2, 'C'),
+            (2, -3, 'X'),
+            (3, 0, '5')
+            """
+        )
+        connection.execute(
+            """
             CREATE TABLE stg_previous_application (
                 SK_ID_PREV BIGINT,
                 SK_ID_CURR BIGINT,
@@ -266,6 +289,62 @@ def create_staging_tables(database_path: Path) -> None:
             (10, 100001, 1000, 800, 'Approved', -20),
             (11, 100001, 2000, 2500, 'Refused', -200),
             (12, 100002, 0, 100, 'Canceled', -30)
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE stg_pos_cash_balance (
+                SK_ID_PREV BIGINT,
+                SK_ID_CURR BIGINT,
+                MONTHS_BALANCE BIGINT,
+                CNT_INSTALMENT DOUBLE,
+                CNT_INSTALMENT_FUTURE DOUBLE,
+                NAME_CONTRACT_STATUS VARCHAR,
+                SK_DPD BIGINT,
+                SK_DPD_DEF BIGINT
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO stg_pos_cash_balance VALUES
+            (10, 100001, 0, 12, 10, 'Active', 0, 0),
+            (10, 100001, -1, 12, 9, 'Active', 3, 1),
+            (11, 100001, -13, 24, 0, 'Completed', 0, 0),
+            (11, 100001, -2, 24, 0, 'Completed', 0, 0),
+            (12, 100002, -4, 6, 4, 'Demand', 7, 2),
+            (20, 200001, 0, 10, 8, 'Active', 0, 0)
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE stg_credit_card_balance (
+                SK_ID_PREV BIGINT,
+                SK_ID_CURR BIGINT,
+                MONTHS_BALANCE BIGINT,
+                AMT_BALANCE DOUBLE,
+                AMT_CREDIT_LIMIT_ACTUAL DOUBLE,
+                AMT_DRAWINGS_CURRENT DOUBLE,
+                AMT_INST_MIN_REGULARITY DOUBLE,
+                AMT_PAYMENT_CURRENT DOUBLE,
+                AMT_PAYMENT_TOTAL_CURRENT DOUBLE,
+                AMT_TOTAL_RECEIVABLE DOUBLE,
+                CNT_DRAWINGS_CURRENT DOUBLE,
+                NAME_CONTRACT_STATUS VARCHAR,
+                SK_DPD BIGINT,
+                SK_DPD_DEF BIGINT
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO stg_credit_card_balance VALUES
+            (30, 100001, 0, 100, 1000, 50, 20, 25, 25, 100, 1, 'Active', 0, 0),
+            (30, 100001, -1, 500, 1000, 100, 50, 25, 25, 500, 2, 'Active', 5, 2),
+            (31, 100001, -13, 0, 2000, 0, 0, 0, 0, 0, 0, 'Completed', 0, 0),
+            (31, 100001, -2, 200, 2000, 40, 10, 20, 20, 200, 1, 'Completed', 0, 0),
+            (32, 100002, -4, 300, 1500, 0, 30, 10, 10, 300, 0, 'Demand', 4, 1),
+            (40, 200001, 0, 250, 1000, 80, 25, 30, 30, 250, 1, 'Active', 0, 0)
             """
         )
         connection.execute(

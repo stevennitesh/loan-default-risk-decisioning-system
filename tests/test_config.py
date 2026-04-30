@@ -38,13 +38,16 @@ def test_config_loader_returns_validated_config() -> None:
     assert config["project"]["name"] == "loan-default-decisioning"
 
 
-def test_v1_source_files_are_exactly_required_inputs() -> None:
+def test_source_files_include_post_v1_bureau_balance_inputs() -> None:
     config = load_config()
 
     assert config["source_files"] == {
         "application_train": "application_train.csv",
         "application_test": "application_test.csv",
         "bureau": "bureau.csv",
+        "bureau_balance": "bureau_balance.csv",
+        "pos_cash_balance": "POS_CASH_balance.csv",
+        "credit_card_balance": "credit_card_balance.csv",
         "previous_application": "previous_application.csv",
         "installments_payments": "installments_payments.csv",
     }

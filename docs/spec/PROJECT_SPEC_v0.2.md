@@ -328,13 +328,13 @@ SMOTE will be retained only if it improves validation results and does not degra
 
 ### 9.5 Calibration
 
-Calibration candidates:
+Calibration candidates for future or post-v1 experiments:
 
-- uncalibrated LightGBM scores;
+- uncalibrated LightGBM risk scores, the v1 default;
 - Platt scaling;
 - isotonic regression.
 
-Calibration will be evaluated with Brier score and calibration curves on validation/test data.
+For v1, calibration is evaluated with Brier score and calibration curves on validation/test data. Platt or isotonic calibration requires a separate implemented experiment before it can be described as fitted calibration.
 
 ---
 
