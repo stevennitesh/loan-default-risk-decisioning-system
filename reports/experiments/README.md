@@ -75,4 +75,7 @@ Do not promote or demote an experiment because held-out test looks better or wor
 003_credit_card_features.md
 004_calibration_experiment.md
 005_feature_selection.md
+006_model_stability.md
+007_risk_pressure_features.md
+post_v1_results_summary.md
 ```

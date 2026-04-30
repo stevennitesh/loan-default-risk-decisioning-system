@@ -185,8 +185,9 @@ def _run_single_feature_set(
     split_frames: dict[str, pd.DataFrame],
     manual_review_capacity_rate: float,
     created_at: str,
+    random_seed: int | None = None,
 ) -> dict[str, Any]:
-    random_seed = int(config["project"]["random_seed"])
+    random_seed = int(config["project"]["random_seed"] if random_seed is None else random_seed)
     numeric_features, categorical_features = _classify_feature_columns(
         split_frames["train"],
         feature_columns,

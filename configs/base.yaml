@@ -1,7 +1,7 @@
 project:
   name: loan-default-decisioning
   random_seed: 42
-  data_scope_version: post_v1_003_credit_card
+  data_scope_version: post_v1_007_risk_pressure
 
 paths:
   raw_dir: data/raw

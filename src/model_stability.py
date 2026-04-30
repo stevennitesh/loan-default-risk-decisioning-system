@@ -1,0 +1,402 @@
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+from typing import Any
+
+import duckdb
+import numpy as np
+import pandas as pd
+
+from src.config import load_config
+from src.feature_selection import DEFAULT_FEATURE_LIMITS
+from src.feature_selection import FeatureSelectionError
+from src.feature_selection import _created_at
+from src.feature_selection import _feature_sets
+from src.feature_selection import _load_feature_importance_rows
+from src.feature_selection import _load_lightgbm_artifact
+from src.feature_selection import _ranked_raw_features
+from src.feature_selection import _resolve_project_path
+from src.feature_selection import _run_single_feature_set
+from src.feature_selection import _select_feature_set
+from src.feature_selection import _write_csv
+from src.train import _load_labeled_training_frame
+from src.train import _split_labeled_frame
+
+
+DEFAULT_STABILITY_SEEDS = (17, 29, 43)
+MODEL_STABILITY_REPORT_NAME = "006_model_stability.md"
+
+MODEL_STABILITY_RUN_COLUMNS = [
+    "seed",
+    "feature_set",
+    "seed_validation_winner",
+    "feature_count",
+    "feature_limit",
+    "selected_calibration_method",
+    "selected_candidate_name",
+    "validation_pr_auc",
+    "validation_roc_auc",
+    "validation_brier_score",
+    "validation_top_decile_lift",
+    "validation_precision_at_top_decile",
+    "validation_recall_at_review_capacity",
+    "validation_weighted_calibration_error",
+    "test_pr_auc",
+    "test_roc_auc",
+    "test_brier_score",
+    "test_top_decile_lift",
+    "test_precision_at_top_decile",
+    "test_recall_at_review_capacity",
+    "test_weighted_calibration_error",
+    "validation_balanced_ev_per_applicant",
+    "test_balanced_ev_per_applicant",
+    "created_at",
+]
+
+MODEL_STABILITY_AGGREGATE_COLUMNS = [
+    "feature_set",
+    "selected",
+    "feature_count",
+    "feature_limit",
+    "seed_count",
+    "validation_win_count",
+    "validation_win_rate",
+    "validation_pr_auc_mean",
+    "validation_pr_auc_std",
+    "validation_roc_auc_mean",
+    "validation_roc_auc_std",
+    "validation_brier_score_mean",
+    "validation_brier_score_std",
+    "validation_top_decile_lift_mean",
+    "validation_top_decile_lift_std",
+    "validation_precision_at_top_decile_mean",
+    "validation_precision_at_top_decile_std",
+    "validation_recall_at_review_capacity_mean",
+    "validation_recall_at_review_capacity_std",
+    "validation_weighted_calibration_error_mean",
+    "validation_weighted_calibration_error_std",
+    "validation_balanced_ev_per_applicant_mean",
+    "validation_balanced_ev_per_applicant_std",
+    "test_pr_auc_mean",
+    "test_pr_auc_std",
+    "test_roc_auc_mean",
+    "test_roc_auc_std",
+    "test_brier_score_mean",
+    "test_brier_score_std",
+    "test_top_decile_lift_mean",
+    "test_top_decile_lift_std",
+    "test_precision_at_top_decile_mean",
+    "test_precision_at_top_decile_std",
+    "test_recall_at_review_capacity_mean",
+    "test_recall_at_review_capacity_std",
+    "test_weighted_calibration_error_mean",
+    "test_weighted_calibration_error_std",
+    "test_balanced_ev_per_applicant_mean",
+    "test_balanced_ev_per_applicant_std",
+    "pr_auc_generalization_gap",
+    "abs_pr_auc_generalization_gap",
+    "balanced_ev_generalization_gap",
+    "abs_balanced_ev_generalization_gap",
+    "created_at",
+]
+
+MEAN_STD_METRICS = [
+    "validation_pr_auc",
+    "validation_roc_auc",
+    "validation_brier_score",
+    "validation_top_decile_lift",
+    "validation_precision_at_top_decile",
+    "validation_recall_at_review_capacity",
+    "validation_weighted_calibration_error",
+    "validation_balanced_ev_per_applicant",
+    "test_pr_auc",
+    "test_roc_auc",
+    "test_brier_score",
+    "test_top_decile_lift",
+    "test_precision_at_top_decile",
+    "test_recall_at_review_capacity",
+    "test_weighted_calibration_error",
+    "test_balanced_ev_per_applicant",
+]
+
+
+class ModelStabilityError(RuntimeError):
+    """Raised when the model-stability experiment cannot run safely."""
+
+
+def run_model_stability_experiment(
+    config_path: str | Path = "configs/base.yaml",
+    seeds: tuple[int, ...] = DEFAULT_STABILITY_SEEDS,
+    feature_limits: tuple[int, ...] = DEFAULT_FEATURE_LIMITS,
+    include_full: bool = True,
+) -> dict[str, Any]:
+    seeds = _normalize_seeds(seeds)
+    config = load_config(config_path)
+    duckdb_path = _resolve_project_path(config["paths"]["duckdb_path"])
+    model_dir = _resolve_project_path(config["paths"]["model_dir"])
+    report_dir = _resolve_project_path(config["paths"]["report_dir"])
+
+    if not duckdb_path.exists():
+        raise ModelStabilityError(f"DuckDB database not found: {duckdb_path}")
+
+    base_artifact = _load_lightgbm_artifact(model_dir)
+    full_feature_columns = list(base_artifact["feature_columns"])
+    importance_rows = _load_feature_importance_rows(report_dir)
+    ranked_features = _ranked_raw_features(importance_rows, full_feature_columns)
+    max_limit = max(feature_limits) if feature_limits else 0
+    if len(ranked_features) < min(max_limit, len(full_feature_columns)):
+        raise ModelStabilityError(
+            "Feature importance ranking does not cover enough model features for requested limits: "
+            f"ranked={len(ranked_features)}, requested={max_limit}"
+        )
+
+    created_at = _created_at()
+    manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
+    feature_set_specs = _feature_sets(
+        ranked_features,
+        full_feature_columns,
+        feature_limits,
+        include_full,
+    )
+    run_rows: list[dict[str, Any]] = []
+    with duckdb.connect(str(duckdb_path)) as connection:
+        training_frame = _load_labeled_training_frame(connection, full_feature_columns)
+        for seed in seeds:
+            split_frames = _split_labeled_frame(training_frame, config, seed)
+            seed_rows = []
+            for feature_set_name, feature_columns, feature_limit in feature_set_specs:
+                seed_rows.append(
+                    _run_single_feature_set(
+                        config,
+                        feature_set_name,
+                        feature_columns,
+                        feature_limit,
+                        split_frames,
+                        manual_review_capacity_rate,
+                        created_at,
+                        random_seed=seed,
+                    )
+                )
+            seed_winner = _select_feature_set(seed_rows)
+            for row in seed_rows:
+                run_row = dict(row)
+                run_row.pop("selected", None)
+                run_rows.append(
+                    {
+                        "seed": seed,
+                        "seed_validation_winner": run_row["feature_set"] == seed_winner,
+                        **run_row,
+                    }
+                )
+
+    aggregate_rows = _aggregate_stability_rows(run_rows, created_at)
+    selected_feature_set = _select_stability_feature_set(aggregate_rows)
+    for row in aggregate_rows:
+        row["selected"] = row["feature_set"] == selected_feature_set
+
+    report_dir.mkdir(parents=True, exist_ok=True)
+    experiments_dir = report_dir / "experiments"
+    experiments_dir.mkdir(parents=True, exist_ok=True)
+    seed_runs_path = report_dir / "model_stability_seed_runs.csv"
+    summary_path = report_dir / "model_stability_summary.csv"
+    report_path = experiments_dir / MODEL_STABILITY_REPORT_NAME
+    _write_csv(seed_runs_path, MODEL_STABILITY_RUN_COLUMNS, run_rows)
+    _write_csv(summary_path, MODEL_STABILITY_AGGREGATE_COLUMNS, aggregate_rows)
+    _write_report(report_path, aggregate_rows, selected_feature_set, seeds)
+
+    return {
+        "selected_feature_set": selected_feature_set,
+        "run_rows": run_rows,
+        "aggregate_rows": aggregate_rows,
+        "seed_runs_path": seed_runs_path,
+        "summary_path": summary_path,
+        "report_path": report_path,
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Compare model-generation stability across repeated seeds.",
+    )
+    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    parser.add_argument(
+        "--seeds",
+        default="17,29,43",
+        help="Comma-separated random seeds for split/training repeats.",
+    )
+    parser.add_argument(
+        "--feature-limits",
+        default="40,60,80,100",
+        help="Comma-separated top-N feature limits to compare.",
+    )
+    parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
+    args = parser.parse_args()
+
+    seeds = tuple(int(value.strip()) for value in args.seeds.split(",") if value.strip())
+    feature_limits = tuple(int(value.strip()) for value in args.feature_limits.split(",") if value.strip())
+    try:
+        run_model_stability_experiment(
+            args.config,
+            seeds=seeds,
+            feature_limits=feature_limits,
+            include_full=not args.skip_full,
+        )
+    except (FeatureSelectionError, ModelStabilityError) as error:
+        raise SystemExit(str(error)) from error
+
+
+def _normalize_seeds(seeds: tuple[int, ...]) -> tuple[int, ...]:
+    normalized = tuple(int(seed) for seed in seeds)
+    if not normalized:
+        raise ModelStabilityError("At least one seed is required")
+    if len(set(normalized)) != len(normalized):
+        raise ModelStabilityError("Seeds must be unique")
+    return normalized
+
+
+def _aggregate_stability_rows(
+    run_rows: list[dict[str, Any]],
+    created_at: str,
+) -> list[dict[str, Any]]:
+    if not run_rows:
+        raise ModelStabilityError("At least one seed run row is required")
+
+    frame = pd.DataFrame(run_rows)
+    for metric in MEAN_STD_METRICS:
+        frame[metric] = frame[metric].astype(float)
+    seed_winners = {
+        seed: _select_feature_set(group.to_dict("records"))
+        for seed, group in frame.groupby("seed", sort=True)
+    }
+    aggregate_rows = []
+    for feature_set, group in frame.groupby("feature_set", sort=False):
+        row: dict[str, Any] = {
+            "feature_set": feature_set,
+            "selected": False,
+            "feature_count": int(group["feature_count"].iloc[0]),
+            "feature_limit": group["feature_limit"].iloc[0],
+            "seed_count": int(group["seed"].nunique()),
+            "validation_win_count": sum(
+                1 for seed, winner in seed_winners.items() if winner == feature_set
+            ),
+            "created_at": created_at,
+        }
+        row["validation_win_rate"] = row["validation_win_count"] / row["seed_count"]
+        for metric in MEAN_STD_METRICS:
+            values = group[metric].astype(float)
+            row[f"{metric}_mean"] = float(values.mean())
+            row[f"{metric}_std"] = _std(values)
+        row["pr_auc_generalization_gap"] = row["test_pr_auc_mean"] - row["validation_pr_auc_mean"]
+        row["abs_pr_auc_generalization_gap"] = abs(row["pr_auc_generalization_gap"])
+        row["balanced_ev_generalization_gap"] = (
+            row["test_balanced_ev_per_applicant_mean"]
+            - row["validation_balanced_ev_per_applicant_mean"]
+        )
+        row["abs_balanced_ev_generalization_gap"] = abs(row["balanced_ev_generalization_gap"])
+        aggregate_rows.append(row)
+    return aggregate_rows
+
+
+def _select_stability_feature_set(rows: list[dict[str, Any]]) -> str:
+    selected = sorted(rows, key=_stability_selection_key, reverse=True)[0]
+    return str(selected["feature_set"])
+
+
+def _stability_selection_key(row: dict[str, Any]) -> tuple[float, float, float, float, float, float, float, int]:
+    return (
+        float(row["validation_pr_auc_mean"]),
+        float(row["validation_win_rate"]),
+        float(row["validation_top_decile_lift_mean"]),
+        float(row["validation_recall_at_review_capacity_mean"]),
+        float(row["validation_roc_auc_mean"]),
+        -float(row["validation_brier_score_mean"]),
+        -float(row["validation_pr_auc_std"]),
+        -int(row["feature_count"]),
+    )
+
+
+def _write_report(
+    path: Path,
+    aggregate_rows: list[dict[str, Any]],
+    selected_feature_set: str,
+    seeds: tuple[int, ...],
+) -> None:
+    table_lines = "\n".join(
+        "| {feature_set} | {feature_count} | {seed_count} | {validation_win_rate:.2f} | "
+        "{validation_pr_auc_mean:.6f} | {validation_pr_auc_std:.6f} | "
+        "{validation_brier_score_mean:.6f} | {validation_top_decile_lift_mean:.6f} | "
+        "{test_pr_auc_mean:.6f} | {test_brier_score_mean:.6f} | "
+        "{test_balanced_ev_per_applicant_mean:.2f} | {selected} |".format(**row)
+        for row in aggregate_rows
+    )
+    selected_row = next(row for row in aggregate_rows if row["feature_set"] == selected_feature_set)
+    interpretation_text = _interpretation_text(selected_row)
+    text = f"""# Experiment 006: Model Stability
+
+## Purpose
+
+Check whether the feature-selection result is stable across repeated split/training seeds before promoting a smaller model surface.
+
+## Process
+
+This experiment reruns the same LightGBM tuning and sigmoid/isotonic/uncalibrated calibration comparison across seeds `{_seed_list(seeds)}`. Each seed creates a fresh stratified train/validation/test split from labeled `application_train`, then trains the candidate feature surfaces independently.
+
+## Selection Rule
+
+The selected setup is chosen with a validation-only aggregate rule: mean validation PR-AUC first, then validation win rate, mean top-decile lift, mean recall at review capacity, mean ROC-AUC, lower mean Brier score, lower validation PR-AUC variability, and fewer features. Held-out test is reported after selection as a generalization check and is not used to choose the setup.
+
+## Results
+
+| Feature set | Features | Seeds | Val win rate | Val PR-AUC mean | Val PR-AUC std | Val Brier mean | Val lift mean | Test PR-AUC mean | Test Brier mean | Test EV/app mean | Selected |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+{table_lines}
+
+## Selected Setup
+
+Selected feature set: `{selected_feature_set}` with {selected_row['feature_count']} features.
+
+## Generalization Check
+
+For the selected setup, mean test PR-AUC minus mean validation PR-AUC is {selected_row['pr_auc_generalization_gap']:.6f}, and mean test balanced EV minus mean validation balanced EV is {selected_row['balanced_ev_generalization_gap']:.2f}. These held-out test values are final verification signals, not optimization inputs.
+
+## Interpretation
+
+{interpretation_text}
+
+## Notes
+
+This experiment changes the model-generation evidence only. It does not add new source tables, demographic/protected-status-like fields, or a new decision policy.
+"""
+    path.write_text(text, encoding="utf-8")
+
+
+def _interpretation_text(selected_row: dict[str, Any]) -> str:
+    selected_feature_set = str(selected_row["feature_set"])
+    if selected_feature_set == "full":
+        return (
+            "The repeated-seed result does not support promoting the smaller `top_100` surface yet. "
+            "The full feature set has the strongest mean validation PR-AUC under the validation-only "
+            "aggregate rule, so it remains the better active model candidate until a smaller setup "
+            "wins a stability pass or the project explicitly prioritizes simplicity over validation lift."
+        )
+    return (
+        f"`{selected_feature_set}` remains the selected setup after repeated-seed validation. "
+        "That supports promoting the smaller feature surface because the improvement was not limited "
+        "to a single split/training seed."
+    )
+
+
+def _std(values: pd.Series) -> float:
+    result = float(values.std(ddof=0))
+    if np.isnan(result):
+        return 0.0
+    return result
+
+
+def _seed_list(seeds: tuple[int, ...]) -> str:
+    return ", ".join(str(seed) for seed in seeds)
+
+
+if __name__ == "__main__":
+    main()

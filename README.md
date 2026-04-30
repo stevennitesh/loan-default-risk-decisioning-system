@@ -81,6 +81,8 @@ Post-v1 Experiment 004 adds a separate sigmoid calibration artifact for the Expe
 
 Batch scoring and dashboard exports keep the original rank score as `score` / `raw_risk_score` and add `calibrated_risk_score` plus `calibration_method`. This preserves the existing threshold-policy audit trail while making calibrated score quality visible downstream.
 
+Post-v1 feature experiments are tracked under `reports/experiments/`. The current evidence keeps the full 140-feature calibrated model as the active candidate: Experiment 005 found a promising `top_100` simplification on one validation split, but Experiment 006 repeated-seed stability selected the full feature set. Experiment 007 added SQL risk-pressure interaction features; they produced a small validation PR-AUC gain but did not improve the broader validation lift, recall, Brier, or expected-value story.
+
 Accuracy is not used as the headline metric because repayment difficulty is an imbalanced outcome.
 
 ## Final Model Results

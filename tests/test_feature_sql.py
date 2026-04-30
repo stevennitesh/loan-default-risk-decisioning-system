@@ -63,6 +63,7 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
         "f_bureau_balance_agg",
         "f_pos_cash_agg",
         "f_credit_card_agg",
+        "f_risk_pressure_features",
         "f_previous_application_agg",
         "f_installments_agg",
         "mart_credit_risk_features",
@@ -122,6 +123,14 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
                 credit_card_avg_credit_utilization,
                 credit_card_payment_to_min_ratio,
                 credit_card_recent_dpd_month_rate,
+                external_score_credit_pressure,
+                external_score_annuity_pressure,
+                total_credit_exposure_to_income_ratio,
+                bureau_debt_to_income_ratio,
+                monthly_delinquency_pressure,
+                revolving_utilization_delinquency_pressure,
+                prior_refusal_delay_pressure,
+                payment_shortfall_ratio,
                 previous_application_count,
                 approved_application_count,
                 refused_application_count,
@@ -176,6 +185,14 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
                 0.175,
                 0.875,
                 1 / 3,
+                1.7,
+                0.085,
+                2.0025,
+                0.0025,
+                1 / 3,
+                0.175 / 3,
+                1.0,
+                0.05,
                 2,
                 1,
                 1,
@@ -191,12 +208,17 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
 
         zero_income_ratios = connection.execute(
             """
-            SELECT credit_to_income_ratio, annuity_to_income_ratio, goods_price_to_income_ratio
+            SELECT
+                credit_to_income_ratio,
+                annuity_to_income_ratio,
+                goods_price_to_income_ratio,
+                total_credit_exposure_to_income_ratio,
+                bureau_debt_to_income_ratio
             FROM mart_credit_risk_features
             WHERE SK_ID_CURR = 100002
             """
         ).fetchone()
-        assert zero_income_ratios == (None, None, None)
+        assert zero_income_ratios == (None, None, None, None, None)
 
         population_counts = dict(
             connection.execute(

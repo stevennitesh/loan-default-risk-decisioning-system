@@ -109,7 +109,15 @@ SELECT
     installments.total_instalment_amount,
     installments.total_payment_amount,
     installments.payment_amount_ratio,
-    installments.avg_payment_to_instalment_ratio
+    installments.avg_payment_to_instalment_ratio,
+    risk_pressure.external_score_credit_pressure,
+    risk_pressure.external_score_annuity_pressure,
+    risk_pressure.total_credit_exposure_to_income_ratio,
+    risk_pressure.bureau_debt_to_income_ratio,
+    risk_pressure.monthly_delinquency_pressure,
+    risk_pressure.revolving_utilization_delinquency_pressure,
+    risk_pressure.prior_refusal_delay_pressure,
+    risk_pressure.payment_shortfall_ratio
 FROM f_applicant_static AS applicant
 LEFT JOIN f_bureau_agg AS bureau
     ON applicant.SK_ID_CURR = bureau.SK_ID_CURR
@@ -122,4 +130,7 @@ LEFT JOIN f_credit_card_agg AS credit_card
 LEFT JOIN f_previous_application_agg AS previous
     ON applicant.SK_ID_CURR = previous.SK_ID_CURR
 LEFT JOIN f_installments_agg AS installments
-    ON applicant.SK_ID_CURR = installments.SK_ID_CURR;
+    ON applicant.SK_ID_CURR = installments.SK_ID_CURR
+LEFT JOIN f_risk_pressure_features AS risk_pressure
+    ON applicant.SK_ID_CURR = risk_pressure.SK_ID_CURR
+    AND applicant.source_population = risk_pressure.source_population;
