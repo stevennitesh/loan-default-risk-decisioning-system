@@ -38,6 +38,7 @@ FEATURE_SQL_FILES = [
     "sql/04c_feature_credit_card.sql",
     "sql/05_feature_installments.sql",
     "sql/05b_feature_risk_pressure.sql",
+    "sql/05c_feature_recency_deterioration.sql",
     "sql/06_build_feature_mart.sql",
 ]
 
@@ -51,6 +52,7 @@ PROFILE_TABLES = [
     "f_previous_application_agg",
     "f_installments_agg",
     "f_risk_pressure_features",
+    "f_recency_deterioration_features",
     "mart_credit_risk_features",
 ]
 

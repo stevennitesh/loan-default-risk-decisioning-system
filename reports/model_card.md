@@ -82,7 +82,7 @@ Post-v1 Experiment 004 fits a separate sigmoid calibration layer on the validati
 
 Batch scoring and dashboard exports now retain both `raw_risk_score` and `calibrated_risk_score`, with `calibration_method` documenting the applied sigmoid layer. The original `score` column remains the rank-policy score used by the current threshold workflow.
 
-Post-v1 Experiments 005-008 explored simplification, stability, and risk-pressure interaction features. The repeated-seed stability check selected the full 140-feature setup over the `top_100` simplification. The narrow Experiment 008 pressure-feature set improves validation PR-AUC, ROC-AUC, and calibrated Brier with only four added features, but it has not yet passed a repeated-seed stability check and does not improve validation expected value. It is a candidate for follow-up, not yet a replacement for the full calibrated model as the best-supported post-v1 setup.
+Post-v1 Experiments 005-010 explored simplification, stability, risk-pressure interactions, and recency-deterioration features. The first repeated-seed stability check selected the full 140-feature setup over the `top_100` simplification. Experiment 010 then promoted the 152-feature recency-deterioration setup as the leading post-v1 ranking/calibration candidate: repeated-seed mean validation PR-AUC, ROC-AUC, calibrated Brier, lift, precision, recall, and weighted calibration error improved slightly versus the 140-feature calibrated baseline. Mean validation expected value was slightly lower, so the 140-feature model remains a competitive alternative if expected value becomes the dominant selection objective.
 
 Selected candidate from `reports/lightgbm_tuning_summary.csv`:
 
@@ -168,7 +168,7 @@ SHAP outputs are not adverse-action notices and should not be presented as legal
 - Expected-value assumptions are simplified scenario parameters.
 - Threshold actions are simulated and not policy-approved credit decisions.
 - No production monitoring, drift management, fair-lending review, compliance approval, or model governance is implemented.
-- v1 excludes richer monthly history tables such as `bureau_balance`, `POS_CASH_balance`, and `credit_card_balance`.
+- The frozen v1 model excludes richer monthly history tables; post-v1 experiments now include them, but promotion depends on validation stability.
 - Calibration is evaluated with Brier score and calibration bins; no final Platt or isotonic calibration model is fitted in v1.
 
 ## Reproducibility

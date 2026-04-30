@@ -88,6 +88,14 @@ SELECT
     credit_card.credit_card_dpd_month_rate,
     credit_card.credit_card_dpd_def_month_rate,
     credit_card.credit_card_recent_dpd_month_rate,
+    recency_deterioration.bureau_balance_recent_dpd_rate_delta,
+    recency_deterioration.bureau_balance_recent_status_delta,
+    recency_deterioration.pos_cash_recent_dpd_rate_delta,
+    recency_deterioration.pos_cash_remaining_installment_ratio_delta,
+    recency_deterioration.credit_card_recent_utilization_delta,
+    recency_deterioration.credit_card_recent_balance_ratio_delta,
+    recency_deterioration.credit_card_recent_drawings_ratio_delta,
+    recency_deterioration.credit_card_recent_dpd_rate_delta,
     previous.previous_application_count,
     previous.approved_application_count,
     previous.refused_application_count,
@@ -129,4 +137,7 @@ LEFT JOIN f_installments_agg AS installments
     ON applicant.SK_ID_CURR = installments.SK_ID_CURR
 LEFT JOIN f_risk_pressure_features AS risk_pressure
     ON applicant.SK_ID_CURR = risk_pressure.SK_ID_CURR
-    AND applicant.source_population = risk_pressure.source_population;
+    AND applicant.source_population = risk_pressure.source_population
+LEFT JOIN f_recency_deterioration_features AS recency_deterioration
+    ON applicant.SK_ID_CURR = recency_deterioration.SK_ID_CURR
+    AND applicant.source_population = recency_deterioration.source_population;

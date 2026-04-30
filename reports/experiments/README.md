@@ -78,5 +78,7 @@ Do not promote or demote an experiment because held-out test looks better or wor
 006_model_stability.md
 007_risk_pressure_features.md
 008_narrow_pressure_features.md
+009_recency_deterioration_features.md
+010_recency_model_stability.md
 post_v1_results_summary.md
 ```

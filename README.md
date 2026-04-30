@@ -81,7 +81,7 @@ Post-v1 Experiment 004 adds a separate sigmoid calibration artifact for the Expe
 
 Batch scoring and dashboard exports keep the original rank score as `score` / `raw_risk_score` and add `calibrated_risk_score` plus `calibration_method`. This preserves the existing threshold-policy audit trail while making calibrated score quality visible downstream.
 
-Post-v1 feature experiments are tracked under `reports/experiments/`. The current fully supported evidence keeps the full 140-feature calibrated model as the active candidate: Experiment 005 found a promising `top_100` simplification on one validation split, but Experiment 006 repeated-seed stability selected the full feature set. Experiment 008 is the strongest new feature-engineering candidate so far: four narrow risk-pressure features improve validation PR-AUC, ROC-AUC, and calibrated Brier, while lift and recall are tied and validation expected value is slightly lower. It needs a stability pass before promotion.
+Post-v1 feature experiments are tracked under `reports/experiments/`. The current fully supported evidence promotes the 152-feature recency-deterioration model as the leading post-v1 ranking/calibration candidate: Experiment 010 improves repeated-seed mean validation PR-AUC, ROC-AUC, calibrated Brier, top-decile lift, precision, recall, and weighted calibration error versus the 140-feature calibrated baseline. The caveat is that mean validation expected value is slightly lower and PR-AUC variance is higher, so the 140-feature calibrated model remains competitive if expected value becomes the dominant objective.
 
 Accuracy is not used as the headline metric because repayment difficulty is an imbalanced outcome.
 
@@ -221,4 +221,4 @@ The target is a proxy for observed repayment difficulty, not a complete loss/def
 
 Direct demographic and protected-status-like fields are excluded from v1 model features. If age, gender, marital status, or family-status-like fields are inspected, they are retained only in a separate diagnostic layer for limitation checks, not model training or deployment approval.
 
-Post-v1 work can add richer monthly history tables such as `bureau_balance`, `POS_CASH_balance`, and `credit_card_balance`, plus deeper monitoring and validation. Those are intentionally outside the v1 scope.
+Post-v1 experiments have added richer monthly history tables such as `bureau_balance`, `POS_CASH_balance`, and `credit_card_balance`, plus recency feature candidates. Promotion still depends on validation stability, and deeper monitoring remains future work outside the v1 scope.

@@ -130,6 +130,9 @@ def run_model_stability_experiment(
     seeds: tuple[int, ...] = DEFAULT_STABILITY_SEEDS,
     feature_limits: tuple[int, ...] = DEFAULT_FEATURE_LIMITS,
     include_full: bool = True,
+    seed_runs_name: str = "model_stability_seed_runs.csv",
+    summary_name: str = "model_stability_summary.csv",
+    report_name: str = MODEL_STABILITY_REPORT_NAME,
 ) -> dict[str, Any]:
     seeds = _normalize_seeds(seeds)
     config = load_config(config_path)
@@ -198,9 +201,9 @@ def run_model_stability_experiment(
     report_dir.mkdir(parents=True, exist_ok=True)
     experiments_dir = report_dir / "experiments"
     experiments_dir.mkdir(parents=True, exist_ok=True)
-    seed_runs_path = report_dir / "model_stability_seed_runs.csv"
-    summary_path = report_dir / "model_stability_summary.csv"
-    report_path = experiments_dir / MODEL_STABILITY_REPORT_NAME
+    seed_runs_path = report_dir / seed_runs_name
+    summary_path = report_dir / summary_name
+    report_path = experiments_dir / report_name
     _write_csv(seed_runs_path, MODEL_STABILITY_RUN_COLUMNS, run_rows)
     _write_csv(summary_path, MODEL_STABILITY_AGGREGATE_COLUMNS, aggregate_rows)
     _write_report(report_path, aggregate_rows, selected_feature_set, seeds)
@@ -231,6 +234,21 @@ def main() -> None:
         help="Comma-separated top-N feature limits to compare.",
     )
     parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
+    parser.add_argument(
+        "--seed-runs-name",
+        default="model_stability_seed_runs.csv",
+        help="CSV filename for per-seed stability rows under the report directory.",
+    )
+    parser.add_argument(
+        "--summary-name",
+        default="model_stability_summary.csv",
+        help="CSV filename for aggregate stability rows under the report directory.",
+    )
+    parser.add_argument(
+        "--report-name",
+        default=MODEL_STABILITY_REPORT_NAME,
+        help="Markdown report filename under reports/experiments.",
+    )
     args = parser.parse_args()
 
     seeds = tuple(int(value.strip()) for value in args.seeds.split(",") if value.strip())
@@ -241,6 +259,9 @@ def main() -> None:
             seeds=seeds,
             feature_limits=feature_limits,
             include_full=not args.skip_full,
+            seed_runs_name=args.seed_runs_name,
+            summary_name=args.summary_name,
+            report_name=args.report_name,
         )
     except (FeatureSelectionError, ModelStabilityError) as error:
         raise SystemExit(str(error)) from error

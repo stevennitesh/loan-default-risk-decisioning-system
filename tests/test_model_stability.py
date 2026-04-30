@@ -84,6 +84,38 @@ def test_model_stability_experiment_writes_seed_and_aggregate_reports(
         assert float(row["test_pr_auc_mean"]) >= 0
 
 
+def test_model_stability_experiment_can_write_named_outputs(
+    scratch_path: Path,
+    project_config_path: Path,
+) -> None:
+    database_path = scratch_path / "db" / "credit_risk.duckdb"
+    create_training_database(database_path, train_rows=80, test_rows=12)
+    training_result = run_training(project_config_path)
+    report_dir = scratch_path / "reports"
+    _write_feature_importance(
+        report_dir / "model_feature_importance.csv",
+        training_result["feature_columns"],
+    )
+
+    result = run_model_stability_experiment(
+        project_config_path,
+        seeds=(17,),
+        feature_limits=(),
+        include_full=True,
+        seed_runs_name="010_model_stability_seed_runs.csv",
+        summary_name="010_model_stability_summary.csv",
+        report_name="010_recency_model_stability.md",
+    )
+
+    assert result["seed_runs_path"] == report_dir / "010_model_stability_seed_runs.csv"
+    assert result["summary_path"] == report_dir / "010_model_stability_summary.csv"
+    assert result["report_path"] == report_dir / "experiments" / "010_recency_model_stability.md"
+    assert result["seed_runs_path"].exists()
+    assert result["summary_path"].exists()
+    assert result["report_path"].exists()
+    assert not (report_dir / "experiments" / "006_model_stability.md").exists()
+
+
 def _stability_run(
     feature_set: str,
     seed: int,
