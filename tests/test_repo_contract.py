@@ -18,6 +18,7 @@ def test_required_directories_exist() -> None:
         "models",
         "reports/figures",
         "reports/dashboard_data",
+        "reports/dashboard_data_post_v1",
         "powerbi/screenshots",
         "notebooks",
     ]
@@ -38,7 +39,12 @@ def test_makefile_exposes_required_targets() -> None:
         "train",
         "evaluate",
         "score",
+        "calibrate",
+        "explain",
         "dashboard-data",
+        "pipeline-v1",
+        "pipeline-post-v1",
+        "dashboard-data-post-v1",
         "test",
     ]:
         assert f"{target}:" in makefile_text
@@ -56,6 +62,7 @@ def test_required_sql_files_exist() -> None:
         "04c_feature_credit_card.sql",
         "05_feature_installments.sql",
         "06_build_feature_mart.sql",
+        "06_build_feature_mart_v1.sql",
         "07_create_score_tables.sql",
     ]
 
@@ -93,6 +100,11 @@ def test_generated_artifact_paths_are_gitignored() -> None:
         "reports/dashboard_data/credit_risk_scores.csv",
         "reports/dashboard_data/model_metrics_summary.csv",
         "reports/dashboard_data/segment_performance_summary.csv",
+        "reports/dashboard_data_post_v1/credit_risk_scores.csv",
+        "reports/dashboard_data_post_v1/model_metrics_summary.csv",
+        "reports/dashboard_data_post_v1/segment_performance_summary.csv",
+        "reports/v1/model_metrics_summary.csv",
+        "reports/post_v1/model_metrics_summary.csv",
         "reports/figures/generated/lift_chart.png",
         ".tmp/scratch.txt",
     ]

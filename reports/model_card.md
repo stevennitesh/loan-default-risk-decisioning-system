@@ -82,7 +82,7 @@ Post-v1 Experiment 004 fits a separate sigmoid calibration layer on the validati
 | Validation weighted bin error | 0.296805 | 0.002704 | -0.294101 |
 | Held-out test weighted bin error | 0.295293 | 0.002823 | -0.292470 |
 
-Batch scoring and dashboard exports now retain both `raw_risk_score` and `calibrated_risk_score`, with `calibration_method` documenting the applied sigmoid layer. The original `score` column remains the rank-policy score used by the current threshold workflow.
+Batch scoring and dashboard exports now retain both `raw_risk_score` and `calibrated_risk_score`, with `calibration_method` documenting the applied sigmoid layer. The original `score` column remains the rank-policy score used by the current threshold workflow. Post-v1 dashboard exports relabel the selected model as `lightgbm_credit_risk_post_v1` so the improved comparison bundle is distinct from frozen v1.
 
 Post-v1 Experiments 005-014 form a validation-first learning trail rather than a leaderboard replication. The sequence tested simplification, repeated-seed stability, risk-pressure interactions, recency deterioration, source-informed last-k temporal repayment behavior, and final cleanup. Experiment 012 promotes the 168-feature last-k temporal setup after repeated-seed validation improved mean PR-AUC, PR-AUC stability, ROC-AUC, calibrated Brier, lift, precision, recall, and balanced expected value versus the prior 152-feature candidate. Experiments 013 and 014 then tested whether a smaller SHAP-ranked surface could preserve those gains; it could not, so feature expansion stops at the 168-feature candidate.
 
@@ -202,8 +202,18 @@ make train
 make evaluate
 make score
 make dashboard-data
+make dashboard-data-post-v1
 make test
 ```
+
+The dashboard comparison bundles are reproducible from the current codebase with two explicit scopes:
+
+```bash
+make pipeline-v1
+make pipeline-post-v1
+```
+
+`configs/v1.yaml` writes frozen-v1 artifacts under `models/v1`, `reports/v1`, and `reports/dashboard_data`. `configs/post_v1.yaml` writes post-v1 artifacts under `models/post_v1`, `reports/post_v1`, and `reports/dashboard_data_post_v1`.
 
 Key generated artifacts:
 
@@ -213,4 +223,7 @@ Key generated artifacts:
 - `reports/business_value_analysis.md`
 - `reports/model_feature_importance.csv`
 - `reports/dashboard_data/`
+- `reports/dashboard_data_post_v1/`
+- `reports/v1/`
+- `reports/post_v1/`
 - `powerbi/screenshots/`

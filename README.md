@@ -170,7 +170,7 @@ The dashboard summarizes the decisioning workflow with KPI cards, score distribu
 
 ![Model validation appendix](powerbi/screenshots/model_validation_appendix.png)
 
-Power BI consumes CSV exports from `reports/dashboard_data/`, which are generated from DuckDB tables by `make dashboard-data`.
+Power BI consumes CSV exports from `reports/dashboard_data/`, which are generated from the explicit v1 config by `make pipeline-v1` or, after upstream v1 artifacts already exist, `make dashboard-data`. The v1 dashboard bundle remains raw and uncalibrated, with the selected model labeled `lightgbm_credit_risk_v1`. For post-v1 comparison work, `make pipeline-post-v1` rebuilds the improved pipeline from `configs/post_v1.yaml` and writes the same filenames and schemas to `reports/dashboard_data_post_v1/`. The post-v1 bundle labels the improved selected model as `lightgbm_credit_risk_post_v1`, uses calibrated probabilities for Brier, calibration bins, and segment probability-quality diagnostics, and preserves raw rank scores for threshold-policy views. The duplicated Power BI report can then be repointed with only a source-folder change.
 
 ## Key Outputs
 
@@ -186,7 +186,10 @@ Power BI consumes CSV exports from `reports/dashboard_data/`, which are generate
 | `reports/model_card.md` | Intended use, limitations, and validation summary |
 | `reports/experiments/` | Post-v1 experiment reports and comparison log |
 | `reports/experiments/v1_to_post_v1_model_diff.md` | Recruiter-friendly v1 to best post-v1 improvement summary |
+| `configs/v1.yaml` | Reproducible frozen-v1 pipeline scope |
+| `configs/post_v1.yaml` | Reproducible best post-v1 pipeline scope |
 | `reports/dashboard_data/` | Power BI-ready export tables |
+| `reports/dashboard_data_post_v1/` | Same-schema Power BI export tables for the best post-v1 candidate |
 | `powerbi/screenshots/` | Dashboard screenshots |
 
 ## Top Model Drivers
@@ -203,7 +206,15 @@ make train
 make evaluate
 make score
 make dashboard-data
+make dashboard-data-post-v1
 make test
+```
+
+To rebuild the two dashboard comparison bundles from current code without relying on old commits:
+
+```bash
+make pipeline-v1
+make pipeline-post-v1
 ```
 
 Raw Kaggle data is not committed. Download the dataset separately and place the CSV files in `data/raw/`.

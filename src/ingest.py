@@ -8,7 +8,7 @@ from typing import Any
 
 import duckdb
 
-from src.config import REQUIRED_SOURCE_FILES
+from src.config import SUPPORTED_SOURCE_FILES
 from src.config import load_config
 
 
@@ -132,7 +132,7 @@ def _resolve_project_path(path_value: str) -> Path:
 
 
 def _validate_source_name(source_name: str) -> None:
-    if source_name not in REQUIRED_SOURCE_FILES:
+    if source_name not in SUPPORTED_SOURCE_FILES:
         raise IngestionError(f"Unsupported source file key: {source_name}")
     if source_name not in STAGING_TABLES:
         raise IngestionError(f"No staging table configured for source file key: {source_name}")

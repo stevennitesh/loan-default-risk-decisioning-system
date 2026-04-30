@@ -79,6 +79,8 @@ wandb/
 artifacts/
 outputs/
 reports/generated/
+reports/v1/*
+reports/post_v1/*
 reports/ingestion_summary.csv
 reports/feature_mart_profile.csv
 reports/data_inventory.csv
@@ -101,6 +103,7 @@ reports/figures/calibration_curve.png
 reports/figures/lift_chart.png
 reports/figures/shap_summary.png
 reports/dashboard_data/*
+reports/dashboard_data_post_v1/*
 reports/figures/generated/
 reports/tables/generated/
 !reports/**/.gitkeep

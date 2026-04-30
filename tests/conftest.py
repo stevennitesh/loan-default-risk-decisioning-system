@@ -56,7 +56,7 @@ def write_config(scratch_path: Path) -> Path:
         "project": {
             "name": "loan-default-decisioning",
             "random_seed": 42,
-            "data_scope_version": "v1",
+            "data_scope_version": "post_v1_test",
         },
         "paths": {
             "raw_dir": str(scratch_path / "raw"),

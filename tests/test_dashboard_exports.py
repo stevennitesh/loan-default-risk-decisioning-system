@@ -12,9 +12,11 @@ import pandas as pd
 import pytest
 
 from src.dashboard_exports import DASHBOARD_EXPORT_TABLES
+from src.dashboard_exports import POST_V1_DASHBOARD_MODEL_VERSION
 from src.dashboard_exports import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
 from src.dashboard_exports import DashboardExportError
 from src.dashboard_exports import run_dashboard_export
+from src.calibrate import CALIBRATION_ARTIFACT_NAME
 from src.evaluate import MODEL_CALIBRATION_BINS_COLUMNS
 from src.evaluate import MODEL_CONFUSION_MATRIX_COLUMNS
 from src.evaluate import MODEL_LIFT_BY_DECILE_COLUMNS
@@ -51,6 +53,12 @@ SEGMENTS = {
     "CNT_CHILDREN",
     "CNT_FAM_MEMBERS",
 }
+
+
+class ConstantSigmoidCalibrator:
+    def predict_proba(self, values: np.ndarray) -> np.ndarray:
+        positive_probability = np.full(values.shape[0], 0.10)
+        return np.column_stack([1 - positive_probability, positive_probability])
 
 
 def test_dashboard_export_fails_without_required_prerequisites(
@@ -91,6 +99,8 @@ def test_run_dashboard_export_creates_power_bi_csv_bundle_and_segment_table(
             assert {row["calibration_method"] for row in rows} == {"uncalibrated"}
             assert all(0 <= float(row["raw_risk_score"]) <= 1 for row in rows)
             assert all(0 <= float(row["calibrated_risk_score"]) <= 1 for row in rows)
+        if table_name == "model_metrics_summary":
+            assert LIGHTGBM_MODEL_VERSION in {row["model_version"] for row in rows}
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
         table_names = {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
@@ -147,6 +157,109 @@ def test_run_dashboard_export_creates_power_bi_csv_bundle_and_segment_table(
         ) == split_sizes[split]
 
 
+def test_run_dashboard_export_can_write_same_bundle_to_post_v1_folder(
+    scratch_path: Path,
+    project_config_path: Path,
+) -> None:
+    database_path = scratch_path / "db" / "credit_risk.duckdb"
+    _create_dashboard_ready_state(database_path, project_config_path)
+
+    post_v1_export_dir = scratch_path / "reports" / "dashboard_data_post_v1"
+    result = run_dashboard_export(project_config_path, export_dir=post_v1_export_dir)
+
+    default_export_dir = scratch_path / "reports" / "dashboard_data"
+    assert result["export_dir"] == post_v1_export_dir
+    if default_export_dir.exists():
+        assert not any(default_export_dir.glob("*.csv"))
+    for table_name, expected_columns in EXPECTED_EXPORT_COLUMNS.items():
+        export_path = post_v1_export_dir / f"{table_name}.csv"
+        assert export_path.exists()
+        rows = read_csv_rows(export_path, expected_columns)
+        assert len(rows) == result["row_counts"][table_name]
+
+
+def test_dashboard_export_uses_selected_calibration_for_probability_quality_tables(
+    scratch_path: Path,
+    project_config_path: Path,
+) -> None:
+    database_path = scratch_path / "db" / "credit_risk.duckdb"
+    _create_dashboard_ready_state(database_path, project_config_path)
+    _write_constant_sigmoid_calibration_artifact(scratch_path / "models")
+
+    result = run_dashboard_export(project_config_path, use_calibrated_probability_quality=True)
+
+    export_dir = scratch_path / "reports" / "dashboard_data"
+    assert result["selected_model_version"] == POST_V1_DASHBOARD_MODEL_VERSION
+    metric_rows = read_csv_rows(
+        export_dir / "model_metrics_summary.csv",
+        MODEL_METRICS_SUMMARY_COLUMNS,
+    )
+    selected_probability_range_rows = [
+        row
+        for row in metric_rows
+        if row["model_version"] == POST_V1_DASHBOARD_MODEL_VERSION
+        and row["split"] in {"validation", "test"}
+        and row["metric_name"] in {"min_predicted_probability", "max_predicted_probability"}
+    ]
+    assert selected_probability_range_rows
+    assert all(float(row["metric_value"]) == pytest.approx(0.10) for row in selected_probability_range_rows)
+    assert POST_V1_DASHBOARD_MODEL_VERSION in {row["model_version"] for row in metric_rows}
+    assert LIGHTGBM_MODEL_VERSION not in {row["model_version"] for row in metric_rows}
+    assert len({row["model_version"] for row in metric_rows}) > 1
+
+    calibration_rows = read_csv_rows(
+        export_dir / "model_calibration_bins.csv",
+        MODEL_CALIBRATION_BINS_COLUMNS,
+    )
+    assert {row["model_version"] for row in calibration_rows} == {POST_V1_DASHBOARD_MODEL_VERSION}
+    assert all(float(row["average_predicted_score"]) == pytest.approx(0.10) for row in calibration_rows)
+
+    segment_rows = read_csv_rows(
+        export_dir / "segment_performance_summary.csv",
+        SEGMENT_PERFORMANCE_SUMMARY_COLUMNS,
+    )
+    assert {row["model_version"] for row in segment_rows} == {POST_V1_DASHBOARD_MODEL_VERSION}
+    assert all(float(row["average_score"]) == pytest.approx(0.10) for row in segment_rows)
+
+    for table_name, expected_columns in EXPECTED_EXPORT_COLUMNS.items():
+        if table_name == "model_metrics_summary":
+            continue
+        rows = read_csv_rows(export_dir / f"{table_name}.csv", expected_columns)
+        assert {row["model_version"] for row in rows} == {POST_V1_DASHBOARD_MODEL_VERSION}
+
+
+def test_dashboard_export_keeps_raw_v1_probability_quality_by_default(
+    scratch_path: Path,
+    project_config_path: Path,
+) -> None:
+    database_path = scratch_path / "db" / "credit_risk.duckdb"
+    _create_dashboard_ready_state(database_path, project_config_path)
+    _write_constant_sigmoid_calibration_artifact(scratch_path / "models")
+
+    run_dashboard_export(project_config_path)
+
+    export_dir = scratch_path / "reports" / "dashboard_data"
+    metric_rows = read_csv_rows(
+        export_dir / "model_metrics_summary.csv",
+        MODEL_METRICS_SUMMARY_COLUMNS,
+    )
+    selected_probability_range_rows = [
+        row
+        for row in metric_rows
+        if row["model_version"] == LIGHTGBM_MODEL_VERSION
+        and row["split"] in {"validation", "test"}
+        and row["metric_name"] in {"min_predicted_probability", "max_predicted_probability"}
+    ]
+    assert selected_probability_range_rows
+    assert any(float(row["metric_value"]) != pytest.approx(0.10) for row in selected_probability_range_rows)
+
+    calibration_rows = read_csv_rows(
+        export_dir / "model_calibration_bins.csv",
+        MODEL_CALIBRATION_BINS_COLUMNS,
+    )
+    assert any(float(row["average_predicted_score"]) != pytest.approx(0.10) for row in calibration_rows)
+
+
 def test_dashboard_export_cli_smoke(
     scratch_path: Path,
     project_config_path: Path,
@@ -170,6 +283,43 @@ def test_dashboard_export_cli_smoke(
 
     assert result.returncode == 0, result.stderr
     assert (scratch_path / "reports" / "dashboard_data" / "segment_performance_summary.csv").exists()
+
+
+def test_dashboard_export_cli_can_write_post_v1_folder(
+    scratch_path: Path,
+    project_config_path: Path,
+) -> None:
+    _create_dashboard_ready_state(scratch_path / "db" / "credit_risk.duckdb", project_config_path)
+    post_v1_export_dir = scratch_path / "reports" / "dashboard_data_post_v1"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "src.evaluate",
+            "--config",
+            str(project_config_path),
+            "--export-dashboard-data",
+            "--dashboard-export-dir",
+            str(post_v1_export_dir),
+            "--use-calibrated-dashboard-metrics",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (post_v1_export_dir / "segment_performance_summary.csv").exists()
+    assert not (scratch_path / "reports" / "dashboard_data" / "segment_performance_summary.csv").exists()
+
+    metric_rows = read_csv_rows(
+        post_v1_export_dir / "model_metrics_summary.csv",
+        MODEL_METRICS_SUMMARY_COLUMNS,
+    )
+    assert POST_V1_DASHBOARD_MODEL_VERSION in {row["model_version"] for row in metric_rows}
+    assert LIGHTGBM_MODEL_VERSION not in {row["model_version"] for row in metric_rows}
 
 
 def _create_dashboard_ready_state(database_path: Path, config_path: Path) -> dict[str, int]:
@@ -209,6 +359,15 @@ def _create_credit_risk_scores(
         *_score_rows(artifact, kaggle_frame, feature_columns, "kaggle_test"),
     ]
     _replace_table(connection, "credit_risk_scores", pd.DataFrame(rows, columns=CREDIT_RISK_SCORE_COLUMNS))
+
+
+def _write_constant_sigmoid_calibration_artifact(model_dir: Path) -> None:
+    calibration_artifact = {
+        "base_model_version": LIGHTGBM_MODEL_VERSION,
+        "selected_method": "sigmoid",
+        "calibrators": {"sigmoid": ConstantSigmoidCalibrator()},
+    }
+    joblib.dump(calibration_artifact, model_dir / CALIBRATION_ARTIFACT_NAME)
 
 
 def _mart_frame(

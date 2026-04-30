@@ -8,6 +8,8 @@ from typing import Any
 
 import duckdb
 
+from src.config import is_post_v1_scope
+
 
 DATA_INVENTORY_COLUMNS = [
     "table_name",
@@ -61,46 +63,65 @@ class TableContract:
         return ",".join(self.grain_columns)
 
 
-REQUIRED_TABLES = [
+V1_REQUIRED_TABLES = [
     TableContract("stg_application_train", "staging", ("SK_ID_CURR",)),
     TableContract("stg_application_test", "staging", ("SK_ID_CURR",)),
     TableContract("stg_bureau", "staging", ("SK_ID_BUREAU",)),
-    TableContract("stg_bureau_balance", "staging", ("SK_ID_BUREAU", "MONTHS_BALANCE")),
-    TableContract("stg_pos_cash_balance", "staging", ("SK_ID_PREV", "MONTHS_BALANCE")),
-    TableContract("stg_credit_card_balance", "staging", ("SK_ID_PREV", "MONTHS_BALANCE")),
     TableContract("stg_previous_application", "staging", ("SK_ID_PREV",)),
     TableContract("stg_installments_payments", "staging", ("SK_ID_CURR",)),
     TableContract("f_applicant_static", "feature", ("SK_ID_CURR", "source_population")),
     TableContract(DIAGNOSTIC_TABLE, "diagnostic", ("SK_ID_CURR", "source_population")),
     TableContract("f_bureau_agg", "feature", ("SK_ID_CURR",)),
-    TableContract("f_bureau_balance_agg", "feature", ("SK_ID_CURR",)),
-    TableContract("f_pos_cash_agg", "feature", ("SK_ID_CURR",)),
-    TableContract("f_credit_card_agg", "feature", ("SK_ID_CURR",)),
     TableContract("f_previous_application_agg", "feature", ("SK_ID_CURR",)),
     TableContract("f_installments_agg", "feature", ("SK_ID_CURR",)),
     TableContract(MART_TABLE, "mart", ("SK_ID_CURR", "source_population")),
 ]
 
-FEATURE_INVENTORY_TABLES = [
+POST_V1_EXTRA_REQUIRED_TABLES = [
+    TableContract("stg_bureau_balance", "staging", ("SK_ID_BUREAU", "MONTHS_BALANCE")),
+    TableContract("stg_pos_cash_balance", "staging", ("SK_ID_PREV", "MONTHS_BALANCE")),
+    TableContract("stg_credit_card_balance", "staging", ("SK_ID_PREV", "MONTHS_BALANCE")),
+    TableContract("f_bureau_balance_agg", "feature", ("SK_ID_CURR",)),
+    TableContract("f_pos_cash_agg", "feature", ("SK_ID_CURR",)),
+    TableContract("f_credit_card_agg", "feature", ("SK_ID_CURR",)),
+]
+
+REQUIRED_TABLES = [*V1_REQUIRED_TABLES, *POST_V1_EXTRA_REQUIRED_TABLES]
+
+V1_FEATURE_INVENTORY_TABLES = [
     "f_applicant_static",
     DIAGNOSTIC_TABLE,
     "f_bureau_agg",
-    "f_bureau_balance_agg",
-    "f_pos_cash_agg",
-    "f_credit_card_agg",
     "f_previous_application_agg",
     "f_installments_agg",
     MART_TABLE,
 ]
 
-AGGREGATE_TABLES = [
-    "f_bureau_agg",
+POST_V1_EXTRA_FEATURE_INVENTORY_TABLES = [
     "f_bureau_balance_agg",
     "f_pos_cash_agg",
     "f_credit_card_agg",
+]
+
+FEATURE_INVENTORY_TABLES = [
+    *V1_FEATURE_INVENTORY_TABLES[:-1],
+    *POST_V1_EXTRA_FEATURE_INVENTORY_TABLES,
+    MART_TABLE,
+]
+
+V1_AGGREGATE_TABLES = [
+    "f_bureau_agg",
     "f_previous_application_agg",
     "f_installments_agg",
 ]
+
+POST_V1_EXTRA_AGGREGATE_TABLES = [
+    "f_bureau_balance_agg",
+    "f_pos_cash_agg",
+    "f_credit_card_agg",
+]
+
+AGGREGATE_TABLES = [*V1_AGGREGATE_TABLES[:1], *POST_V1_EXTRA_AGGREGATE_TABLES, *V1_AGGREGATE_TABLES[1:]]
 
 
 class DataContractError(RuntimeError):
@@ -110,7 +131,9 @@ class DataContractError(RuntimeError):
 def validate_data_contracts(connection: duckdb.DuckDBPyConnection, config: dict[str, Any]) -> None:
     existing_tables = _existing_tables(connection)
     missing_tables = sorted(
-        table.table_name for table in REQUIRED_TABLES if table.table_name not in existing_tables
+        table.table_name
+        for table in _required_tables(config)
+        if table.table_name not in existing_tables
     )
     if missing_tables:
         raise DataContractError(f"Missing required DuckDB tables: {', '.join(missing_tables)}")
@@ -118,7 +141,7 @@ def validate_data_contracts(connection: duckdb.DuckDBPyConnection, config: dict[
     errors: list[str] = []
     _validate_mart_contract(connection, errors)
     _validate_applicant_row_reconciliation(connection, errors)
-    _validate_aggregate_keys(connection, errors)
+    _validate_aggregate_keys(connection, config, errors)
     _validate_diagnostic_separation(connection, config, errors)
     _validate_model_feature_quality(connection, config, errors)
 
@@ -140,12 +163,13 @@ def get_model_feature_columns(
 
 def build_data_inventory(
     connection: duckdb.DuckDBPyConnection,
+    config: dict[str, Any] | None = None,
     created_at_utc: str | None = None,
 ) -> list[dict[str, Any]]:
     timestamp = created_at_utc or _created_at_utc()
     rows: list[dict[str, Any]] = []
 
-    for table in REQUIRED_TABLES:
+    for table in _required_tables(config):
         columns = _table_columns(connection, table.table_name)
         has_target_column = "TARGET" in columns
         rows.append(
@@ -203,7 +227,7 @@ def build_feature_inventory(
     model_features = set(get_model_feature_columns(connection, config))
     rows: list[dict[str, Any]] = []
 
-    for table_name in FEATURE_INVENTORY_TABLES:
+    for table_name in _feature_inventory_tables(config):
         row_count = _fetch_count(connection, f"SELECT COUNT(*) FROM {_sql_identifier(table_name)}")
         for column_name, duckdb_type in _table_columns(connection, table_name).items():
             missing_count = _fetch_count(
@@ -333,8 +357,30 @@ def _validate_applicant_row_reconciliation(
             )
 
 
-def _validate_aggregate_keys(connection: duckdb.DuckDBPyConnection, errors: list[str]) -> None:
-    for table_name in AGGREGATE_TABLES:
+def _required_tables(config: dict[str, Any] | None) -> list[TableContract]:
+    if config is not None and not is_post_v1_scope(config):
+        return V1_REQUIRED_TABLES
+    return REQUIRED_TABLES
+
+
+def _feature_inventory_tables(config: dict[str, Any]) -> list[str]:
+    if not is_post_v1_scope(config):
+        return V1_FEATURE_INVENTORY_TABLES
+    return FEATURE_INVENTORY_TABLES
+
+
+def _aggregate_tables(config: dict[str, Any]) -> list[str]:
+    if not is_post_v1_scope(config):
+        return V1_AGGREGATE_TABLES
+    return AGGREGATE_TABLES
+
+
+def _validate_aggregate_keys(
+    connection: duckdb.DuckDBPyConnection,
+    config: dict[str, Any],
+    errors: list[str],
+) -> None:
+    for table_name in _aggregate_tables(config):
         duplicate_keys = _duplicate_key_count(connection, table_name, ("SK_ID_CURR",))
         if duplicate_keys:
             errors.append(f"{table_name} has duplicate SK_ID_CURR keys: {duplicate_keys}")

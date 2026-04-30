@@ -44,6 +44,11 @@ def test_powerbi_readme_documents_refresh_pages_and_limitations() -> None:
     readme_text = readme_path.read_text(encoding="utf-8")
 
     assert "make dashboard-data" in readme_text
+    assert "make dashboard-data-post-v1" in readme_text
+    assert "reports/dashboard_data_post_v1/" in readme_text
+    assert "lightgbm_credit_risk_post_v1" in readme_text
+    assert "Metric Display Value" in readme_text
+    assert "MIN(model_metrics_summary[metric_value])" in readme_text
     assert "Decisioning Overview" in readme_text
     assert "Model Validation Appendix" in readme_text
     assert "diagnostic-only" in readme_text

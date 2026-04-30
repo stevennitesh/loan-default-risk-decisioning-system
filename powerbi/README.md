@@ -4,7 +4,7 @@ This folder contains the curated Power BI portfolio dashboard for the loan defau
 
 ## Data Source
 
-Power BI should load only the CSV bundle in:
+The frozen v1 dashboard should load only the CSV bundle in:
 
 ```text
 reports/dashboard_data/
@@ -13,10 +13,43 @@ reports/dashboard_data/
 Refresh the bundle before opening or refreshing the report:
 
 ```bash
-make dashboard-data
+make pipeline-v1
 ```
 
-That command expects the pipeline outputs from `make evaluate`, `make score`, and `python -m src.explain --config configs/base.yaml` to already exist.
+That command rebuilds the v1 artifacts from `configs/v1.yaml` and exports the v1 dashboard CSVs. If the upstream v1 artifacts already exist, `make dashboard-data` refreshes only the v1 CSV bundle.
+
+`credit_risk_scores.csv` currently has 16 columns. If Power Query generated a fixed `Columns=13` CSV import step from an older refresh, update it to 16 columns or remove the fixed column-count argument so Power BI reads `top_reason_1`, `top_reason_2`, and `top_reason_3`.
+
+`model_metrics_summary.csv` keeps the baseline and LightGBM rows. The Model Metrics visual must not use plain `Max of metric_value` for every row because Brier score is lower-is-better. Use a measure like this in the matrix values:
+
+```DAX
+Metric Display Value =
+VAR MetricName = SELECTEDVALUE(model_metrics_summary[metric_name])
+RETURN
+    IF(
+        MetricName = "brier_score",
+        MIN(model_metrics_summary[metric_value]),
+        MAX(model_metrics_summary[metric_value])
+    )
+```
+
+The v1 bundle remains raw and uncalibrated, with the selected model identified as `lightgbm_credit_risk_v1`. The post-v1 bundle identifies the improved selected model as `lightgbm_credit_risk_post_v1` and applies the selected calibration artifact to probability-quality views: `model_metrics_summary`, `model_calibration_bins`, and `segment_performance_summary`. Rank-policy views such as lift, threshold scenarios, risk bands, and recommended actions remain based on the raw rank score because the calibrated sigmoid layer is monotonic and does not change applicant ordering.
+
+The post-v1 comparison dashboard uses the same CSV filenames and schemas in:
+
+```text
+reports/dashboard_data_post_v1/
+```
+
+Refresh that bundle with:
+
+```bash
+make pipeline-post-v1
+```
+
+If the upstream post-v1 artifacts already exist, `make dashboard-data-post-v1` refreshes only the post-v1 CSV bundle.
+
+To make the post-v1 report, duplicate `powerbi/dashboard.pbix` as `powerbi/dashboard_post_v1.pbix`, then change only the CSV folder/data-source path from `reports/dashboard_data/` to `reports/dashboard_data_post_v1/`. Keep the same table names, columns, pages, visuals, and slicers so v1 and post-v1 remain directly comparable.
 
 ## Required Report
 
@@ -24,6 +57,12 @@ The curated report artifact is:
 
 ```text
 powerbi/dashboard.pbix
+```
+
+The optional post-v1 companion report should be:
+
+```text
+powerbi/dashboard_post_v1.pbix
 ```
 
 It should contain two pages:

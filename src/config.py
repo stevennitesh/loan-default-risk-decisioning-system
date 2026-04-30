@@ -17,16 +17,22 @@ REQUIRED_SECTIONS = {
     "threshold_policy",
 }
 
-REQUIRED_SOURCE_FILES = {
+V1_SOURCE_FILES = {
     "application_train",
     "application_test",
     "bureau",
-    "bureau_balance",
-    "pos_cash_balance",
-    "credit_card_balance",
     "previous_application",
     "installments_payments",
 }
+
+POST_V1_SOURCE_FILES = {
+    *V1_SOURCE_FILES,
+    "bureau_balance",
+    "pos_cash_balance",
+    "credit_card_balance",
+}
+REQUIRED_SOURCE_FILES = POST_V1_SOURCE_FILES
+SUPPORTED_SOURCE_FILES = POST_V1_SOURCE_FILES
 
 REQUIRED_BUSINESS_ASSUMPTIONS = {
     "expected_margin_per_good_loan",
@@ -61,7 +67,8 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ConfigError(f"Missing config sections: {sorted(missing_sections)}")
 
     source_keys = set(config["source_files"])
-    if source_keys != REQUIRED_SOURCE_FILES:
+    expected_source_files = required_source_files_for_scope(config)
+    if source_keys != expected_source_files:
         raise ConfigError(f"Unexpected source_files keys: {sorted(source_keys)}")
 
     split = config["split"]
@@ -80,3 +87,16 @@ def validate_config(config: dict[str, Any]) -> None:
     assumptions = set(config["business_assumptions"])
     if assumptions != REQUIRED_BUSINESS_ASSUMPTIONS:
         raise ConfigError(f"Unexpected business assumptions: {sorted(assumptions)}")
+
+
+def required_source_files_for_scope(config: dict[str, Any]) -> set[str]:
+    data_scope_version = str(config["project"].get("data_scope_version", ""))
+    if data_scope_version == "v1":
+        return V1_SOURCE_FILES
+    if is_post_v1_scope(config):
+        return POST_V1_SOURCE_FILES
+    raise ConfigError(f"Unsupported data_scope_version: {data_scope_version}")
+
+
+def is_post_v1_scope(config: dict[str, Any]) -> bool:
+    return str(config["project"].get("data_scope_version", "")).startswith("post_v1")

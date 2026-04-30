@@ -5,6 +5,23 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "configs" / "base.yaml"
+V1_CONFIG_PATH = ROOT / "configs" / "v1.yaml"
+POST_V1_CONFIG_PATH = ROOT / "configs" / "post_v1.yaml"
+
+V1_SOURCE_FILES = {
+    "application_train": "application_train.csv",
+    "application_test": "application_test.csv",
+    "bureau": "bureau.csv",
+    "previous_application": "previous_application.csv",
+    "installments_payments": "installments_payments.csv",
+}
+
+POST_V1_SOURCE_FILES = {
+    **V1_SOURCE_FILES,
+    "bureau_balance": "bureau_balance.csv",
+    "pos_cash_balance": "POS_CASH_balance.csv",
+    "credit_card_balance": "credit_card_balance.csv",
+}
 
 
 def load_config() -> dict:
@@ -41,16 +58,28 @@ def test_config_loader_returns_validated_config() -> None:
 def test_source_files_include_post_v1_bureau_balance_inputs() -> None:
     config = load_config()
 
-    assert config["source_files"] == {
-        "application_train": "application_train.csv",
-        "application_test": "application_test.csv",
-        "bureau": "bureau.csv",
-        "bureau_balance": "bureau_balance.csv",
-        "pos_cash_balance": "POS_CASH_balance.csv",
-        "credit_card_balance": "credit_card_balance.csv",
-        "previous_application": "previous_application.csv",
-        "installments_payments": "installments_payments.csv",
-    }
+    assert config["source_files"] == POST_V1_SOURCE_FILES
+
+
+def test_v1_and_post_v1_configs_are_valid_reproducible_pipeline_scopes() -> None:
+    from src.config import load_config as load_project_config
+
+    v1_config = load_project_config(V1_CONFIG_PATH)
+    post_v1_config = load_project_config(POST_V1_CONFIG_PATH)
+
+    assert v1_config["project"]["data_scope_version"] == "v1"
+    assert v1_config["source_files"] == V1_SOURCE_FILES
+    assert v1_config["paths"]["duckdb_path"] == "data/db/credit_risk_v1.duckdb"
+    assert v1_config["paths"]["model_dir"] == "models/v1"
+    assert v1_config["paths"]["report_dir"] == "reports/v1"
+    assert v1_config["paths"]["dashboard_export_dir"] == "reports/dashboard_data"
+
+    assert post_v1_config["project"]["data_scope_version"].startswith("post_v1")
+    assert post_v1_config["source_files"] == POST_V1_SOURCE_FILES
+    assert post_v1_config["paths"]["duckdb_path"] == "data/db/credit_risk_post_v1.duckdb"
+    assert post_v1_config["paths"]["model_dir"] == "models/post_v1"
+    assert post_v1_config["paths"]["report_dir"] == "reports/post_v1"
+    assert post_v1_config["paths"]["dashboard_export_dir"] == "reports/dashboard_data_post_v1"
 
 
 def test_split_fractions_sum_to_one() -> None:

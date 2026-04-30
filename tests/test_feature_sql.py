@@ -3,6 +3,7 @@ from pathlib import Path
 
 import duckdb
 import pytest
+import yaml
 
 from src.build_features import FeatureBuildError, run_feature_build
 
@@ -25,6 +26,29 @@ PROFILE_COLUMNS = [
     "column_count",
     "created_at_utc",
 ]
+V1_SOURCE_FILES = {
+    "application_train": "application_train.csv",
+    "application_test": "application_test.csv",
+    "bureau": "bureau.csv",
+    "previous_application": "previous_application.csv",
+    "installments_payments": "installments_payments.csv",
+}
+V1_PROFILE_TABLES = {
+    "f_applicant_static",
+    "segment_diagnostics",
+    "f_bureau_agg",
+    "f_previous_application_agg",
+    "f_installments_agg",
+    "mart_credit_risk_features",
+}
+POST_V1_TABLES = {
+    "f_bureau_balance_agg",
+    "f_pos_cash_agg",
+    "f_credit_card_agg",
+    "f_recency_deterioration_features",
+    "f_risk_pressure_features",
+    "f_last_k_temporal_features",
+}
 
 
 def table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -> set[str]:
@@ -314,3 +338,43 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
     assert mart_profile["row_count"] == "3"
     assert mart_profile["distinct_applicant_count"] == "3"
     assert mart_profile["duplicate_key_count"] == "0"
+
+
+def test_feature_build_supports_v1_scope_without_post_v1_staging_tables(
+    staged_feature_fixture,
+) -> None:
+    config = yaml.safe_load(staged_feature_fixture.config_path.read_text(encoding="utf-8"))
+    config["project"]["data_scope_version"] = "v1"
+    config["source_files"] = V1_SOURCE_FILES
+    v1_config_path = staged_feature_fixture.scratch_path / "v1.yaml"
+    v1_config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+
+    with duckdb.connect(str(staged_feature_fixture.database_path)) as connection:
+        for table_name in [
+            "stg_bureau_balance",
+            "stg_pos_cash_balance",
+            "stg_credit_card_balance",
+        ]:
+            connection.execute(f'DROP TABLE "{table_name}"')
+
+    profile_rows = run_feature_build(v1_config_path)
+
+    assert {row["table_name"] for row in profile_rows} == V1_PROFILE_TABLES
+
+    with duckdb.connect(str(staged_feature_fixture.database_path), read_only=True) as connection:
+        tables = {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
+        mart_columns = table_columns(connection, "mart_credit_risk_features")
+
+    assert not POST_V1_TABLES.intersection(tables)
+    assert {
+        "bureau_credit_count",
+        "previous_application_count",
+        "payment_amount_ratio",
+    }.issubset(mart_columns)
+    assert not {
+        "bureau_balance_dpd_1plus_rate",
+        "pos_cash_dpd_month_rate",
+        "credit_card_avg_credit_utilization",
+        "external_score_credit_pressure",
+        "credit_card_last_3_credit_utilization",
+    }.intersection(mart_columns)
