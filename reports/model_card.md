@@ -82,7 +82,7 @@ Post-v1 Experiment 004 fits a separate sigmoid calibration layer on the validati
 
 Batch scoring and dashboard exports now retain both `raw_risk_score` and `calibrated_risk_score`, with `calibration_method` documenting the applied sigmoid layer. The original `score` column remains the rank-policy score used by the current threshold workflow.
 
-Post-v1 Experiments 005-007 explored simplification, stability, and risk-pressure interaction features. The repeated-seed stability check selected the full 140-feature setup over the `top_100` simplification, and the risk-pressure interaction family produced only a mixed validation result. Those experiments are useful model-development evidence, but they do not yet replace the full calibrated model as the best-supported post-v1 candidate.
+Post-v1 Experiments 005-008 explored simplification, stability, and risk-pressure interaction features. The repeated-seed stability check selected the full 140-feature setup over the `top_100` simplification. The narrow Experiment 008 pressure-feature set improves validation PR-AUC, ROC-AUC, and calibrated Brier with only four added features, but it has not yet passed a repeated-seed stability check and does not improve validation expected value. It is a candidate for follow-up, not yet a replacement for the full calibrated model as the best-supported post-v1 setup.
 
 Selected candidate from `reports/lightgbm_tuning_summary.csv`:
 

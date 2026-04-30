@@ -71,6 +71,7 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
 
     with duckdb.connect(str(staged_feature_fixture.database_path), read_only=True) as connection:
         mart_columns = table_columns(connection, "mart_credit_risk_features")
+        pressure_columns = table_columns(connection, "f_risk_pressure_features")
         diagnostic_columns = table_columns(connection, "segment_diagnostics")
 
         assert not FORBIDDEN_MART_COLUMNS.intersection(mart_columns)
@@ -125,11 +126,7 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
                 credit_card_recent_dpd_month_rate,
                 external_score_credit_pressure,
                 external_score_annuity_pressure,
-                total_credit_exposure_to_income_ratio,
                 bureau_debt_to_income_ratio,
-                monthly_delinquency_pressure,
-                revolving_utilization_delinquency_pressure,
-                prior_refusal_delay_pressure,
                 payment_shortfall_ratio,
                 previous_application_count,
                 approved_application_count,
@@ -187,11 +184,7 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
                 1 / 3,
                 1.7,
                 0.085,
-                2.0025,
                 0.0025,
-                1 / 3,
-                0.175 / 3,
-                1.0,
                 0.05,
                 2,
                 1,
@@ -212,13 +205,25 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
                 credit_to_income_ratio,
                 annuity_to_income_ratio,
                 goods_price_to_income_ratio,
-                total_credit_exposure_to_income_ratio,
                 bureau_debt_to_income_ratio
             FROM mart_credit_risk_features
             WHERE SK_ID_CURR = 100002
             """
         ).fetchone()
-        assert zero_income_ratios == (None, None, None, None, None)
+        assert zero_income_ratios == (None, None, None, None)
+
+        assert not {
+            "total_credit_exposure_to_income_ratio",
+            "monthly_delinquency_pressure",
+            "revolving_utilization_delinquency_pressure",
+            "prior_refusal_delay_pressure",
+        }.intersection(mart_columns)
+        assert not {
+            "total_credit_exposure_to_income_ratio",
+            "monthly_delinquency_pressure",
+            "revolving_utilization_delinquency_pressure",
+            "prior_refusal_delay_pressure",
+        }.intersection(pressure_columns)
 
         population_counts = dict(
             connection.execute(

@@ -112,11 +112,7 @@ SELECT
     installments.avg_payment_to_instalment_ratio,
     risk_pressure.external_score_credit_pressure,
     risk_pressure.external_score_annuity_pressure,
-    risk_pressure.total_credit_exposure_to_income_ratio,
     risk_pressure.bureau_debt_to_income_ratio,
-    risk_pressure.monthly_delinquency_pressure,
-    risk_pressure.revolving_utilization_delinquency_pressure,
-    risk_pressure.prior_refusal_delay_pressure,
     risk_pressure.payment_shortfall_ratio
 FROM f_applicant_static AS applicant
 LEFT JOIN f_bureau_agg AS bureau

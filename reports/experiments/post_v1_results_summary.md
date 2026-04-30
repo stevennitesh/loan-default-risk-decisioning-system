@@ -11,9 +11,10 @@ This file summarizes the post-v1 model-improvement trail. Selection decisions us
 | 005 | SHAP-ranked feature selection | `top_100` won on one validation split and reduced the feature surface. | Promising simplification, but not enough alone. |
 | 006 | Repeated-seed model stability | The full 140-feature setup had the best mean validation PR-AUC across seeds. | Keep full model as active candidate; do not promote `top_100` yet. |
 | 007 | Risk-pressure interaction features | Validation PR-AUC improved slightly, but lift, recall, Brier, and EV were flat to slightly worse. | Keep as mixed feature-engineering evidence; do not promote without stability. |
+| 008 | Narrow risk-pressure features | Validation PR-AUC, ROC-AUC, and calibrated Brier improved; lift and recall tied; validation EV declined slightly. | Promising candidate; run stability before promotion. |
 
 ## Current Read
 
-The best supported post-v1 story is still the full 140-feature model with sigmoid calibration. Feature selection and risk-pressure interactions both found useful signals, but neither has yet cleared the bar for replacing the full calibrated model as the active candidate.
+The best fully supported post-v1 story is still the full 140-feature model with sigmoid calibration. Experiment 008 is the strongest feature-engineering candidate so far because it improves validation PR-AUC, ROC-AUC, and calibrated Brier with only four added features, but it has not yet cleared the stability bar and does not improve validation expected value.
 
-The next high-ROI feature-engineering work should be narrow: isolate the strongest pressure features or test one additional behaviorally meaningful feature family, then require validation improvement across the same primary metrics before promoting it.
+The next high-ROI step is a repeated-seed stability check for the 144-feature narrow-pressure setup against the 140-feature calibrated model.

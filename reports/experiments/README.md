@@ -77,5 +77,6 @@ Do not promote or demote an experiment because held-out test looks better or wor
 005_feature_selection.md
 006_model_stability.md
 007_risk_pressure_features.md
+008_narrow_pressure_features.md
 post_v1_results_summary.md
 ```
