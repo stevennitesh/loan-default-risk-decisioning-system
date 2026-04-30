@@ -1,44 +1,37 @@
 # Loan Default Risk Decisioning System
 
-> End-to-end financial decisioning pipeline for loan default risk: SQL feature engineering, LightGBM modeling, SHAP explainability, batch scoring, threshold analysis, and Power BI reporting.
+> End-to-end financial decision-support project for loan default risk: SQL feature engineering, LightGBM modeling, SHAP explainability, batch scoring, threshold analysis, and Power BI reporting.
 
 ## Overview
 
-This project simulates a financial-services decision-support workflow. It predicts applicant repayment-difficulty risk, converts scores into risk-based action bands, writes batch predictions back to a DuckDB table, and visualizes model and threshold tradeoffs in Power BI.
+This project simulates a financial-services decision-support workflow. It converts public loan-application data into applicant-level risk scores, evaluates ranking and calibration behavior on labeled holdout data, assigns applicants to risk-based action bands, writes batch predictions to DuckDB, and visualizes threshold tradeoffs in Power BI.
 
-The goal is not to build a production underwriting system. The goal is to demonstrate applied ML engineering for a financial decisioning use case.
+The goal is not production underwriting. The goal is to show an applied ML engineering workflow that connects data contracts, feature engineering, model validation, business thresholds, explainability, and dashboard-ready outputs.
 
-## Business Problem
+## Business Question
 
-A lender needs to balance portfolio growth against credit losses. A model score alone is not enough; the business needs to understand how thresholds affect approval volume, default capture, manual review workload, and expected value.
-
-This project answers:
-
-> Which applicants are most likely to experience repayment difficulty, and how should score thresholds be set to balance approval rate, default risk, review volume, and expected portfolio value?
+Which applicants are most likely to experience repayment difficulty, and how should score thresholds be set to balance approval rate, default capture, manual review workload, and illustrative portfolio value?
 
 ## Architecture
 
-```text
-Kaggle CSV files
-   ↓
-Parquet conversion
-   ↓
-DuckDB staging tables
-   ↓
-SQL feature extraction
-   ↓
-Applicant-level feature mart
-   ↓
-Python model training/evaluation
-   ↓
-Batch scoring table
-   ↓
-Power BI dashboard
+```mermaid
+flowchart TB
+    raw["Kaggle CSVs"] --> parquet["Parquet files"]
+    parquet --> staging["DuckDB staging tables"]
+    staging --> features["SQL feature tables"]
+    features --> mart["Applicant-level feature mart"]
+    mart --> train["Model training and evaluation"]
+    train --> thresholds["Threshold and expected-value analysis"]
+    train --> scoring["Batch scoring table"]
+    scoring --> explain["SHAP explanations"]
+    thresholds --> exports["Power BI-ready exports"]
+    explain --> exports
+    exports --> dashboard["Power BI dashboard"]
 ```
 
 ## Dataset
 
-Primary dataset: **Home Credit Default Risk** public Kaggle dataset.
+Primary dataset: Home Credit Default Risk public Kaggle dataset.
 
 The model predicts:
 
@@ -47,13 +40,15 @@ TARGET = 1: applicant experienced repayment difficulty
 TARGET = 0: applicant did not experience observed repayment difficulty
 ```
 
-v1 uses:
+v1 uses these source files:
 
 - `application_train.csv`
 - `application_test.csv`
 - `bureau.csv`
 - `previous_application.csv`
 - `installments_payments.csv`
+
+Kaggle `application_test` rows are scored for production-like demonstration only. They are not used for validation metrics because they do not include labels.
 
 ## Stack
 
@@ -63,30 +58,36 @@ v1 uses:
 | Database | DuckDB |
 | Feature engineering | SQL |
 | Modeling | Python, pandas, scikit-learn, LightGBM |
-| Imbalance/evaluation | scikit-learn, imbalanced-learn if justified |
+| Evaluation | scikit-learn |
 | Explainability | SHAP |
-| Testing | pytest |
-| Reproducibility | Docker, Makefile |
+| Testing | pytest, ruff |
+| Reproducibility | Makefile, Dockerfile |
 | Reporting | Power BI |
 
 ## Modeling Approach
 
-Models:
+The project trains a logistic regression baseline and a tuned LightGBM primary model. The LightGBM search is intentionally bounded: it compares a small set of prior-informed candidates using validation-only selection, with PR-AUC as the main ranking metric and lift, recall-at-review-capacity, ROC-AUC, Brier score, and non-degenerate score distribution as guardrails.
 
-1. Logistic regression baseline
-2. LightGBM primary model
+Accuracy is not used as the headline metric because repayment difficulty is an imbalanced outcome.
 
-Evaluation emphasizes metrics appropriate for imbalanced financial outcomes:
+## Final Model Results
 
-- PR-AUC
-- ROC-AUC
-- Brier score
-- top-decile lift
-- recall at review capacity
-- confusion matrix by threshold
-- expected business value
+Selected model: `lightgbm` (`lightgbm_credit_risk_v1`).
 
-Accuracy is not used as the headline metric.
+| Split | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |
+|---|---:|---:|---:|---:|---:|
+| Validation | 0.258667 | 0.769216 | 0.171864 | 3.506754 | 0.350698 |
+| Held-out test | 0.257943 | 0.771017 | 0.171325 | 3.471847 | 0.347207 |
+
+Validation comparison against the logistic regression baseline:
+
+| Metric | Logistic regression | LightGBM | Difference |
+|---|---:|---:|---:|
+| PR-AUC | 0.244617 | 0.258667 | +0.014050 |
+| ROC-AUC | 0.757608 | 0.769216 | +0.011608 |
+| Brier score | 0.200474 | 0.171864 | -0.028610 |
+| Top-decile lift | 3.337592 | 3.506754 | +0.169162 |
+| Recall at 10% review capacity | 0.333781 | 0.350698 | +0.016917 |
 
 ## Decision Policy
 
@@ -98,62 +99,63 @@ Model scores are converted into simulated business actions:
 | `T_low` to `< T_high` | Medium risk | Manual review |
 | `>= T_high` | High risk | Decline or high-priority review |
 
-Thresholds are selected using validation-set performance and explicit business assumptions.
+Thresholds are selected using validation-set scores and explicit business assumptions. The selected balanced scenario uses:
+
+| Scenario | `T_low` | `T_high` | Test approval rate | Test review rate | Test high-risk rate | Test EV / applicant |
+|---|---:|---:|---:|---:|---:|---:|
+| Balanced | 0.581632 | 0.694617 | 0.8008 | 0.0973 | 0.1019 | 575.44 |
 
 ## Expected-Value Framework
 
 ```text
-Expected Value =
-    approved_good_loans * expected_margin_per_good_loan
-  - approved_bad_loans * expected_loss_per_bad_loan
-  - manual_reviews * manual_review_cost
+Expected value =
+    approved_good_count * expected_margin_per_good_loan
+  - approved_bad_count * expected_loss_per_bad_loan
+  - manual_review_count * manual_review_cost
 ```
 
-Starting assumptions:
+Scenario assumptions:
 
 | Assumption | Value |
 |---|---:|
-| Expected margin per good approved loan | $1,000 |
-| Expected loss per bad approved loan | $5,000 |
-| Manual review cost | $50 |
+| Expected margin per good approved loan | 1000 |
+| Expected loss per bad approved loan | 5000 |
+| Manual review cost | 50 |
 | Manual review capacity | 10% of applicants |
 
-These are illustrative scenario assumptions, not real Home Credit economics.
+These are illustrative assumptions used to compare threshold behavior. They are not real Home Credit economics.
+
+Interpretation: the `1000` margin and `5000` loss values are utility weights for comparing scenarios, not calibrated loan-level profit and loss estimates. They intentionally encode that approving a bad loan is much more costly than approving a good loan is valuable, while keeping the v1 dashboard readable. A production-style value model would scale margin and loss by exposure, term, pricing, funding cost, recovery, and loss-given-default assumptions.
 
 ## Power BI Dashboard
 
-The main dashboard page will show:
+The dashboard summarizes the decisioning workflow with KPI cards, score distribution, threshold scenario comparison, risk-band action mix, expected-value behavior, lift/calibration validation, and top model drivers.
 
-- score distribution;
-- risk band counts;
-- KPI cards for PR-AUC, ROC-AUC, Brier score, and lift;
-- threshold scenario comparison;
-- confusion matrix;
-- lift by decile;
-- expected value by threshold;
-- approval/default tradeoff;
-- top model drivers.
+![Decisioning overview](powerbi/screenshots/decisioning_overview.png)
 
-## Repository Structure
+![Model validation appendix](powerbi/screenshots/model_validation_appendix.png)
 
-```text
-loan-default-decisioning/
-├── README.md
-├── PROJECT_SPEC.md
-├── Makefile
-├── Dockerfile
-├── requirements.txt
-├── pyproject.toml
-├── configs/
-├── data/
-├── sql/
-├── src/
-├── tests/
-├── notebooks/
-├── reports/
-├── powerbi/
-└── models/
-```
+Power BI consumes CSV exports from `reports/dashboard_data/`, which are generated from DuckDB tables by `make dashboard-data`.
+
+## Key Outputs
+
+| Artifact | Purpose |
+|---|---|
+| `mart_credit_risk_features` | One-row-per-applicant feature mart |
+| `models/lightgbm_credit_risk.joblib` | Selected tuned LightGBM artifact |
+| `reports/model_metrics_summary.csv` | Model metrics by split |
+| `reports/lightgbm_tuning_summary.csv` | LightGBM candidate comparison |
+| `reports/model_threshold_metrics.csv` | Threshold scenario metrics |
+| `reports/business_value_analysis.md` | Expected-value scenario summary |
+| `reports/model_feature_importance.csv` | SHAP global feature importance |
+| `reports/model_card.md` | Intended use, limitations, and validation summary |
+| `reports/experiments/` | Post-v1 experiment reports and comparison log |
+| `reports/dashboard_data/` | Power BI-ready export tables |
+| `powerbi/screenshots/` | Dashboard screenshots |
+
+## Top Model Drivers
+
+The top SHAP-ranked drivers include external source aggregates, prior application amount ratios, requested credit/goods amounts, employment length, payment delay behavior, and repayment-history features. SHAP outputs are used for model interpretation and debugging only; they are not legally compliant adverse-action notices.
 
 ## How to Run
 
@@ -168,26 +170,38 @@ make dashboard-data
 make test
 ```
 
-Raw Kaggle data is not committed to this repository. Download the dataset separately and place the CSV files in `data/raw/`.
+Raw Kaggle data is not committed. Download the dataset separately and place the CSV files in `data/raw/`.
 
-## Project Outputs
+## Repository Structure
 
-- applicant-level feature mart;
-- trained logistic regression baseline;
-- trained LightGBM model;
-- evaluation metrics;
-- lift and calibration tables;
-- threshold scenario table;
-- batch scoring table;
-- SHAP feature importance and reason-code-style outputs;
-- Power BI dashboard screenshots.
+```text
+loan-default-risk-decisioning-system/
+|-- README.md
+|-- PROJECT_SPEC.md
+|-- IMPLEMENTATION_PLAN.md
+|-- TESTING_PLAN.md
+|-- VALIDATION_PLAN.md
+|-- Makefile
+|-- Dockerfile
+|-- requirements.txt
+|-- configs/
+|-- data/
+|-- docs/
+|-- models/
+|-- notebooks/
+|-- powerbi/
+|-- reports/
+|-- sql/
+|-- src/
+`-- tests/
+```
 
 ## Limitations
 
-This is a portfolio project and decision-support simulation, not an automated underwriting system.
+This is a portfolio decision-support simulation, not an automated underwriting system.
 
-Production credit systems require fair-lending review, monitoring, governance, adverse-action controls, legal/compliance approval, and stronger model-risk management than this project claims to provide.
+The target is a proxy for observed repayment difficulty, not a complete loss/default framework. Expected value is illustrative and depends on simplified assumptions. The model is validated on a static public dataset and does not include production monitoring, adverse-action controls, fair-lending review, compliance approval, or model governance.
 
-Direct demographic and protected-status-like fields are excluded from v1 model features. If age, gender, or marital/family-status fields are inspected, they are retained only in a separate diagnostic layer for segment checks, not model training, deployment approval, or fair-lending compliance claims.
+Direct demographic and protected-status-like fields are excluded from v1 model features. If age, gender, marital status, or family-status-like fields are inspected, they are retained only in a separate diagnostic layer for limitation checks, not model training or deployment approval.
 
-SHAP outputs are used for model interpretation and debugging. They are not legally compliant adverse-action notices.
+Post-v1 work can add richer monthly history tables such as `bureau_balance`, `POS_CASH_balance`, and `credit_card_balance`, plus deeper monitoring and validation. Those are intentionally outside the v1 scope.

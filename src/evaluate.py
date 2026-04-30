@@ -607,6 +607,8 @@ Thresholds are selected from validation scores and applied unchanged to the held
 - Manual review cost: {assumptions['manual_review_cost']}
 - Manual review capacity rate: {assumptions['manual_review_capacity_rate']}
 
+These values are scenario-comparison utility weights, not calibrated Home Credit economics. The good-loan margin and bad-loan loss encode a simple penalty ratio so approval, review, and high-risk policies can be compared in v1. A production value model would scale margin and loss by exposure, term, pricing, funding cost, recovery, and loss-given-default assumptions.
+
 ## Scenario Metrics
 
 | Split | Scenario | Approval Rate | Review Rate | High-Risk Rate | Approved Default Rate | High-Risk Default Capture | Expected Value | EV / Applicant |
