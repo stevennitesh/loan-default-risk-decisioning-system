@@ -73,14 +73,14 @@ LightGBM tuning is bounded and validation-only. Candidate selection uses a non-d
 
 No Platt/sigmoid or isotonic calibration layer is fitted in v1. Brier score and calibration bins are reported to evaluate score quality, but they do not make the raw LightGBM scores calibrated probabilities.
 
-Post-v1 Experiment 004 fits a separate sigmoid calibration layer on the validation split for the Experiment 003 LightGBM model. This materially improves probability-quality metrics while preserving rank metrics, and it is documented as an experiment artifact rather than a v1 production probability-of-default model.
+Post-v1 fits a separate sigmoid calibration layer on the validation split for the selected LightGBM model. This materially improves probability-quality metrics while preserving rank metrics, and it is documented as an experiment artifact rather than a production probability-of-default model.
 
 | Post-v1 calibration result | Uncalibrated | Sigmoid calibrated | Difference |
 |---|---:|---:|---:|
-| Validation Brier score | 0.175712 | 0.066535 | -0.109176 |
-| Held-out test Brier score | 0.174848 | 0.066550 | -0.108298 |
-| Validation weighted bin error | 0.296805 | 0.002704 | -0.294101 |
-| Held-out test weighted bin error | 0.295293 | 0.002823 | -0.292470 |
+| Validation Brier score | 0.174335 | 0.066500 | -0.107835 |
+| Held-out test Brier score | 0.173301 | 0.066460 | -0.106842 |
+| Validation weighted bin error | 0.289885 | 0.003634 | -0.286251 |
+| Held-out test weighted bin error | 0.288304 | 0.002709 | -0.285595 |
 
 Batch scoring and dashboard exports now retain both `raw_risk_score` and `calibrated_risk_score`, with `calibration_method` documenting the applied sigmoid layer. The original `score` column remains the rank-policy score used by the current threshold workflow. Post-v1 dashboard exports relabel the selected model as `lightgbm_credit_risk_post_v1` so the improved comparison bundle is distinct from frozen v1.
 
@@ -88,11 +88,11 @@ Post-v1 Experiments 005-014 form a validation-first learning trail rather than a
 
 The post-v1 caveat is calibration-bin behavior: weighted calibration error worsens slightly versus the prior post-v1 candidate, even though Brier improves. The full v1-to-post-v1 summary is in `reports/experiments/v1_to_post_v1_model_diff.md`.
 
-Frozen v1 selected candidate from `reports/lightgbm_tuning_summary.csv`:
+Frozen v1 selected candidate from `reports/v1/lightgbm_tuning_summary.csv`:
 
 | Candidate | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |
 |---|---:|---:|---:|---:|---:|
-| `feature_subsample_regularized` | 0.258667 | 0.769216 | 0.171864 | 3.506754 | 0.350698 |
+| `feature_subsample_regularized` | 0.260173 | 0.770420 | 0.171640 | 3.490643 | 0.349087 |
 
 ## Metrics
 
@@ -100,32 +100,32 @@ Frozen v1 LightGBM metrics:
 
 | Split | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |
 |---|---:|---:|---:|---:|---:|
-| Validation | 0.258667 | 0.769216 | 0.171864 | 3.506754 | 0.350698 |
-| Held-out test | 0.257943 | 0.771017 | 0.171325 | 3.471847 | 0.347207 |
+| Validation | 0.260173 | 0.770420 | 0.171640 | 3.490643 | 0.349087 |
+| Held-out test | 0.258236 | 0.770385 | 0.171245 | 3.482588 | 0.348281 |
 
 Validation comparison to logistic regression:
 
 | Metric | Logistic regression | LightGBM | Difference |
 |---|---:|---:|---:|
-| PR-AUC | 0.244617 | 0.258667 | +0.014050 |
-| ROC-AUC | 0.757608 | 0.769216 | +0.011608 |
-| Brier score | 0.200474 | 0.171864 | -0.028610 |
-| Top-decile lift | 3.337592 | 3.506754 | +0.169162 |
-| Recall at 10% review capacity | 0.333781 | 0.350698 | +0.016917 |
+| PR-AUC | 0.244617 | 0.260173 | +0.015556 |
+| ROC-AUC | 0.757608 | 0.770420 | +0.012812 |
+| Brier score | 0.200474 | 0.171640 | -0.028835 |
+| Top-decile lift | 3.337592 | 3.490643 | +0.153051 |
+| Recall at 10% review capacity | 0.333781 | 0.349087 | +0.015306 |
 
 Post-v1 improvement summary:
 
 | Metric | Frozen v1 | Best post-v1 | Difference |
 |---|---:|---:|---:|
 | Feature count | 68 | 168 | +100 |
-| Validation PR-AUC | 0.258667 | 0.271879 | +0.013212 |
-| Validation ROC-AUC | 0.769216 | 0.780531 | +0.011315 |
-| Validation Brier score | 0.171864 | 0.066419 | -0.105445 |
-| Validation top-decile lift | 3.506754 | 3.651750 | +0.144996 |
-| Validation recall at 10% review capacity | 0.350698 | 0.365199 | +0.014501 |
-| Validation balanced EV / applicant | 570.48 | 580.80 | +10.32 |
+| Validation PR-AUC | 0.260173 | 0.272184 | +0.012011 |
+| Validation ROC-AUC | 0.770420 | 0.778732 | +0.008312 |
+| Validation Brier score | 0.171640 | 0.066500 | -0.105139 |
+| Validation top-decile lift | 3.490643 | 3.659805 | +0.169162 |
+| Validation recall at 10% review capacity | 0.349087 | 0.366004 | +0.016917 |
+| Validation balanced EV / applicant | 571.52 | 577.24 | +5.72 |
 
-The post-v1 values summarize the promoted 168-feature candidate from repeated-seed validation. Held-out test remains a post-selection generalization check and is reported in `reports/experiments/v1_to_post_v1_model_diff.md`.
+The post-v1 values summarize the frozen final dashboard export for the promoted 168-feature candidate. Held-out test remains a post-selection generalization check and is reported in `reports/experiments/v1_to_post_v1_model_diff.md`.
 
 ## Threshold Policy
 
@@ -143,9 +143,9 @@ The thresholds below are cutoffs on uncalibrated model scores. They are valid fo
 
 | Scenario | `T_low` | `T_high` | Test approval rate | Test review rate | Test high-risk rate | Test EV / applicant |
 |---|---:|---:|---:|---:|---:|---:|
-| Growth-oriented | 0.634183 | 0.766934 | 0.8490 | 0.0987 | 0.0522 | 582.09 |
-| Balanced | 0.581632 | 0.694617 | 0.8008 | 0.0973 | 0.1019 | 575.44 |
-| Risk-averse | 0.485847 | 0.581632 | 0.7013 | 0.0995 | 0.1992 | 539.41 |
+| Growth-oriented | 0.635669 | 0.766724 | 0.8503 | 0.0976 | 0.0520 | 583.62 |
+| Balanced | 0.580982 | 0.695323 | 0.8010 | 0.0967 | 0.1023 | 572.03 |
+| Risk-averse | 0.485034 | 0.580982 | 0.7009 | 0.1001 | 0.1990 | 537.84 |
 
 ## Expected-Value Assumptions
 
@@ -217,11 +217,16 @@ make pipeline-post-v1
 
 Key generated artifacts:
 
-- `reports/model_metrics_summary.csv`
-- `reports/lightgbm_tuning_summary.csv`
-- `reports/model_threshold_metrics.csv`
-- `reports/business_value_analysis.md`
-- `reports/model_feature_importance.csv`
+- `reports/v1/model_metrics_summary.csv`
+- `reports/post_v1/model_metrics_summary.csv`
+- `reports/v1/lightgbm_tuning_summary.csv`
+- `reports/post_v1/lightgbm_tuning_summary.csv`
+- `reports/v1/model_threshold_metrics.csv`
+- `reports/post_v1/model_threshold_metrics.csv`
+- `reports/v1/business_value_analysis.md`
+- `reports/post_v1/business_value_analysis.md`
+- `reports/v1/model_feature_importance.csv`
+- `reports/post_v1/model_feature_importance.csv`
 - `reports/dashboard_data/`
 - `reports/dashboard_data_post_v1/`
 - `reports/v1/`

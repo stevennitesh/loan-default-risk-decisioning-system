@@ -70,14 +70,14 @@ The project trains a logistic regression baseline and a tuned LightGBM primary m
 
 v1 scores are not fitted calibrated default probabilities. The project evaluates probability quality with Brier score and calibration bins, but no Platt/sigmoid or isotonic calibration layer is fitted in v1. Treat score thresholds as validation-derived ranking cutoffs, not as literal default-probability policy thresholds.
 
-Post-v1 Experiment 004 adds a separate sigmoid calibration artifact for the Experiment 003 LightGBM model. This is one of the strongest post-v1 improvements: held-out test Brier score improves from `0.174848` to `0.066550`, and weighted calibration-bin error improves from `0.295293` to `0.002823` without changing rank metrics.
+Post-v1 adds a separate sigmoid calibration artifact for the 168-feature LightGBM model. This is one of the strongest post-v1 improvements: held-out test Brier score improves from `0.173301` to `0.066460`, and weighted calibration-bin error improves from `0.288304` to `0.002709` without changing rank metrics.
 
 | Post-v1 calibration result | Uncalibrated | Sigmoid calibrated | Difference |
 |---|---:|---:|---:|
-| Validation Brier score | 0.175712 | 0.066535 | -0.109176 |
-| Test Brier score | 0.174848 | 0.066550 | -0.108298 |
-| Validation weighted bin error | 0.296805 | 0.002704 | -0.294101 |
-| Test weighted bin error | 0.295293 | 0.002823 | -0.292470 |
+| Validation Brier score | 0.174335 | 0.066500 | -0.107835 |
+| Test Brier score | 0.173301 | 0.066460 | -0.106842 |
+| Validation weighted bin error | 0.289885 | 0.003634 | -0.286251 |
+| Test weighted bin error | 0.288304 | 0.002709 | -0.285595 |
 
 Batch scoring and dashboard exports keep the original rank score as `score` / `raw_risk_score` and add `calibrated_risk_score` plus `calibration_method`. This preserves the existing threshold-policy audit trail while making calibrated score quality visible downstream.
 
@@ -93,18 +93,18 @@ Selected v1 model: `lightgbm` (`lightgbm_credit_risk_v1`).
 
 | Split | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |
 |---|---:|---:|---:|---:|---:|
-| Validation | 0.258667 | 0.769216 | 0.171864 | 3.506754 | 0.350698 |
-| Held-out test | 0.257943 | 0.771017 | 0.171325 | 3.471847 | 0.347207 |
+| Validation | 0.260173 | 0.770420 | 0.171640 | 3.490643 | 0.349087 |
+| Held-out test | 0.258236 | 0.770385 | 0.171245 | 3.482588 | 0.348281 |
 
 Validation comparison against the logistic regression baseline:
 
 | Metric | Logistic regression | LightGBM | Difference |
 |---|---:|---:|---:|
-| PR-AUC | 0.244617 | 0.258667 | +0.014050 |
-| ROC-AUC | 0.757608 | 0.769216 | +0.011608 |
-| Brier score | 0.200474 | 0.171864 | -0.028610 |
-| Top-decile lift | 3.337592 | 3.506754 | +0.169162 |
-| Recall at 10% review capacity | 0.333781 | 0.350698 | +0.016917 |
+| PR-AUC | 0.244617 | 0.260173 | +0.015556 |
+| ROC-AUC | 0.757608 | 0.770420 | +0.012812 |
+| Brier score | 0.200474 | 0.171640 | -0.028835 |
+| Top-decile lift | 3.337592 | 3.490643 | +0.153051 |
+| Recall at 10% review capacity | 0.333781 | 0.349087 | +0.015306 |
 
 ## Post-v1 Improvement Summary
 
@@ -113,12 +113,12 @@ The best post-v1 candidate is the 168-feature last-k temporal LightGBM setup wit
 | Metric | Frozen v1 | Best post-v1 | Difference |
 |---|---:|---:|---:|
 | Feature count | 68 | 168 | +100 |
-| Validation PR-AUC | 0.258667 | 0.271879 | +0.013212 |
-| Validation ROC-AUC | 0.769216 | 0.780531 | +0.011315 |
-| Validation Brier score | 0.171864 | 0.066419 | -0.105445 |
-| Validation top-decile lift | 3.506754 | 3.651750 | +0.144996 |
-| Validation recall at 10% review capacity | 0.350698 | 0.365199 | +0.014501 |
-| Validation balanced EV / applicant | 570.48 | 580.80 | +10.32 |
+| Validation PR-AUC | 0.260173 | 0.272184 | +0.012011 |
+| Validation ROC-AUC | 0.770420 | 0.778732 | +0.008312 |
+| Validation Brier score | 0.171640 | 0.066500 | -0.105139 |
+| Validation top-decile lift | 3.490643 | 3.659805 | +0.169162 |
+| Validation recall at 10% review capacity | 0.349087 | 0.366004 | +0.016917 |
+| Validation balanced EV / applicant | 571.52 | 577.24 | +5.72 |
 
 The biggest lesson was not "more features always win." The experiment trail showed that calibration gave the cleanest probability-quality gain, recent repayment behavior was the strongest feature-engineering direction, and cleanup did not justify dropping the final 16 features. Held-out test remains a post-selection generalization check, not the optimization target.
 
@@ -138,7 +138,7 @@ These thresholds are score cutoffs from the selected uncalibrated model. They ar
 
 | Scenario | `T_low` | `T_high` | Test approval rate | Test review rate | Test high-risk rate | Test EV / applicant |
 |---|---:|---:|---:|---:|---:|---:|
-| Balanced | 0.581632 | 0.694617 | 0.8008 | 0.0973 | 0.1019 | 575.44 |
+| Balanced | 0.580982 | 0.695323 | 0.8010 | 0.0967 | 0.1023 | 572.03 |
 
 ## Expected-Value Framework
 
@@ -177,12 +177,16 @@ Power BI consumes CSV exports from `reports/dashboard_data/`, which are generate
 | Artifact | Purpose |
 |---|---|
 | `mart_credit_risk_features` | One-row-per-applicant feature mart |
-| `models/lightgbm_credit_risk.joblib` | Selected tuned LightGBM artifact |
-| `reports/model_metrics_summary.csv` | Model metrics by split |
-| `reports/lightgbm_tuning_summary.csv` | LightGBM candidate comparison |
-| `reports/model_threshold_metrics.csv` | Threshold scenario metrics |
-| `reports/business_value_analysis.md` | Expected-value scenario summary |
-| `reports/model_feature_importance.csv` | SHAP global feature importance |
+| `models/v1/` | Frozen v1 model artifacts |
+| `models/post_v1/` | Frozen best post-v1 model artifacts |
+| `reports/v1/model_metrics_summary.csv` | Frozen v1 model metrics by split |
+| `reports/post_v1/model_metrics_summary.csv` | Frozen post-v1 model metrics by split |
+| `reports/v1/lightgbm_tuning_summary.csv` | Frozen v1 LightGBM candidate comparison |
+| `reports/post_v1/lightgbm_tuning_summary.csv` | Frozen post-v1 LightGBM candidate comparison |
+| `reports/v1/model_threshold_metrics.csv` | Frozen v1 threshold scenario metrics |
+| `reports/post_v1/model_threshold_metrics.csv` | Frozen post-v1 threshold scenario metrics |
+| `reports/v1/model_feature_importance.csv` | Frozen v1 SHAP global feature importance |
+| `reports/post_v1/model_feature_importance.csv` | Frozen post-v1 SHAP global feature importance |
 | `reports/model_card.md` | Intended use, limitations, and validation summary |
 | `reports/experiments/` | Post-v1 experiment reports and comparison log |
 | `reports/experiments/v1_to_post_v1_model_diff.md` | Recruiter-friendly v1 to best post-v1 improvement summary |

@@ -11,7 +11,7 @@ The frozen v1 baseline is recorded in:
 - `000_v1_baseline.md`
 - `experiment_log.csv`
 
-Do not edit the baseline values after post-v1 experiments begin unless v1 itself is intentionally re-frozen.
+The baseline was intentionally re-frozen after the separate `pipeline-v1` and `pipeline-post-v1` artifact paths were added. `000_v1_baseline.md` and row `000` in `experiment_log.csv` now reflect the final frozen v1 dashboard data. Historical experiment reports `001`-`014` preserve the metrics recorded at the time of each experiment; row `015` records the final post-v1 dashboard freeze used for the recruiter-facing comparison.
 
 ## Experiment Rule
 
@@ -84,6 +84,7 @@ Do not promote or demote an experiment because held-out test looks better or wor
 012_last_k_model_stability.md
 013_feature_cleanup.md
 014_feature_cleanup_stability.md
+015 final pipeline freeze row in experiment_log.csv
 v1_to_post_v1_model_diff.md
 post_v1_results_summary.md
 ```

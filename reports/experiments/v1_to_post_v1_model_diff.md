@@ -21,22 +21,23 @@ The answer is yes. The best supported post-v1 candidate is the 168-feature last-
 
 ## Metric Diff
 
-The table below compares the frozen v1 baseline with the active post-v1 candidate recorded in Experiment 014. V1 is a frozen single-split baseline. The post-v1 values are repeated-seed validation means for the promoted 168-feature candidate, so this is best read as a portfolio-level improvement summary rather than a perfectly identical single-run comparison.
+The table below compares the frozen v1 dashboard export with the frozen post-v1 dashboard export. Historical experiments still document the learning trail, including repeated-seed stability checks, but these final values are the current artifacts that feed the Power BI comparison bundle.
 
 | Metric | V1 baseline | Best post-v1 | Difference |
 |---|---:|---:|---:|
 | Feature count | 68 | 168 | +100 |
-| Validation PR-AUC | 0.258667 | 0.271879 | +0.013212 |
-| Validation ROC-AUC | 0.769216 | 0.780531 | +0.011315 |
-| Validation Brier score | 0.171864 | 0.066419 | -0.105445 |
-| Validation top-decile lift | 3.506754 | 3.651750 | +0.144996 |
-| Validation recall at 10% review capacity | 0.350698 | 0.365199 | +0.014501 |
-| Validation balanced EV / applicant | 570.48 | 580.80 | +10.32 |
-| Held-out test PR-AUC | 0.257943 | 0.264566 | +0.006623 |
-| Held-out test Brier score | 0.171325 | 0.066677 | -0.104648 |
-| Held-out test top-decile lift | 3.471847 | 3.610578 | +0.138731 |
-| Held-out test recall at 10% review capacity | 0.347207 | 0.361081 | +0.013874 |
-| Held-out test balanced EV / applicant | 575.44 | 577.91 | +2.47 |
+| Validation PR-AUC | 0.260173 | 0.272184 | +0.012011 |
+| Validation ROC-AUC | 0.770420 | 0.778732 | +0.008312 |
+| Validation Brier score | 0.171640 | 0.066500 | -0.105139 |
+| Validation top-decile lift | 3.490643 | 3.659805 | +0.169162 |
+| Validation recall at 10% review capacity | 0.349087 | 0.366004 | +0.016917 |
+| Validation balanced EV / applicant | 571.52 | 577.24 | +5.72 |
+| Held-out test PR-AUC | 0.258236 | 0.269925 | +0.011689 |
+| Held-out test ROC-AUC | 0.770385 | 0.780208 | +0.009823 |
+| Held-out test Brier score | 0.171245 | 0.066460 | -0.104786 |
+| Held-out test top-decile lift | 3.482588 | 3.600733 | +0.118145 |
+| Held-out test recall at 10% review capacity | 0.348281 | 0.360097 | +0.011815 |
+| Held-out test balanced EV / applicant | 572.03 | 581.58 | +9.55 |
 
 Lower Brier score is better. The large Brier improvement is mainly the result of adding sigmoid calibration, not just adding more features.
 

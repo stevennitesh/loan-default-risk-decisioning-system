@@ -21,32 +21,32 @@ Example:
 
 | Metric | v1 baseline | Experiment | Difference |
 |---|---:|---:|---:|
-| PR-AUC | 0.258667 |  |  |
-| ROC-AUC | 0.769216 |  |  |
-| Brier score | 0.171864 |  |  |
-| Top-decile lift | 3.506754 |  |  |
-| Precision at top decile | 0.283113 |  |  |
-| Recall at 10% review capacity | 0.350698 |  |  |
+| PR-AUC | 0.260173 |  |  |
+| ROC-AUC | 0.770420 |  |  |
+| Brier score | 0.171640 |  |  |
+| Top-decile lift | 3.490643 |  |  |
+| Precision at top decile | 0.281812 |  |  |
+| Recall at 10% review capacity | 0.349087 |  |  |
 
 ## Held-Out Test Metrics
 
 | Metric | v1 baseline | Experiment | Difference |
 |---|---:|---:|---:|
-| PR-AUC | 0.257943 |  |  |
-| ROC-AUC | 0.771017 |  |  |
-| Brier score | 0.171325 |  |  |
-| Top-decile lift | 3.471847 |  |  |
-| Precision at top decile | 0.280295 |  |  |
-| Recall at 10% review capacity | 0.347207 |  |  |
+| PR-AUC | 0.258236 |  |  |
+| ROC-AUC | 0.770385 |  |  |
+| Brier score | 0.171245 |  |  |
+| Top-decile lift | 3.482588 |  |  |
+| Precision at top decile | 0.281162 |  |  |
+| Recall at 10% review capacity | 0.348281 |  |  |
 
 ## Balanced Scenario Metrics
 
 | Metric | v1 baseline | Experiment | Difference |
 |---|---:|---:|---:|
-| Validation EV / applicant | 570.48 |  |  |
-| Test EV / applicant | 575.44 |  |  |
-| Validation high-risk default capture | 0.3507 |  |  |
-| Test high-risk default capture | 0.3523 |  |  |
+| Validation EV / applicant | 571.52 |  |  |
+| Test EV / applicant | 572.03 |  |  |
+| Validation high-risk default capture | 0.3491 |  |  |
+| Test high-risk default capture | 0.3539 |  |  |
 
 ## Feature Exploration Notes
 

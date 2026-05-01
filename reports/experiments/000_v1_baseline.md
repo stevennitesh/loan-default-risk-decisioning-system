@@ -32,12 +32,12 @@ v1 source files:
 
 | Metric | Value |
 |---|---:|
-| PR-AUC | 0.258667 |
-| ROC-AUC | 0.769216 |
-| Brier score | 0.171864 |
-| Top-decile lift | 3.506754 |
-| Precision at top decile | 0.283113 |
-| Recall at 10% review capacity | 0.350698 |
+| PR-AUC | 0.260173 |
+| ROC-AUC | 0.770420 |
+| Brier score | 0.171640 |
+| Top-decile lift | 3.490643 |
+| Precision at top decile | 0.281812 |
+| Recall at 10% review capacity | 0.349087 |
 
 Calibration note: v1 reports Brier score and calibration bins, but it does not fit a Platt/sigmoid or isotonic calibration layer. Scores should be treated as ranking scores, not calibrated default probabilities.
 
@@ -45,19 +45,19 @@ Calibration note: v1 reports Brier score and calibration bins, but it does not f
 
 | Metric | Value |
 |---|---:|
-| PR-AUC | 0.257943 |
-| ROC-AUC | 0.771017 |
-| Brier score | 0.171325 |
-| Top-decile lift | 3.471847 |
-| Precision at top decile | 0.280295 |
-| Recall at 10% review capacity | 0.347207 |
+| PR-AUC | 0.258236 |
+| ROC-AUC | 0.770385 |
+| Brier score | 0.171245 |
+| Top-decile lift | 3.482588 |
+| Precision at top decile | 0.281162 |
+| Recall at 10% review capacity | 0.348281 |
 
 ## Balanced Scenario Metrics
 
 | Split | Approval rate | Review rate | High-risk rate | High-risk default capture | EV / applicant |
 |---|---:|---:|---:|---:|---:|
-| Validation | 0.8000 | 0.1000 | 0.1000 | 0.3507 | 570.48 |
-| Held-out test | 0.8008 | 0.0973 | 0.1019 | 0.3523 | 575.44 |
+| Validation | 0.8000 | 0.1000 | 0.1000 | 0.3491 | 571.52 |
+| Held-out test | 0.8010 | 0.0967 | 0.1023 | 0.3539 | 572.03 |
 
 ## Top SHAP Drivers
 
@@ -66,13 +66,13 @@ Top global drivers from `reports/model_feature_importance.csv`:
 1. Ext source mean
 2. Avg credit to application ratio
 3. Amt goods price
-4. Amt credit
-5. Ext source max
-6. Ext source min
-7. Employment length days
+4. Ext source max
+5. Amt credit
+6. Employment length days
+7. Ext source min
 8. Max payment delay days
 9. Name education type: Higher education
-10. Amt annuity
+10. Total credit debt
 
 ## Conclusion
 
