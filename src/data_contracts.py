@@ -119,6 +119,7 @@ def validate_data_contracts(connection: duckdb.DuckDBPyConnection, config: dict[
     if missing_tables:
         raise DataContractError(f"Missing required DuckDB tables: {', '.join(missing_tables)}")
 
+    # Collect all contract failures before raising so one pipeline run gives a useful fix list.
     errors: list[str] = []
     _validate_mart_contract(connection, errors)
     _validate_applicant_row_reconciliation(connection, errors)
@@ -135,6 +136,7 @@ def get_model_feature_columns(
     config: dict[str, Any],
 ) -> list[str]:
     exclusion_groups = _exclusion_group_map(config)
+    # The mart is the only modeling surface; diagnostics stay separate even when available in DuckDB.
     return [
         column_name
         for column_name in table_columns(connection, MART_TABLE)
@@ -339,6 +341,7 @@ def _validate_applicant_row_reconciliation(
 
 
 def _required_tables(config: dict[str, Any] | None) -> list[TableContract]:
+    # v1 remains reproducible after post-v1 tables were added, so table requirements are scope-aware.
     if config is not None and not is_post_v1_scope(config):
         return V1_REQUIRED_TABLES
     return REQUIRED_TABLES

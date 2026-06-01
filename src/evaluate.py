@@ -76,6 +76,7 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
         )
         for model_type, (model_version, artifact_name) in MODEL_ARTIFACTS.items()
     }
+    # Evaluation compares model families only when they were trained on the same features and split IDs.
     feature_columns, split_applicant_ids = _validate_artifacts(artifacts)
 
     created_at = created_at_utc()
@@ -93,6 +94,7 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
         selected_model_version = str(selected_artifact["model_version"])
         selected_predictions = prediction_frames[selected_model_type]
         try:
+            # Thresholds are selected from validation predictions and then applied unchanged to test.
             scenario_thresholds = resolve_scenario_thresholds(
                 config["threshold_policy"],
                 selected_predictions["validation"]["probability"].to_numpy(),
@@ -194,6 +196,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.export_dashboard_data:
+        # Keep dashboard export imports local so normal evaluation does not depend on export helpers.
         from src.dashboard_exports import DashboardExportError
         from src.dashboard_exports import run_dashboard_export
 

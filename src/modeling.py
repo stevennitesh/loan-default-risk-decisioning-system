@@ -66,6 +66,7 @@ def split_labeled_frame(
     if holdout_size <= 0:
         raise error_cls("Validation and test split sizes must be positive")
 
+    # Split in two stratified stages so validation and test keep the configured proportions.
     train_frame, holdout_frame = train_test_split(
         frame,
         test_size=holdout_size,
@@ -339,6 +340,7 @@ def _lightgbm_candidate_specs(
     tuning_enabled: bool,
 ) -> list[dict[str, Any]]:
     base_scale_pos_weight = float(base_params.get("scale_pos_weight", 1.0))
+    # Preset order is part of the bounded tuning contract; max_candidates selects a prefix.
     presets = [
         (
             "baseline_current",

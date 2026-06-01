@@ -77,6 +77,7 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
         model_version = str(artifact["model_version"])
         feature_columns = list(artifact["feature_columns"])
         scored_frame = _load_scored_feature_frame(connection, model_version, feature_columns)
+        # SHAP runs on the fitted transformed feature space, then maps labels back to raw features.
         transformed_features, transformed_feature_names, classifier = _transform_features(
             artifact,
             scored_frame[feature_columns],
@@ -201,6 +202,7 @@ def _load_scored_feature_frame(
         FROM credit_risk_scores AS s
         INNER JOIN mart_credit_risk_features AS m
             ON m.SK_ID_CURR = s.applicant_id
+           -- Holdout rows come from the labeled training population; Kaggle scoring rows stay unlabeled.
            AND (
                 (s.scoring_population = 'holdout_test' AND m.source_population = 'application_train')
                 OR (s.scoring_population = 'kaggle_test' AND m.source_population = 'application_test')
@@ -272,6 +274,7 @@ def _compute_shap_values(
             "LightGBM SHAP contribution shape does not match transformed features: "
             f"got {contribution_array.shape}, expected {(row_count, expected_width)}"
         )
+    # LightGBM appends the expected value as the final contribution column; outputs use feature effects only.
     shap_values = contribution_array[:, :-1]
     if not np.isfinite(shap_values).all():
         raise ExplainabilityError("LightGBM SHAP values contain non-finite values")
@@ -368,6 +371,7 @@ def _build_reason_rows(
             feature_label = feature_labels[feature_index]
             if feature_label in seen_labels:
                 continue
+            # Reason fields are directional debugging signals, not adverse-action notices.
             reasons.append(f"Higher risk: {feature_label}")
             seen_labels.add(feature_label)
             if len(reasons) == 3:

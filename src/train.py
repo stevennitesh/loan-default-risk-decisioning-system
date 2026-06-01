@@ -39,6 +39,7 @@ from src.runtime import replace_duckdb_table
 from src.runtime import resolve_project_path
 from src.runtime import write_csv
 
+
 class TrainingError(RuntimeError):
     """Raised when baseline training cannot satisfy the Milestone 4 contract."""
 
@@ -65,6 +66,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
     manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
 
     with duckdb.connect(str(duckdb_path)) as connection:
+        # Training is gated by the mart contract so artifacts cannot be created from invalid grain.
         try:
             validate_data_contracts(connection, config)
         except DataContractError as error:
@@ -77,6 +79,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
             error_cls=TrainingError,
         )
 
+        # Baseline and LightGBM share the exact split so model comparisons are apples-to-apples.
         split_frames = split_labeled_frame(
             training_frame,
             config,
@@ -160,6 +163,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
 
         model_dir.mkdir(parents=True, exist_ok=True)
         report_dir.mkdir(parents=True, exist_ok=True)
+        # Downstream evaluation, scoring, and explainability depend on these persisted split IDs.
         common_artifact_fields = {
             "run_id": run_id,
             "feature_columns": feature_columns,
