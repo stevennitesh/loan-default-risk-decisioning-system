@@ -659,7 +659,12 @@ The README answers these questions quickly:
 | `make train` | model artifacts, model run summary |
 | `make evaluate` | metrics, lift, calibration, threshold tables, validation figures |
 | `make score` | `credit_risk_scores` |
+| `make calibrate` | calibration comparison tables and selected calibration artifact |
+| `make explain` | SHAP feature importance and reason-code-style outputs |
 | `make dashboard-data` | Power BI-ready exports |
+| `make dashboard-data-post-v1` | calibrated post-v1 Power BI-ready exports |
+| `make pipeline-v1` | frozen v1 end-to-end rebuild |
+| `make pipeline-post-v1` | post-v1 calibrated comparison rebuild |
 | `make test` | passing pytest suite |
 
 ---
