@@ -46,10 +46,6 @@ POST_V1_TABLES = {
 }
 
 
-def read_profile(profile_path: Path) -> list[dict[str, str]]:
-    return read_csv_rows(profile_path, FEATURE_PROFILE_COLUMNS)
-
-
 def test_feature_build_fails_clearly_when_staging_tables_are_missing(
     scratch_path: Path,
     project_config_path: Path,
@@ -321,7 +317,10 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
         ).fetchone()[0]
         assert duplicate_count == 0
 
-    saved_profile = read_profile(staged_feature_fixture.scratch_path / "reports" / "feature_mart_profile.csv")
+    saved_profile = read_csv_rows(
+        staged_feature_fixture.scratch_path / "reports" / "feature_mart_profile.csv",
+        FEATURE_PROFILE_COLUMNS,
+    )
     mart_profile = next(row for row in saved_profile if row["table_name"] == "mart_credit_risk_features")
     assert mart_profile["row_count"] == "3"
     assert mart_profile["distinct_applicant_count"] == "3"

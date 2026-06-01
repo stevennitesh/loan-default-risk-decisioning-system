@@ -66,7 +66,14 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
         raise EvaluationError(f"DuckDB database not found: {duckdb_path}")
 
     artifacts = {
-        model_type: _load_model_artifact(model_dir / artifact_name, model_type, model_version)
+        model_type: load_model_artifact(
+            model_dir / artifact_name,
+            expected_model_type=model_type,
+            expected_model_version=model_version,
+            error_cls=EvaluationError,
+            artifact_label=f"Model artifact {artifact_name}",
+            missing_label="model artifact",
+        )
         for model_type, (model_version, artifact_name) in MODEL_ARTIFACTS.items()
     }
     feature_columns, split_applicant_ids = _validate_artifacts(artifacts)
@@ -106,7 +113,11 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
         except ThresholdingError as error:
             raise EvaluationError(f"Threshold policy validation failed: {error}") from error
         lift_rows = _build_lift_rows(selected_model_version, selected_predictions)
-        calibration_rows = _build_calibration_rows(selected_model_version, selected_predictions)
+        calibration_rows = build_calibration_bin_rows(
+            selected_model_version,
+            selected_predictions,
+            REPORTING_SPLITS,
+        )
 
         report_dir.mkdir(parents=True, exist_ok=True)
         figures_dir = report_dir / "figures"
@@ -202,17 +213,6 @@ def main() -> None:
         raise SystemExit(str(error)) from error
 
 
-def _load_model_artifact(path: Path, model_type: str, model_version: str) -> dict[str, Any]:
-    return load_model_artifact(
-        path,
-        expected_model_type=model_type,
-        expected_model_version=model_version,
-        error_cls=EvaluationError,
-        artifact_label=f"Model artifact {path.name}",
-        missing_label="model artifact",
-    )
-
-
 def _validate_artifacts(
     artifacts: dict[str, dict[str, Any]],
 ) -> tuple[list[str], dict[str, list[int]]]:
@@ -225,14 +225,19 @@ def _validate_artifacts(
     if not feature_columns:
         raise EvaluationError("Model artifacts do not contain any feature_columns")
 
-    split_applicant_ids = _normalize_split_ids(baseline["split_applicant_ids"])
-    if split_applicant_ids != _normalize_split_ids(lightgbm["split_applicant_ids"]):
+    split_applicant_ids = normalize_split_ids(
+        baseline["split_applicant_ids"],
+        EVALUATION_SPLITS,
+        error_cls=EvaluationError,
+    )
+    lightgbm_split_applicant_ids = normalize_split_ids(
+        lightgbm["split_applicant_ids"],
+        EVALUATION_SPLITS,
+        error_cls=EvaluationError,
+    )
+    if split_applicant_ids != lightgbm_split_applicant_ids:
         raise EvaluationError("Model artifacts must use the same split_applicant_ids")
     return feature_columns, split_applicant_ids
-
-
-def _normalize_split_ids(raw_split_ids: Any) -> dict[str, list[int]]:
-    return normalize_split_ids(raw_split_ids, EVALUATION_SPLITS, error_cls=EvaluationError)
 
 
 def _load_split_frames(
@@ -328,13 +333,6 @@ def _build_lift_rows(
                 }
             )
     return rows
-
-
-def _build_calibration_rows(
-    model_version: str,
-    prediction_frames: dict[str, pd.DataFrame],
-) -> list[dict[str, Any]]:
-    return build_calibration_bin_rows(model_version, prediction_frames, REPORTING_SPLITS)
 
 
 def _select_model_type(metric_rows: list[dict[str, Any]]) -> str:

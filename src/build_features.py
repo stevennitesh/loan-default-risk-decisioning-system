@@ -89,7 +89,7 @@ def run_feature_build(config_path: str | Path = "configs/base.yaml") -> list[dic
             connection.execute(sql_path.read_text(encoding="utf-8"))
 
         profile_rows = _profile_feature_tables(connection, config)
-        _write_profile(report_dir / "feature_mart_profile.csv", profile_rows)
+        write_csv(report_dir / "feature_mart_profile.csv", FEATURE_PROFILE_COLUMNS, profile_rows)
         validate_data_contracts(connection, config)
         write_contract_reports(
             report_dir,
@@ -192,10 +192,6 @@ def _fetch_count(connection: duckdb.DuckDBPyConnection, sql: str) -> int:
     if result is None:
         raise FeatureBuildError(f"Count query returned no rows: {sql}")
     return int(result[0])
-
-
-def _write_profile(profile_path: Path, rows: list[dict[str, Any]]) -> None:
-    write_csv(profile_path, FEATURE_PROFILE_COLUMNS, rows)
 
 
 if __name__ == "__main__":

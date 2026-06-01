@@ -97,7 +97,7 @@ def run_ingestion(config_path: str | Path = "configs/base.yaml") -> list[dict[st
                 }
             )
 
-    _write_summary(report_dir / "ingestion_summary.csv", summary_rows)
+    write_csv(report_dir / "ingestion_summary.csv", INGESTION_SUMMARY_COLUMNS, summary_rows)
     return summary_rows
 
 
@@ -137,10 +137,6 @@ def _display_path(path: Path) -> str:
         return resolved.relative_to(REPO_ROOT).as_posix()
     except ValueError:
         return resolved.as_posix()
-
-
-def _write_summary(summary_path: Path, rows: list[dict[str, Any]]) -> None:
-    write_csv(summary_path, INGESTION_SUMMARY_COLUMNS, rows)
 
 
 if __name__ == "__main__":

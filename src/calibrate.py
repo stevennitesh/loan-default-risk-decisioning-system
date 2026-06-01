@@ -72,7 +72,11 @@ def run_calibration_experiment(config_path: str | Path = "configs/base.yaml") ->
     )
 
     feature_columns = list(artifact["feature_columns"])
-    split_applicant_ids = _normalize_split_ids(artifact["split_applicant_ids"])
+    split_applicant_ids = normalize_split_ids(
+        artifact["split_applicant_ids"],
+        EVALUATION_SPLITS,
+        error_cls=CalibrationError,
+    )
     created_at = created_at_utc()
     manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
 
@@ -158,10 +162,6 @@ def main() -> None:
         run_calibration_experiment(args.config)
     except CalibrationError as error:
         raise SystemExit(str(error)) from error
-
-
-def _normalize_split_ids(raw_split_ids: Any) -> dict[str, list[int]]:
-    return normalize_split_ids(raw_split_ids, EVALUATION_SPLITS, error_cls=CalibrationError)
 
 
 def _load_split_frames(

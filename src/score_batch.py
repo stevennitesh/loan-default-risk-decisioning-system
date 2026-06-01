@@ -12,6 +12,7 @@ import pandas as pd
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
 from src.calibration import apply_saved_calibration_artifact
 from src.config import load_config
+from src.metrics import validate_probabilities
 from src.mart_access import load_application_test_frame
 from src.mart_access import load_labeled_split_frame
 from src.mart_access import require_table
@@ -21,9 +22,9 @@ from src.model_artifacts import load_calibration_artifact
 from src.model_artifacts import load_selected_model_artifact
 from src.model_artifacts import load_selected_model_type
 from src.model_artifacts import normalize_split_ids
+from src.modeling import predict_probabilities
 from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
 from src.runtime import current_utc_datetime
-from src.runtime import feature_frame
 from src.runtime import replace_duckdb_table
 from src.runtime import resolve_project_path
 from src.thresholding import assign_risk_bands
@@ -194,15 +195,20 @@ def _score_population(
     calibration_artifact: dict[str, Any],
     scored_at: datetime,
 ) -> list[dict[str, Any]]:
-    raw_probabilities = artifact["pipeline"].predict_proba(feature_frame(frame, feature_columns))[:, 1]
-    _validate_scores(raw_probabilities, scoring_population)
+    raw_probabilities = predict_probabilities(
+        artifact,
+        frame,
+        feature_columns,
+        scoring_population,
+        ScoringError,
+    )
     calibrated_probabilities = apply_saved_calibration_artifact(
         raw_probabilities,
         calibration_artifact,
         error_cls=ScoringError,
         label="score calibration",
     )
-    _validate_scores(calibrated_probabilities, f"{scoring_population} calibrated")
+    validate_probabilities(calibrated_probabilities, f"{scoring_population} calibrated", error_cls=ScoringError)
     risk_actions = assign_risk_bands(raw_probabilities, threshold_policy)
     ranked_frame = pd.DataFrame(
         {
@@ -271,15 +277,6 @@ def _validate_output_rows(rows: list[dict[str, Any]]) -> None:
     score_columns = ["score", "raw_risk_score", "calibrated_risk_score"]
     if frame[score_columns].isna().any().any():
         raise ScoringError("Every scored row must have raw and calibrated score values")
-
-
-def _validate_scores(probabilities: np.ndarray, scoring_population: str) -> None:
-    if probabilities.ndim != 1:
-        raise ScoringError(f"{scoring_population} probabilities must be one-dimensional")
-    if not np.isfinite(probabilities).all():
-        raise ScoringError(f"{scoring_population} probabilities contain non-finite values")
-    if ((probabilities < 0) | (probabilities > 1)).any():
-        raise ScoringError(f"{scoring_population} probabilities must be in [0, 1]")
 
 
 if __name__ == "__main__":

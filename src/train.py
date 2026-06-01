@@ -25,6 +25,7 @@ from src.modeling import classify_feature_columns
 from src.modeling import fit_tuned_lightgbm
 from src.modeling import lightgbm_params
 from src.modeling import load_labeled_training_frame
+from src.modeling import predict_probabilities
 from src.modeling import probability_metrics
 from src.modeling import split_labeled_frame
 from src.report_contracts import LIGHTGBM_TUNING_SUMMARY_COLUMNS
@@ -309,9 +310,16 @@ def _build_metric_rows(
     manual_review_capacity_rate: float,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    artifact = {"pipeline": pipeline, "model_version": model_version}
     for split_name, frame in split_frames.items():
         y_true = frame["TARGET"].astype(int)
-        probabilities = pipeline.predict_proba(feature_frame(frame, feature_columns))[:, 1]
+        probabilities = predict_probabilities(
+            artifact,
+            frame,
+            feature_columns,
+            f"{model_version} {split_name}",
+            TrainingError,
+        )
         metrics = probability_metrics(
             y_true,
             probabilities,

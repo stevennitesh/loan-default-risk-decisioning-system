@@ -42,12 +42,13 @@ def build_segment_performance_rows(
     rows: list[dict[str, Any]] = []
 
     for split_name in REPORTING_SPLITS:
-        split_frame = _load_split_segment_frame(
+        split_frame = load_labeled_segment_split_frame(
             connection,
             split_applicant_ids[split_name],
             feature_columns,
+            SEGMENT_DIMENSIONS,
             split_name,
-            error_cls,
+            error_cls=error_cls,
         )
         probabilities = predict_probabilities(
             artifact,
@@ -92,23 +93,6 @@ def build_segment_performance_rows(
     if not rows:
         raise error_cls("segment_performance_summary must not be empty")
     return rows
-
-
-def _load_split_segment_frame(
-    connection: duckdb.DuckDBPyConnection,
-    applicant_ids: list[int],
-    feature_columns: list[str],
-    split_name: str,
-    error_cls: type[Exception],
-) -> pd.DataFrame:
-    return load_labeled_segment_split_frame(
-        connection,
-        applicant_ids,
-        feature_columns,
-        SEGMENT_DIMENSIONS,
-        split_name,
-        error_cls=error_cls,
-    )
 
 
 def _roc_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
