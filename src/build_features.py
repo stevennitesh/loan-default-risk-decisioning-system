@@ -43,7 +43,6 @@ POST_V1_FEATURE_SQL_FILES = [
     "sql/05d_feature_last_k_temporal.sql",
     "sql/06_build_feature_mart.sql",
 ]
-FEATURE_SQL_FILES = POST_V1_FEATURE_SQL_FILES
 
 V1_PROFILE_TABLES = [
     "f_applicant_static",
@@ -68,7 +67,7 @@ POST_V1_PROFILE_TABLES = [
     "f_last_k_temporal_features",
     "mart_credit_risk_features",
 ]
-PROFILE_TABLES = POST_V1_PROFILE_TABLES
+
 
 class FeatureBuildError(RuntimeError):
     """Raised when feature building cannot satisfy the Milestone 2 contract."""

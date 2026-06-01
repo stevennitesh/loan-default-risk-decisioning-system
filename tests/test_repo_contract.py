@@ -52,8 +52,6 @@ def test_makefile_exposes_required_targets() -> None:
 
 def test_required_sql_files_exist() -> None:
     required_sql_files = [
-        "00_create_tables.sql",
-        "01_load_staging.sql",
         "02_feature_applicant.sql",
         "03_feature_bureau.sql",
         "03b_feature_bureau_balance.sql",

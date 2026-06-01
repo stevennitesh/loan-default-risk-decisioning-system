@@ -1,10 +1,10 @@
 # Loan Default Risk Decisioning System — Testing Plan
 
 **Version:** 0.1  
-**Status:** Pre-build testing plan  
+**Status:** Implemented testing plan for frozen v1 and post-v1 comparison
 **Owner:** Steven  
 **Aligned spec:** `docs/spec/PROJECT_SPEC.md` v0.3.1
-**Last updated:** 2026-04-25
+**Last updated:** 2026-06-01
 
 ---
 
@@ -126,7 +126,7 @@ Test expectations:
 
 - required v1 files are configured;
 - script reports missing files clearly;
-- optional v1.1 files are not required for v1.
+- post-v1 comparison files are not required for the frozen v1 config.
 
 ### 6.2 CSV-to-Parquet conversion
 

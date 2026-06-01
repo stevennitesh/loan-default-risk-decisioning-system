@@ -7,16 +7,15 @@ import joblib
 import pytest
 
 from src.calibrate import run_calibration_experiment
+from src.calibration import CALIBRATION_METHODS
 from src.calibration import select_calibration_method
+from src.model_contracts import REPORTING_SPLITS
 from src.report_contracts import MODEL_CALIBRATION_BINS_COMPARISON_COLUMNS
 from src.report_contracts import MODEL_CALIBRATION_COMPARISON_COLUMNS
 from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
 
-
-CALIBRATION_METHODS = {"uncalibrated", "sigmoid", "isotonic"}
-REPORTING_SPLITS = {"validation", "test"}
 
 pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
 

@@ -1,10 +1,10 @@
 # Loan Default Risk Decisioning System — Validation Plan
 
 **Version:** 0.1  
-**Status:** Pre-build validation plan  
+**Status:** Implemented validation plan for portfolio decision-support reporting
 **Owner:** Steven  
 **Aligned spec:** `docs/spec/PROJECT_SPEC.md` v0.3.1
-**Last updated:** 2026-04-25
+**Last updated:** 2026-06-01
 
 ---
 

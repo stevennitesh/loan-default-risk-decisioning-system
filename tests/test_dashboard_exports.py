@@ -27,6 +27,7 @@ from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
 from src.report_contracts import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
 from src.runtime import sql_identifier
+from src.thresholding import SCENARIO_NAMES
 from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
@@ -47,7 +48,7 @@ EXPECTED_EXPORT_COLUMNS = {
     "segment_performance_summary": SEGMENT_PERFORMANCE_SUMMARY_COLUMNS,
 }
 
-SCENARIOS = {"growth_oriented", "balanced", "risk_averse"}
+SCENARIOS = set(SCENARIO_NAMES)
 SEGMENTS = {
     "CODE_GENDER",
     "NAME_FAMILY_STATUS",

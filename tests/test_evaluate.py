@@ -13,6 +13,7 @@ from src.report_contracts import MODEL_CONFUSION_MATRIX_COLUMNS
 from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
+from src.thresholding import SCENARIO_NAMES
 from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
@@ -30,7 +31,7 @@ REQUIRED_EVALUATION_METRICS = {
     "recall_at_manual_review_capacity",
 }
 
-SCENARIOS = {"growth_oriented", "balanced", "risk_averse"}
+SCENARIOS = set(SCENARIO_NAMES)
 
 pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
 
