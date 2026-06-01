@@ -3,31 +3,45 @@ from __future__ import annotations
 import argparse
 import csv
 import warnings
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import duckdb
-import joblib
 import matplotlib
-import numpy as np
 import pandas as pd
 from sklearn.metrics import average_precision_score
-from sklearn.metrics import brier_score_loss
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import roc_curve
 
 from src.config import load_config
-from src.train import BASELINE_MODEL_ARTIFACT_NAME
-from src.train import BASELINE_MODEL_TYPE
-from src.train import BASELINE_MODEL_VERSION
-from src.train import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.train import LIGHTGBM_MODEL_TYPE
-from src.train import LIGHTGBM_MODEL_VERSION
-from src.train import MODEL_METRICS_SUMMARY_COLUMNS
-from src.thresholding import MODEL_CONFUSION_MATRIX_COLUMNS
-from src.thresholding import MODEL_THRESHOLD_METRICS_COLUMNS
+from src.metrics import build_calibration_bin_rows
+from src.metrics import build_probability_metric_rows
+from src.metrics import nullable_mean
+from src.metrics import validate_probabilities
+from src.metrics import with_probability_rank_bin
+from src.mart_access import existing_tables
+from src.mart_access import load_labeled_split_frames
+from src.mart_access import require_table
+from src.model_contracts import BASELINE_MODEL_TYPE
+from src.model_contracts import BASELINE_MODEL_VERSION
+from src.model_contracts import EVALUATION_SPLITS
+from src.model_contracts import LIGHTGBM_MODEL_TYPE
+from src.model_contracts import LIGHTGBM_MODEL_VERSION
+from src.model_contracts import MODEL_ARTIFACTS
+from src.model_contracts import REPORTING_SPLITS
+from src.model_artifacts import load_model_artifact
+from src.model_artifacts import normalize_split_ids
+from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
+from src.report_contracts import MODEL_CONFUSION_MATRIX_COLUMNS
+from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
+from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
+from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
+from src.runtime import created_at_utc
+from src.runtime import feature_frame
+from src.runtime import replace_duckdb_table
+from src.runtime import resolve_project_path
+from src.runtime import write_csv
 from src.thresholding import ThresholdingError
 from src.thresholding import build_confusion_matrix_rows
 from src.thresholding import build_threshold_metric_rows
@@ -36,38 +50,6 @@ from src.thresholding import resolve_scenario_thresholds
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
-
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-
-MODEL_LIFT_BY_DECILE_COLUMNS = [
-    "model_version",
-    "split",
-    "decile",
-    "applicant_count",
-    "average_score",
-    "observed_default_rate",
-    "portfolio_default_rate",
-    "lift",
-    "cumulative_default_capture_rate",
-]
-
-MODEL_CALIBRATION_BINS_COLUMNS = [
-    "model_version",
-    "split",
-    "bin_id",
-    "applicant_count",
-    "average_predicted_score",
-    "observed_default_rate",
-    "calibration_error",
-]
-
-EVALUATION_SPLITS = ("train", "validation", "test")
-REPORTING_SPLITS = ("validation", "test")
-MODEL_ARTIFACTS = {
-    BASELINE_MODEL_TYPE: (BASELINE_MODEL_VERSION, BASELINE_MODEL_ARTIFACT_NAME),
-    LIGHTGBM_MODEL_TYPE: (LIGHTGBM_MODEL_VERSION, LIGHTGBM_MODEL_ARTIFACT_NAME),
-}
 
 
 class EvaluationError(RuntimeError):
@@ -83,9 +65,9 @@ warnings.filterwarnings(
 
 def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = _resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = _resolve_project_path(config["paths"]["model_dir"])
-    report_dir = _resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
+    model_dir = resolve_project_path(config["paths"]["model_dir"])
+    report_dir = resolve_project_path(config["paths"]["report_dir"])
 
     if not duckdb_path.exists():
         raise EvaluationError(f"DuckDB database not found: {duckdb_path}")
@@ -96,7 +78,7 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
     }
     feature_columns, split_applicant_ids = _validate_artifacts(artifacts)
 
-    created_at = _created_at()
+    created_at = created_at_utc()
     with duckdb.connect(str(duckdb_path)) as connection:
         split_frames = _load_split_frames(connection, split_applicant_ids, feature_columns)
         prediction_frames = {
@@ -137,19 +119,19 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
         figures_dir = report_dir / "figures"
         figures_dir.mkdir(parents=True, exist_ok=True)
 
-        _write_csv(report_dir / "model_metrics_summary.csv", MODEL_METRICS_SUMMARY_COLUMNS, metric_rows)
-        _write_csv(report_dir / "model_lift_by_decile.csv", MODEL_LIFT_BY_DECILE_COLUMNS, lift_rows)
-        _write_csv(
+        write_csv(report_dir / "model_metrics_summary.csv", MODEL_METRICS_SUMMARY_COLUMNS, metric_rows)
+        write_csv(report_dir / "model_lift_by_decile.csv", MODEL_LIFT_BY_DECILE_COLUMNS, lift_rows)
+        write_csv(
             report_dir / "model_calibration_bins.csv",
             MODEL_CALIBRATION_BINS_COLUMNS,
             calibration_rows,
         )
-        _write_csv(
+        write_csv(
             report_dir / "model_confusion_matrix.csv",
             MODEL_CONFUSION_MATRIX_COLUMNS,
             confusion_rows,
         )
-        _write_csv(
+        write_csv(
             report_dir / "model_threshold_metrics.csv",
             MODEL_THRESHOLD_METRICS_COLUMNS,
             threshold_rows,
@@ -173,11 +155,11 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
         )
         _write_figures(figures_dir, selected_model_version, selected_predictions, lift_rows, calibration_rows)
 
-        _replace_duckdb_table(connection, "model_metrics_summary", metric_rows)
-        _replace_duckdb_table(connection, "model_lift_by_decile", lift_rows)
-        _replace_duckdb_table(connection, "model_calibration_bins", calibration_rows)
-        _replace_duckdb_table(connection, "model_confusion_matrix", confusion_rows)
-        _replace_duckdb_table(connection, "model_threshold_metrics", threshold_rows)
+        replace_duckdb_table(connection, "model_metrics_summary", metric_rows)
+        replace_duckdb_table(connection, "model_lift_by_decile", lift_rows)
+        replace_duckdb_table(connection, "model_calibration_bins", calibration_rows)
+        replace_duckdb_table(connection, "model_confusion_matrix", confusion_rows)
+        replace_duckdb_table(connection, "model_threshold_metrics", threshold_rows)
 
     return {
         "selected_model_type": selected_model_type,
@@ -228,31 +210,14 @@ def main() -> None:
 
 
 def _load_model_artifact(path: Path, model_type: str, model_version: str) -> dict[str, Any]:
-    if not path.exists():
-        raise EvaluationError(f"Missing model artifact: {path}")
-    artifact = joblib.load(path)
-    if not isinstance(artifact, dict):
-        raise EvaluationError(f"Model artifact must be a dict: {path}")
-
-    required_keys = {
-        "pipeline",
-        "model_version",
-        "model_type",
-        "feature_columns",
-        "split_applicant_ids",
-    }
-    missing_keys = sorted(required_keys.difference(artifact))
-    if missing_keys:
-        raise EvaluationError(f"Model artifact {path.name} is missing required keys: {missing_keys}")
-    if artifact["model_type"] != model_type:
-        raise EvaluationError(
-            f"Model artifact {path.name} has model_type={artifact['model_type']}, expected {model_type}"
-        )
-    if artifact["model_version"] != model_version:
-        raise EvaluationError(
-            f"Model artifact {path.name} has model_version={artifact['model_version']}, expected {model_version}"
-        )
-    return artifact
+    return load_model_artifact(
+        path,
+        expected_model_type=model_type,
+        expected_model_version=model_version,
+        error_cls=EvaluationError,
+        artifact_label=f"Model artifact {path.name}",
+        missing_label="model artifact",
+    )
 
 
 def _validate_artifacts(
@@ -274,21 +239,7 @@ def _validate_artifacts(
 
 
 def _normalize_split_ids(raw_split_ids: Any) -> dict[str, list[int]]:
-    if not isinstance(raw_split_ids, dict):
-        raise EvaluationError("split_applicant_ids must be a mapping")
-    missing_splits = [split for split in EVALUATION_SPLITS if split not in raw_split_ids]
-    if missing_splits:
-        raise EvaluationError(f"split_applicant_ids is missing splits: {missing_splits}")
-
-    split_ids: dict[str, list[int]] = {}
-    for split_name in EVALUATION_SPLITS:
-        ids = [int(value) for value in raw_split_ids[split_name]]
-        if not ids:
-            raise EvaluationError(f"split_applicant_ids[{split_name}] must not be empty")
-        if len(ids) != len(set(ids)):
-            raise EvaluationError(f"split_applicant_ids[{split_name}] contains duplicate applicants")
-        split_ids[split_name] = ids
-    return split_ids
+    return normalize_split_ids(raw_split_ids, EVALUATION_SPLITS, error_cls=EvaluationError)
 
 
 def _load_split_frames(
@@ -296,39 +247,13 @@ def _load_split_frames(
     split_applicant_ids: dict[str, list[int]],
     feature_columns: list[str],
 ) -> dict[str, pd.DataFrame]:
-    _require_table(connection, "mart_credit_risk_features")
-    selected_columns = ["SK_ID_CURR", "TARGET", *feature_columns]
-    split_frames = {}
-
-    for split_name, applicant_ids in split_applicant_ids.items():
-        ids_frame = pd.DataFrame({"SK_ID_CURR": applicant_ids})
-        connection.register("split_ids", ids_frame)
-        try:
-            frame = connection.execute(
-                f"""
-                SELECT {", ".join(_sql_identifier(column) for column in selected_columns)}
-                FROM mart_credit_risk_features
-                INNER JOIN split_ids USING (SK_ID_CURR)
-                WHERE source_population = 'application_train'
-                ORDER BY SK_ID_CURR
-                """
-            ).fetch_df()
-        finally:
-            connection.unregister("split_ids")
-
-        if len(frame) != len(applicant_ids):
-            found_ids = set(frame["SK_ID_CURR"].astype(int).tolist()) if not frame.empty else set()
-            missing_ids = sorted(set(applicant_ids).difference(found_ids))
-            raise EvaluationError(
-                f"Saved split IDs no longer reconcile to mart_credit_risk_features for "
-                f"{split_name}: missing {missing_ids[:10]}"
-            )
-        targets = set(frame["TARGET"].astype(int).unique())
-        if targets != {0, 1}:
-            raise EvaluationError(f"{split_name} split must contain binary TARGET classes, got {sorted(targets)}")
-        split_frames[split_name] = frame.reset_index(drop=True)
-
-    return split_frames
+    require_table(connection, "mart_credit_risk_features", error_cls=EvaluationError)
+    return load_labeled_split_frames(
+        connection,
+        split_applicant_ids,
+        feature_columns,
+        error_cls=EvaluationError,
+    )
 
 
 def _build_prediction_frames(
@@ -342,8 +267,12 @@ def _build_prediction_frames(
 
     prediction_frames = {}
     for split_name, frame in split_frames.items():
-        probabilities = pipeline.predict_proba(_feature_frame(frame, feature_columns))[:, 1]
-        _validate_probabilities(probabilities, artifact["model_version"], split_name)
+        probabilities = pipeline.predict_proba(feature_frame(frame, feature_columns))[:, 1]
+        validate_probabilities(
+            probabilities,
+            f"{artifact['model_version']} {split_name}",
+            error_cls=EvaluationError,
+        )
         prediction_frames[split_name] = pd.DataFrame(
             {
                 "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
@@ -368,33 +297,15 @@ def _build_metric_rows(
 
     for model_type, split_predictions in prediction_frames.items():
         model_version = model_versions[model_type]
-        for split_name, frame in split_predictions.items():
-            y_true = frame["target"]
-            probabilities = frame["probability"].to_numpy()
-            metrics = {
-                "roc_auc": roc_auc_score(y_true, probabilities),
-                "pr_auc": average_precision_score(y_true, probabilities),
-                "brier_score": brier_score_loss(y_true, probabilities),
-                "min_predicted_probability": float(np.min(probabilities)),
-                "max_predicted_probability": float(np.max(probabilities)),
-                "top_decile_lift": _top_decile_lift(y_true, probabilities),
-                "precision_at_top_decile": _precision_at_rate(y_true, probabilities, 0.10),
-                "recall_at_manual_review_capacity": _recall_at_rate(
-                    y_true,
-                    probabilities,
-                    manual_review_capacity_rate,
-                ),
-            }
-            rows.extend(
-                {
-                    "model_version": model_version,
-                    "split": split_name,
-                    "metric_name": metric_name,
-                    "metric_value": metric_value,
-                    "created_at": created_at,
-                }
-                for metric_name, metric_value in metrics.items()
+        rows.extend(
+            build_probability_metric_rows(
+                model_version,
+                split_predictions,
+                created_at,
+                manual_review_capacity_rate,
+                error_cls=EvaluationError,
             )
+        )
     return rows
 
 
@@ -404,7 +315,7 @@ def _build_lift_rows(
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for split_name in REPORTING_SPLITS:
-        frame = _with_rank_bin(prediction_frames[split_name], "decile", descending=True)
+        frame = with_probability_rank_bin(prediction_frames[split_name], "decile", descending=True)
         total_defaults = int(frame["target"].sum())
         portfolio_default_rate = float(frame["target"].mean())
         cumulative_defaults = 0
@@ -412,7 +323,7 @@ def _build_lift_rows(
         for decile in range(1, 11):
             decile_frame = frame.loc[frame["decile"] == decile]
             applicant_count = len(decile_frame)
-            observed_default_rate = _nullable_mean(decile_frame["target"])
+            observed_default_rate = nullable_mean(decile_frame["target"])
             if applicant_count:
                 cumulative_defaults += int(decile_frame["target"].sum())
             rows.append(
@@ -421,7 +332,7 @@ def _build_lift_rows(
                     "split": split_name,
                     "decile": decile,
                     "applicant_count": applicant_count,
-                    "average_score": _nullable_mean(decile_frame["probability"]),
+                    "average_score": nullable_mean(decile_frame["probability"]),
                     "observed_default_rate": observed_default_rate,
                     "portfolio_default_rate": portfolio_default_rate,
                     "lift": observed_default_rate / portfolio_default_rate
@@ -439,27 +350,7 @@ def _build_calibration_rows(
     model_version: str,
     prediction_frames: dict[str, pd.DataFrame],
 ) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for split_name in REPORTING_SPLITS:
-        frame = _with_rank_bin(prediction_frames[split_name], "bin_id", descending=False)
-        for bin_id in range(1, 11):
-            bin_frame = frame.loc[frame["bin_id"] == bin_id]
-            average_predicted_score = _nullable_mean(bin_frame["probability"])
-            observed_default_rate = _nullable_mean(bin_frame["target"])
-            rows.append(
-                {
-                    "model_version": model_version,
-                    "split": split_name,
-                    "bin_id": bin_id,
-                    "applicant_count": len(bin_frame),
-                    "average_predicted_score": average_predicted_score,
-                    "observed_default_rate": observed_default_rate,
-                    "calibration_error": observed_default_rate - average_predicted_score
-                    if observed_default_rate is not None and average_predicted_score is not None
-                    else None,
-                }
-            )
-    return rows
+    return build_calibration_bin_rows(model_version, prediction_frames, REPORTING_SPLITS)
 
 
 def _select_model_type(metric_rows: list[dict[str, Any]]) -> str:
@@ -479,7 +370,7 @@ def _verify_saved_model_selection(
     connection: duckdb.DuckDBPyConnection,
     selected_model_type: str,
 ) -> None:
-    if "model_comparison_summary" not in _existing_tables(connection):
+    if "model_comparison_summary" not in existing_tables(connection):
         return
     saved_selections = {
         row[0]
@@ -804,104 +695,6 @@ def _write_lift_chart(
     figure.tight_layout()
     figure.savefig(path, dpi=150)
     plt.close(figure)
-
-
-def _top_decile_lift(y_true: pd.Series, probabilities: np.ndarray) -> float:
-    portfolio_positive_rate = float(y_true.mean())
-    top_precision = _precision_at_rate(y_true, probabilities, 0.10)
-    return float(top_precision / portfolio_positive_rate)
-
-
-def _precision_at_rate(y_true: pd.Series, probabilities: np.ndarray, rate: float) -> float:
-    top_count = _top_count(len(y_true), rate)
-    frame = pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
-    return float(frame.sort_values("probability", ascending=False).head(top_count)["target"].mean())
-
-
-def _recall_at_rate(y_true: pd.Series, probabilities: np.ndarray, rate: float) -> float:
-    top_count = _top_count(len(y_true), rate)
-    frame = pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
-    positives_in_top = int(frame.sort_values("probability", ascending=False).head(top_count)["target"].sum())
-    total_positives = int(frame["target"].sum())
-    return float(positives_in_top / total_positives) if total_positives else 0.0
-
-
-def _top_count(row_count: int, rate: float) -> int:
-    if rate <= 0 or rate > 1:
-        raise EvaluationError(f"Selection rate must be in (0, 1], got {rate}")
-    return max(1, int(np.ceil(row_count * rate)))
-
-
-def _with_rank_bin(frame: pd.DataFrame, column_name: str, descending: bool) -> pd.DataFrame:
-    ranked = frame.sort_values(
-        ["probability", "SK_ID_CURR"],
-        ascending=[not descending, True],
-    ).reset_index(drop=True)
-    ranked[column_name] = np.ceil((np.arange(len(ranked)) + 1) * 10 / len(ranked)).astype(int)
-    ranked[column_name] = ranked[column_name].clip(1, 10)
-    return ranked
-
-
-def _nullable_mean(series: pd.Series) -> float | None:
-    if series.empty:
-        return None
-    return float(series.mean())
-
-
-def _feature_frame(frame: pd.DataFrame, feature_columns: list[str]) -> pd.DataFrame:
-    features = frame[feature_columns].copy()
-    return features.where(pd.notna(features), np.nan)
-
-
-def _validate_probabilities(probabilities: np.ndarray, model_version: str, split_name: str) -> None:
-    if probabilities.ndim != 1:
-        raise EvaluationError(f"{model_version} {split_name} probabilities must be one-dimensional")
-    if not np.isfinite(probabilities).all():
-        raise EvaluationError(f"{model_version} {split_name} probabilities contain non-finite values")
-    if ((probabilities < 0) | (probabilities > 1)).any():
-        raise EvaluationError(f"{model_version} {split_name} probabilities must be in [0, 1]")
-
-
-def _replace_duckdb_table(
-    connection: duckdb.DuckDBPyConnection,
-    table_name: str,
-    rows: list[dict[str, Any]],
-) -> None:
-    frame = pd.DataFrame(rows)
-    connection.register("output_frame", frame)
-    connection.execute(f"CREATE OR REPLACE TABLE {_sql_identifier(table_name)} AS SELECT * FROM output_frame")
-    connection.unregister("output_frame")
-
-
-def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def _require_table(connection: duckdb.DuckDBPyConnection, table_name: str) -> None:
-    if table_name not in _existing_tables(connection):
-        raise EvaluationError(f"Missing required DuckDB table: {table_name}")
-
-
-def _existing_tables(connection: duckdb.DuckDBPyConnection) -> set[str]:
-    return {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
-
-
-def _resolve_project_path(path_value: str) -> Path:
-    path = Path(path_value)
-    if path.is_absolute():
-        return path
-    return REPO_ROOT / path
-
-
-def _created_at() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def _sql_identifier(identifier: str) -> str:
-    return f'"{identifier.replace(chr(34), chr(34) + chr(34))}"'
 
 
 if __name__ == "__main__":

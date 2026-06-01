@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-import csv
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import duckdb
 
 from src.config import is_post_v1_scope
+from src.mart_access import existing_tables
+from src.mart_access import table_columns
+from src.runtime import created_at_utc as current_created_at_utc
+from src.runtime import sql_identifier
+from src.runtime import write_csv
 
 
 DATA_INVENTORY_COLUMNS = [
@@ -129,11 +132,11 @@ class DataContractError(RuntimeError):
 
 
 def validate_data_contracts(connection: duckdb.DuckDBPyConnection, config: dict[str, Any]) -> None:
-    existing_tables = _existing_tables(connection)
+    available_tables = existing_tables(connection)
     missing_tables = sorted(
         table.table_name
         for table in _required_tables(config)
-        if table.table_name not in existing_tables
+        if table.table_name not in available_tables
     )
     if missing_tables:
         raise DataContractError(f"Missing required DuckDB tables: {', '.join(missing_tables)}")
@@ -156,7 +159,7 @@ def get_model_feature_columns(
     exclusion_groups = _exclusion_group_map(config)
     return [
         column_name
-        for column_name in _table_columns(connection, MART_TABLE)
+        for column_name in table_columns(connection, MART_TABLE)
         if column_name not in exclusion_groups
     ]
 
@@ -166,11 +169,11 @@ def build_data_inventory(
     config: dict[str, Any] | None = None,
     created_at_utc: str | None = None,
 ) -> list[dict[str, Any]]:
-    timestamp = created_at_utc or _created_at_utc()
+    timestamp = created_at_utc or current_created_at_utc()
     rows: list[dict[str, Any]] = []
 
     for table in _required_tables(config):
-        columns = _table_columns(connection, table.table_name)
+        columns = table_columns(connection, table.table_name)
         has_target_column = "TARGET" in columns
         rows.append(
             {
@@ -179,7 +182,7 @@ def build_data_inventory(
                 "grain_key": table.grain_key,
                 "row_count": _fetch_count(
                     connection,
-                    f"SELECT COUNT(*) FROM {_sql_identifier(table.table_name)}",
+                    f"SELECT COUNT(*) FROM {sql_identifier(table.table_name)}",
                 ),
                 "distinct_applicant_count": _distinct_applicant_count(
                     connection,
@@ -213,7 +216,7 @@ def _distinct_applicant_count(
         return None
     return _fetch_count(
         connection,
-        f"SELECT COUNT(DISTINCT SK_ID_CURR) FROM {_sql_identifier(table_name)}",
+        f"SELECT COUNT(DISTINCT SK_ID_CURR) FROM {sql_identifier(table_name)}",
     )
 
 
@@ -222,20 +225,20 @@ def build_feature_inventory(
     config: dict[str, Any],
     created_at_utc: str | None = None,
 ) -> list[dict[str, Any]]:
-    timestamp = created_at_utc or _created_at_utc()
+    timestamp = created_at_utc or current_created_at_utc()
     exclusion_groups = _exclusion_group_map(config)
     model_features = set(get_model_feature_columns(connection, config))
     rows: list[dict[str, Any]] = []
 
     for table_name in _feature_inventory_tables(config):
-        row_count = _fetch_count(connection, f"SELECT COUNT(*) FROM {_sql_identifier(table_name)}")
-        for column_name, duckdb_type in _table_columns(connection, table_name).items():
+        row_count = _fetch_count(connection, f"SELECT COUNT(*) FROM {sql_identifier(table_name)}")
+        for column_name, duckdb_type in table_columns(connection, table_name).items():
             missing_count = _fetch_count(
                 connection,
                 f"""
                 SELECT COUNT(*)
-                FROM {_sql_identifier(table_name)}
-                WHERE {_sql_identifier(column_name)} IS NULL
+                FROM {sql_identifier(table_name)}
+                WHERE {sql_identifier(column_name)} IS NULL
                 """,
             )
             rows.append(
@@ -250,8 +253,8 @@ def build_feature_inventory(
                     "distinct_value_count": _fetch_count(
                         connection,
                         f"""
-                        SELECT COUNT(DISTINCT {_sql_identifier(column_name)})
-                        FROM {_sql_identifier(table_name)}
+                        SELECT COUNT(DISTINCT {sql_identifier(column_name)})
+                        FROM {sql_identifier(table_name)}
                         """,
                     ),
                     "created_at_utc": timestamp,
@@ -267,12 +270,12 @@ def write_contract_reports(
 ) -> None:
     report_path = Path(report_dir)
     report_path.mkdir(parents=True, exist_ok=True)
-    _write_csv(report_path / "data_inventory.csv", DATA_INVENTORY_COLUMNS, data_inventory_rows)
-    _write_csv(report_path / "feature_inventory.csv", FEATURE_INVENTORY_COLUMNS, feature_inventory_rows)
+    write_csv(report_path / "data_inventory.csv", DATA_INVENTORY_COLUMNS, data_inventory_rows)
+    write_csv(report_path / "feature_inventory.csv", FEATURE_INVENTORY_COLUMNS, feature_inventory_rows)
 
 
 def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[str]) -> None:
-    mart_columns = set(_table_columns(connection, MART_TABLE))
+    mart_columns = set(table_columns(connection, MART_TABLE))
     missing_columns = {"SK_ID_CURR", "source_population", "TARGET"}.difference(mart_columns)
     if missing_columns:
         errors.append(f"mart_credit_risk_features is missing required columns: {sorted(missing_columns)}")
@@ -281,7 +284,7 @@ def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[
     source_populations = {
         row[0]
         for row in connection.execute(
-            f"SELECT DISTINCT source_population FROM {_sql_identifier(MART_TABLE)}"
+            f"SELECT DISTINCT source_population FROM {sql_identifier(MART_TABLE)}"
         ).fetchall()
     }
     unexpected_populations = sorted(source_populations.difference(ALLOWED_SOURCE_POPULATIONS))
@@ -296,7 +299,7 @@ def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[
         connection,
         f"""
         SELECT COUNT(*)
-        FROM {_sql_identifier(MART_TABLE)}
+        FROM {sql_identifier(MART_TABLE)}
         WHERE source_population = 'application_train'
           AND TARGET IS NULL
         """,
@@ -308,7 +311,7 @@ def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[
         connection,
         f"""
         SELECT COUNT(*)
-        FROM {_sql_identifier(MART_TABLE)}
+        FROM {sql_identifier(MART_TABLE)}
         WHERE source_population = 'application_train'
           AND TARGET IS NOT NULL
           AND TARGET NOT IN (0, 1)
@@ -321,7 +324,7 @@ def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[
         connection,
         f"""
         SELECT COUNT(*)
-        FROM {_sql_identifier(MART_TABLE)}
+        FROM {sql_identifier(MART_TABLE)}
         WHERE source_population = 'application_test'
           AND TARGET IS NOT NULL
         """,
@@ -340,13 +343,13 @@ def _validate_applicant_row_reconciliation(
     ]:
         staging_rows = _fetch_count(
             connection,
-            f"SELECT COUNT(*) FROM {_sql_identifier(staging_table)}",
+            f"SELECT COUNT(*) FROM {sql_identifier(staging_table)}",
         )
         mart_rows = _fetch_count(
             connection,
             f"""
             SELECT COUNT(*)
-            FROM {_sql_identifier(MART_TABLE)}
+            FROM {sql_identifier(MART_TABLE)}
             WHERE source_population = '{source_population}'
             """,
         )
@@ -391,8 +394,8 @@ def _validate_diagnostic_separation(
     config: dict[str, Any],
     errors: list[str],
 ) -> None:
-    mart_columns = set(_table_columns(connection, MART_TABLE))
-    diagnostic_columns = set(_table_columns(connection, DIAGNOSTIC_TABLE))
+    mart_columns = set(table_columns(connection, MART_TABLE))
+    diagnostic_columns = set(table_columns(connection, DIAGNOSTIC_TABLE))
 
     sensitive_columns = set(config["excluded_features"]["sensitive_or_protected_status_like"])
     sensitive_columns_in_mart = sorted(sensitive_columns.intersection(mart_columns))
@@ -410,7 +413,7 @@ def _validate_model_feature_quality(
     errors: list[str],
 ) -> None:
     all_missing_features = []
-    row_count = _fetch_count(connection, f"SELECT COUNT(*) FROM {_sql_identifier(MART_TABLE)}")
+    row_count = _fetch_count(connection, f"SELECT COUNT(*) FROM {sql_identifier(MART_TABLE)}")
     if row_count == 0:
         errors.append("mart_credit_risk_features must not be empty")
         return
@@ -420,8 +423,8 @@ def _validate_model_feature_quality(
             connection,
             f"""
             SELECT COUNT(*)
-            FROM {_sql_identifier(MART_TABLE)}
-            WHERE {_sql_identifier(column_name)} IS NOT NULL
+            FROM {sql_identifier(MART_TABLE)}
+            WHERE {sql_identifier(column_name)} IS NOT NULL
             """,
         )
         if non_null_count == 0:
@@ -429,17 +432,6 @@ def _validate_model_feature_quality(
 
     if all_missing_features:
         errors.append(f"Model feature columns are 100% missing: {sorted(all_missing_features)}")
-
-
-def _existing_tables(connection: duckdb.DuckDBPyConnection) -> set[str]:
-    return {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
-
-
-def _table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -> dict[str, str]:
-    return {
-        row[1]: row[2]
-        for row in connection.execute(f"PRAGMA table_info({_sql_literal(table_name)})").fetchall()
-    }
 
 
 def _exclusion_group_map(config: dict[str, Any]) -> dict[str, str]:
@@ -455,14 +447,14 @@ def _duplicate_key_count(
     table_name: str,
     key_columns: tuple[str, ...],
 ) -> int:
-    key_select = ", ".join(_sql_identifier(column_name) for column_name in key_columns)
+    key_select = ", ".join(sql_identifier(column_name) for column_name in key_columns)
     return _fetch_count(
         connection,
         f"""
         SELECT COUNT(*)
         FROM (
             SELECT {key_select}
-            FROM {_sql_identifier(table_name)}
+            FROM {sql_identifier(table_name)}
             GROUP BY {key_select}
             HAVING COUNT(*) > 1
         )
@@ -479,7 +471,7 @@ def _target_count(
         connection,
         f"""
         SELECT COUNT(*)
-        FROM {_sql_identifier(table_name)}
+        FROM {sql_identifier(table_name)}
         WHERE TARGET {null_predicate}
         """,
     )
@@ -490,22 +482,3 @@ def _fetch_count(connection: duckdb.DuckDBPyConnection, sql: str) -> int:
     if result is None:
         raise DataContractError(f"Count query returned no rows: {sql}")
     return int(result[0])
-
-
-def _created_at_utc() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def _sql_identifier(identifier: str) -> str:
-    return f'"{identifier.replace(chr(34), chr(34) + chr(34))}"'
-
-
-def _sql_literal(value: str) -> str:
-    return f"'{value.replace(chr(39), chr(39) + chr(39))}'"
-
-
-def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)

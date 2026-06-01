@@ -3,7 +3,7 @@
 **Version:** 0.1  
 **Status:** Pre-build testing plan  
 **Owner:** Steven  
-**Aligned spec:** `PROJECT_SPEC.md` v0.3.1  
+**Aligned spec:** `docs/spec/PROJECT_SPEC.md` v0.3.1
 **Last updated:** 2026-04-25
 
 ---

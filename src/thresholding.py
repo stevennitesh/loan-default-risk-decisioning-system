@@ -5,44 +5,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-
 SCENARIO_NAMES = ("growth_oriented", "balanced", "risk_averse")
 SCENARIO_QUANTILES = {
     "growth_oriented": (0.85, 0.95),
     "balanced": (0.80, 0.90),
     "risk_averse": (0.70, 0.80),
 }
-
-MODEL_THRESHOLD_METRICS_COLUMNS = [
-    "model_version",
-    "split",
-    "threshold_version",
-    "scenario_name",
-    "threshold_low",
-    "threshold_high",
-    "applicant_count",
-    "approval_rate",
-    "manual_review_rate",
-    "high_risk_rate",
-    "approved_good_count",
-    "approved_bad_count",
-    "manual_review_count",
-    "high_risk_count",
-    "default_rate_approved",
-    "high_risk_default_capture_rate",
-    "expected_value",
-    "expected_value_per_applicant",
-    "created_at",
-]
-
-MODEL_CONFUSION_MATRIX_COLUMNS = [
-    "model_version",
-    "split",
-    "scenario_name",
-    "true_label",
-    "predicted_label",
-    "count",
-]
 
 
 class ThresholdingError(RuntimeError):

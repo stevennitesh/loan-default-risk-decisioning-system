@@ -2,37 +2,41 @@ from __future__ import annotations
 
 import argparse
 import csv
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import duckdb
-import joblib
 import numpy as np
 import pandas as pd
 
-from src.calibrate import CALIBRATION_METHODS
-from src.calibrate import _apply_calibration_method
-from src.calibrate import _fit_calibrators
-from src.calibrate import _select_calibration_method
+from src.calibration import CALIBRATION_METHODS
+from src.calibration import apply_calibration_method
+from src.calibration import fit_calibrators
+from src.calibration import select_calibration_method
 from src.config import load_config
+from src.mart_access import load_labeled_split_frames
+from src.mart_access import require_table
+from src.model_contracts import EVALUATION_SPLITS
+from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
+from src.model_contracts import LIGHTGBM_MODEL_TYPE
+from src.model_contracts import LIGHTGBM_MODEL_VERSION
+from src.model_contracts import REPORTING_SPLITS
+from src.model_artifacts import load_model_artifact
+from src.model_artifacts import normalize_split_ids
+from src.runtime import created_at_utc
+from src.runtime import feature_frame
+from src.runtime import resolve_project_path
+from src.runtime import write_csv
 from src.thresholding import build_threshold_metric_rows
 from src.thresholding import resolve_scenario_thresholds
-from src.train import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.train import LIGHTGBM_MODEL_TYPE
-from src.train import LIGHTGBM_MODEL_VERSION
-from src.train import _build_lightgbm_tuning_artifact
-from src.train import _classify_feature_columns
-from src.train import _feature_frame
-from src.train import _fit_tuned_lightgbm
-from src.train import _lightgbm_params
-from src.train import _probability_metrics
+from src.modeling import build_lightgbm_tuning_artifact
+from src.modeling import classify_feature_columns
+from src.modeling import fit_tuned_lightgbm
+from src.modeling import lightgbm_params
+from src.modeling import probability_metrics
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FEATURE_LIMITS = (40, 60, 80, 100)
-EVALUATION_SPLITS = ("train", "validation", "test")
-REPORTING_SPLITS = ("validation", "test")
 FEATURE_SELECTION_REPORT_NAME = "005_feature_selection.md"
 SELECTED_FEATURES_NAME = "005_selected_features.csv"
 
@@ -82,18 +86,18 @@ def run_feature_selection_experiment(
     report_name: str = FEATURE_SELECTION_REPORT_NAME,
 ) -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = _resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = _resolve_project_path(config["paths"]["model_dir"])
-    report_dir = _resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
+    model_dir = resolve_project_path(config["paths"]["model_dir"])
+    report_dir = resolve_project_path(config["paths"]["report_dir"])
 
     if not duckdb_path.exists():
         raise FeatureSelectionError(f"DuckDB database not found: {duckdb_path}")
 
-    base_artifact = _load_lightgbm_artifact(model_dir)
+    base_artifact = load_lightgbm_artifact(model_dir)
     full_feature_columns = list(base_artifact["feature_columns"])
     split_applicant_ids = _normalize_split_ids(base_artifact["split_applicant_ids"])
-    importance_rows = _load_feature_importance_rows(report_dir)
-    ranked_features = _ranked_raw_features(importance_rows, full_feature_columns)
+    importance_rows = load_feature_importance_rows(report_dir)
+    ranked_features = ranked_raw_features(importance_rows, full_feature_columns)
     max_limit = max(feature_limits) if feature_limits else 0
     if len(ranked_features) < min(max_limit, len(full_feature_columns)):
         raise FeatureSelectionError(
@@ -101,10 +105,10 @@ def run_feature_selection_experiment(
             f"ranked={len(ranked_features)}, requested={max_limit}"
         )
 
-    created_at = _created_at()
+    created_at = created_at_utc()
     manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
     rows: list[dict[str, Any]] = []
-    feature_set_specs = _feature_sets(
+    feature_set_specs = feature_sets(
         ranked_features,
         full_feature_columns,
         feature_limits,
@@ -118,7 +122,7 @@ def run_feature_selection_experiment(
         for feature_set_name, feature_columns, feature_limit in feature_set_specs:
             split_frames = _load_split_frames(connection, split_applicant_ids, feature_columns)
             rows.append(
-                _run_single_feature_set(
+                run_single_feature_set(
                     config,
                     feature_set_name,
                     feature_columns,
@@ -129,7 +133,7 @@ def run_feature_selection_experiment(
                 )
             )
 
-    selected_feature_set = _select_feature_set(rows)
+    selected_feature_set = select_feature_set(rows)
     for row in rows:
         row["selected"] = row["feature_set"] == selected_feature_set
 
@@ -139,8 +143,8 @@ def run_feature_selection_experiment(
     comparison_path = report_dir / comparison_name
     report_path = experiments_dir / report_name
     selected_features_path = experiments_dir / selected_features_name
-    _write_csv(comparison_path, FEATURE_SELECTION_COMPARISON_COLUMNS, rows)
-    _write_csv(
+    write_csv(comparison_path, FEATURE_SELECTION_COMPARISON_COLUMNS, rows)
+    write_csv(
         selected_features_path,
         SELECTED_FEATURE_COLUMNS,
         _selected_feature_rows(selected_feature_set, features_by_set[selected_feature_set]),
@@ -198,7 +202,7 @@ def main() -> None:
         raise SystemExit(str(error)) from error
 
 
-def _run_single_feature_set(
+def run_single_feature_set(
     config: dict[str, Any],
     feature_set_name: str,
     feature_columns: list[str],
@@ -209,12 +213,12 @@ def _run_single_feature_set(
     random_seed: int | None = None,
 ) -> dict[str, Any]:
     random_seed = int(config["project"]["random_seed"] if random_seed is None else random_seed)
-    numeric_features, categorical_features = _classify_feature_columns(
+    numeric_features, categorical_features = classify_feature_columns(
         split_frames["train"],
         feature_columns,
     )
-    base_params = _lightgbm_params(config, split_frames["train"], random_seed)
-    tuning = _fit_tuned_lightgbm(
+    base_params = lightgbm_params(config, split_frames["train"], random_seed)
+    tuning = fit_tuned_lightgbm(
         config,
         numeric_features,
         categorical_features,
@@ -222,20 +226,30 @@ def _run_single_feature_set(
         split_frames,
         feature_columns,
         manual_review_capacity_rate,
+        error_cls=FeatureSelectionError,
     )
     pipeline = tuning["pipeline"]
     raw_predictions = _prediction_frames(pipeline, split_frames, feature_columns)
-    calibrators = _fit_calibrators(
+    calibrators = fit_calibrators(
         raw_predictions["validation"]["probability"].to_numpy(),
         raw_predictions["validation"]["target"].to_numpy(),
         random_seed,
+        error_cls=FeatureSelectionError,
     )
     predictions_by_method = {
-        method: _apply_calibration_method(method, calibrators, raw_predictions)
+        method: apply_calibration_method(
+            method,
+            calibrators,
+            raw_predictions,
+            error_cls=FeatureSelectionError,
+        )
         for method in CALIBRATION_METHODS
     }
     metric_rows = _calibration_metric_rows(predictions_by_method, manual_review_capacity_rate)
-    selected_calibration_method = _select_calibration_method(metric_rows)
+    selected_calibration_method = select_calibration_method(
+        metric_rows,
+        error_cls=FeatureSelectionError,
+    )
     selected_predictions = predictions_by_method[selected_calibration_method]
     metrics = _metrics_by_split(selected_predictions, manual_review_capacity_rate)
     weighted_bin_errors = {
@@ -253,7 +267,7 @@ def _run_single_feature_set(
         for row in threshold_rows
         if row["scenario_name"] == "balanced"
     }
-    selected_candidate = _build_lightgbm_tuning_artifact(tuning)["selected_candidate"]
+    selected_candidate = build_lightgbm_tuning_artifact(tuning)["selected_candidate"]
     return {
         "feature_set": feature_set_name,
         "selected": False,
@@ -283,29 +297,19 @@ def _run_single_feature_set(
     }
 
 
-def _load_lightgbm_artifact(model_dir: Path) -> dict[str, Any]:
+def load_lightgbm_artifact(model_dir: Path) -> dict[str, Any]:
     artifact_path = model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME
-    if not artifact_path.exists():
-        raise FeatureSelectionError(f"Missing LightGBM model artifact: {artifact_path}")
-    artifact = joblib.load(artifact_path)
-    if not isinstance(artifact, dict):
-        raise FeatureSelectionError(f"LightGBM model artifact must be a dict: {artifact_path}")
-    required_keys = {"model_type", "model_version", "feature_columns", "split_applicant_ids"}
-    missing_keys = sorted(required_keys.difference(artifact))
-    if missing_keys:
-        raise FeatureSelectionError(f"LightGBM artifact is missing required keys: {missing_keys}")
-    if artifact["model_type"] != LIGHTGBM_MODEL_TYPE:
-        raise FeatureSelectionError(
-            f"LightGBM artifact model_type={artifact['model_type']}, expected {LIGHTGBM_MODEL_TYPE}"
-        )
-    if artifact["model_version"] != LIGHTGBM_MODEL_VERSION:
-        raise FeatureSelectionError(
-            f"LightGBM artifact model_version={artifact['model_version']}, expected {LIGHTGBM_MODEL_VERSION}"
-        )
-    return artifact
+    return load_model_artifact(
+        artifact_path,
+        expected_model_type=LIGHTGBM_MODEL_TYPE,
+        expected_model_version=LIGHTGBM_MODEL_VERSION,
+        error_cls=FeatureSelectionError,
+        artifact_label="LightGBM artifact",
+        missing_label="LightGBM model artifact",
+    )
 
 
-def _load_feature_importance_rows(report_dir: Path) -> list[dict[str, Any]]:
+def load_feature_importance_rows(report_dir: Path) -> list[dict[str, Any]]:
     path = report_dir / "model_feature_importance.csv"
     if not path.exists():
         raise FeatureSelectionError(f"Missing feature importance report: {path}")
@@ -313,12 +317,12 @@ def _load_feature_importance_rows(report_dir: Path) -> list[dict[str, Any]]:
         return list(csv.DictReader(csv_file))
 
 
-def _ranked_raw_features(
+def ranked_raw_features(
     importance_rows: list[dict[str, Any]],
     feature_columns: list[str],
 ) -> list[str]:
     label_to_raw_feature = {
-        _normalize_feature_label(_readable_feature_label(feature_column)): feature_column
+        _normalize_feature_label(readable_feature_label(feature_column)): feature_column
         for feature_column in feature_columns
     }
     ranked_features: list[str] = []
@@ -334,7 +338,7 @@ def _ranked_raw_features(
     return ranked_features
 
 
-def _readable_feature_label(raw_feature: str) -> str:
+def readable_feature_label(raw_feature: str) -> str:
     cleaned = raw_feature.replace("__", "_").replace("_", " ").strip()
     cleaned = " ".join(cleaned.split())
     if not cleaned:
@@ -346,7 +350,7 @@ def _normalize_feature_label(label: str) -> str:
     return " ".join(label.lower().split())
 
 
-def _feature_sets(
+def feature_sets(
     ranked_features: list[str],
     full_feature_columns: list[str],
     feature_limits: tuple[int, ...],
@@ -366,20 +370,7 @@ def _feature_sets(
 
 
 def _normalize_split_ids(raw_split_ids: Any) -> dict[str, list[int]]:
-    if not isinstance(raw_split_ids, dict):
-        raise FeatureSelectionError("split_applicant_ids must be a mapping")
-    split_ids = {}
-    missing_splits = [split for split in EVALUATION_SPLITS if split not in raw_split_ids]
-    if missing_splits:
-        raise FeatureSelectionError(f"split_applicant_ids is missing splits: {missing_splits}")
-    for split_name in EVALUATION_SPLITS:
-        ids = [int(value) for value in raw_split_ids[split_name]]
-        if not ids:
-            raise FeatureSelectionError(f"split_applicant_ids[{split_name}] must not be empty")
-        if len(ids) != len(set(ids)):
-            raise FeatureSelectionError(f"split_applicant_ids[{split_name}] contains duplicate applicants")
-        split_ids[split_name] = ids
-    return split_ids
+    return normalize_split_ids(raw_split_ids, EVALUATION_SPLITS, error_cls=FeatureSelectionError)
 
 
 def _load_split_frames(
@@ -387,31 +378,13 @@ def _load_split_frames(
     split_applicant_ids: dict[str, list[int]],
     feature_columns: list[str],
 ) -> dict[str, pd.DataFrame]:
-    selected_columns = ["SK_ID_CURR", "TARGET", *feature_columns]
-    split_frames = {}
-    for split_name, applicant_ids in split_applicant_ids.items():
-        ids_frame = pd.DataFrame({"SK_ID_CURR": applicant_ids})
-        connection.register("split_ids", ids_frame)
-        try:
-            frame = connection.execute(
-                f"""
-                SELECT {", ".join(_sql_identifier(column) for column in selected_columns)}
-                FROM mart_credit_risk_features
-                INNER JOIN split_ids USING (SK_ID_CURR)
-                WHERE source_population = 'application_train'
-                ORDER BY SK_ID_CURR
-                """
-            ).fetch_df()
-        finally:
-            connection.unregister("split_ids")
-
-        if len(frame) != len(applicant_ids):
-            raise FeatureSelectionError(f"Saved split IDs no longer reconcile for {split_name}")
-        target_values = set(frame["TARGET"].astype(int).unique())
-        if target_values != {0, 1}:
-            raise FeatureSelectionError(f"{split_name} split must contain binary TARGET classes")
-        split_frames[split_name] = frame.reset_index(drop=True)
-    return split_frames
+    require_table(connection, "mart_credit_risk_features", error_cls=FeatureSelectionError)
+    return load_labeled_split_frames(
+        connection,
+        split_applicant_ids,
+        feature_columns,
+        error_cls=FeatureSelectionError,
+    )
 
 
 def _prediction_frames(
@@ -422,7 +395,7 @@ def _prediction_frames(
     frames = {}
     for split_name in REPORTING_SPLITS:
         frame = split_frames[split_name]
-        probabilities = pipeline.predict_proba(_feature_frame(frame, feature_columns))[:, 1]
+        probabilities = pipeline.predict_proba(feature_frame(frame, feature_columns))[:, 1]
         frames[split_name] = pd.DataFrame(
             {
                 "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
@@ -441,10 +414,11 @@ def _calibration_metric_rows(
     for method, split_predictions in predictions_by_method.items():
         for split_name in REPORTING_SPLITS:
             frame = split_predictions[split_name]
-            metrics = _probability_metrics(
+            metrics = probability_metrics(
                 frame["target"],
                 frame["probability"].to_numpy(),
                 manual_review_capacity_rate,
+                error_cls=FeatureSelectionError,
             )
             rows.append(
                 {
@@ -461,10 +435,11 @@ def _metrics_by_split(
     manual_review_capacity_rate: float,
 ) -> dict[str, dict[str, float]]:
     return {
-        split_name: _probability_metrics(
+        split_name: probability_metrics(
             frame["target"],
             frame["probability"].to_numpy(),
             manual_review_capacity_rate,
+            error_cls=FeatureSelectionError,
         )
         for split_name, frame in prediction_frames.items()
     }
@@ -504,7 +479,7 @@ def _balanced_threshold_rows(
     )
 
 
-def _select_feature_set(rows: list[dict[str, Any]]) -> str:
+def select_feature_set(rows: list[dict[str, Any]]) -> str:
     selected = sorted(rows, key=_feature_set_selection_key, reverse=True)[0]
     return str(selected["feature_set"])
 
@@ -619,28 +594,6 @@ def _interpretation_text(rows: list[dict[str, Any]], selected_row: dict[str, Any
         f"{first_paragraph} It removes {removed_features} features compared with the full setup.\n\n"
         f"{test_caveat}"
     )
-
-
-def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def _resolve_project_path(path_value: str) -> Path:
-    path = Path(path_value)
-    if path.is_absolute():
-        return path
-    return REPO_ROOT / path
-
-
-def _created_at() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def _sql_identifier(identifier: str) -> str:
-    return f'"{identifier.replace(chr(34), chr(34) + chr(34))}"'
 
 
 if __name__ == "__main__":

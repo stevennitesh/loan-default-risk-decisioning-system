@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -10,9 +8,10 @@ import duckdb
 
 from src.config import SUPPORTED_SOURCE_FILES
 from src.config import load_config
-
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from src.runtime import REPO_ROOT
+from src.runtime import created_at_utc
+from src.runtime import resolve_project_path
+from src.runtime import write_csv
 
 STAGING_TABLES = {
     "application_train": "stg_application_train",
@@ -46,10 +45,10 @@ def run_ingestion(config_path: str | Path = "configs/base.yaml") -> list[dict[st
     config = load_config(config_path)
     paths = config["paths"]
 
-    raw_dir = _resolve_project_path(paths["raw_dir"])
-    parquet_dir = _resolve_project_path(paths["parquet_dir"])
-    duckdb_path = _resolve_project_path(paths["duckdb_path"])
-    report_dir = _resolve_project_path(paths["report_dir"])
+    raw_dir = resolve_project_path(paths["raw_dir"])
+    parquet_dir = resolve_project_path(paths["parquet_dir"])
+    duckdb_path = resolve_project_path(paths["duckdb_path"])
+    report_dir = resolve_project_path(paths["report_dir"])
 
     raw_files = {
         source_name: raw_dir / source_file
@@ -64,7 +63,7 @@ def run_ingestion(config_path: str | Path = "configs/base.yaml") -> list[dict[st
     duckdb_path.parent.mkdir(parents=True, exist_ok=True)
     report_dir.mkdir(parents=True, exist_ok=True)
 
-    created_at_utc = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    ingestion_created_at = created_at_utc()
     summary_rows: list[dict[str, Any]] = []
 
     with duckdb.connect(str(duckdb_path)) as connection:
@@ -105,7 +104,7 @@ def run_ingestion(config_path: str | Path = "configs/base.yaml") -> list[dict[st
                     "csv_rows": csv_rows,
                     "parquet_rows": parquet_rows,
                     "duckdb_rows": duckdb_rows,
-                    "created_at_utc": created_at_utc,
+                    "created_at_utc": ingestion_created_at,
                 }
             )
 
@@ -122,13 +121,6 @@ def main() -> None:
         run_ingestion(args.config)
     except IngestionError as error:
         raise SystemExit(str(error)) from error
-
-
-def _resolve_project_path(path_value: str) -> Path:
-    path = Path(path_value)
-    if path.is_absolute():
-        return path
-    return REPO_ROOT / path
 
 
 def _validate_source_name(source_name: str) -> None:
@@ -165,10 +157,7 @@ def _display_path(path: Path) -> str:
 
 
 def _write_summary(summary_path: Path, rows: list[dict[str, Any]]) -> None:
-    with summary_path.open("w", newline="", encoding="utf-8") as summary_file:
-        writer = csv.DictWriter(summary_file, fieldnames=INGESTION_SUMMARY_COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv(summary_path, INGESTION_SUMMARY_COLUMNS, rows)
 
 
 if __name__ == "__main__":

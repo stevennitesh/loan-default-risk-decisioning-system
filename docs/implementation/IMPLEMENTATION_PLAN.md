@@ -4,7 +4,7 @@
 **Status:** Pre-build execution plan  
 **Owner:** Steven  
 **Last updated:** 2026-04-25  
-**Aligned spec:** `PROJECT_SPEC.md` / v0.3.1 final pre-build specification
+**Aligned spec:** `docs/spec/PROJECT_SPEC.md` / v0.3.1 final pre-build specification
 
 ---
 
@@ -104,10 +104,10 @@ models/
 
 - Add:
   - `README.md`
-  - `PROJECT_SPEC.md`
-  - `IMPLEMENTATION_PLAN.md`
-  - `TESTING_PLAN.md`
-  - `VALIDATION_PLAN.md`
+  - `docs/spec/PROJECT_SPEC.md`
+  - `docs/implementation/IMPLEMENTATION_PLAN.md`
+  - `docs/testing/TESTING_PLAN.md`
+  - `docs/validation/VALIDATION_PLAN.md`
   - `Makefile`
   - `Dockerfile`
   - `requirements.txt` or `pyproject.toml`

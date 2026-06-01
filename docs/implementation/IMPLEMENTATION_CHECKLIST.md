@@ -5,7 +5,7 @@
 - [ ] Create GitHub repository: `loan-default-decisioning`
 - [ ] Add `.gitignore` for raw data, models, DuckDB files, cache files, and secrets
 - [ ] Add `README.md`
-- [ ] Add `PROJECT_SPEC.md`
+- [ ] Add `docs/spec/PROJECT_SPEC.md`
 - [ ] Add `requirements.txt` or `pyproject.toml`
 - [ ] Add `Makefile`
 - [ ] Add `Dockerfile`

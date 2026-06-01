@@ -8,12 +8,12 @@ North star: make the right path cheaper than the sloppy path.
 
 ## Grounding
 
-Before changing code or docs, read the relevant root document:
+Before changing code or docs, read the relevant source-of-truth document:
 
-- `PROJECT_SPEC.md` defines scope, contracts, non-goals, model-risk posture, and acceptance criteria.
-- `IMPLEMENTATION_PLAN.md` defines build order and command-to-artifact expectations.
-- `TESTING_PLAN.md` defines what must be tested and how to use fixtures.
-- `VALIDATION_PLAN.md` defines model and reporting gates.
+- `docs/spec/PROJECT_SPEC.md` defines scope, contracts, non-goals, model-risk posture, and acceptance criteria.
+- `docs/implementation/IMPLEMENTATION_PLAN.md` defines build order and command-to-artifact expectations.
+- `docs/testing/TESTING_PLAN.md` defines what must be tested and how to use fixtures.
+- `docs/validation/VALIDATION_PLAN.md` defines model and reporting gates.
 - `README.md` defines the recruiter-facing story and run interface.
 
 Keep `AGENTS.md` subordinate to those docs. If docs conflict, prefer the more specific contract for the task and call out the conflict instead of silently inventing a rule.

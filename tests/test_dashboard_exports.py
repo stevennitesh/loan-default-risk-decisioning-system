@@ -13,22 +13,22 @@ import pytest
 
 from src.dashboard_exports import DASHBOARD_EXPORT_TABLES
 from src.dashboard_exports import POST_V1_DASHBOARD_MODEL_VERSION
-from src.dashboard_exports import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
 from src.dashboard_exports import DashboardExportError
 from src.dashboard_exports import run_dashboard_export
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
-from src.evaluate import MODEL_CALIBRATION_BINS_COLUMNS
-from src.evaluate import MODEL_CONFUSION_MATRIX_COLUMNS
-from src.evaluate import MODEL_LIFT_BY_DECILE_COLUMNS
-from src.explain import MODEL_FEATURE_IMPORTANCE_COLUMNS
-from src.score_batch import CREDIT_RISK_SCORE_COLUMNS
-from src.thresholding import MODEL_THRESHOLD_METRICS_COLUMNS
-from src.train import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.train import LIGHTGBM_MODEL_VERSION
-from src.train import MODEL_METRICS_SUMMARY_COLUMNS
+from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
+from src.model_contracts import LIGHTGBM_MODEL_VERSION
+from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
+from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
+from src.report_contracts import MODEL_CONFUSION_MATRIX_COLUMNS
+from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
+from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
+from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
+from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
+from src.report_contracts import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
 from src.train import run_training
-from tests.test_train import create_training_database
-from tests.test_train import read_csv_rows
+from tests.helpers import create_training_database
+from tests.helpers import read_csv_rows
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")

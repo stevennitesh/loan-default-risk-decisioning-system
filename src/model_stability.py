@@ -11,17 +11,17 @@ import pandas as pd
 from src.config import load_config
 from src.feature_selection import DEFAULT_FEATURE_LIMITS
 from src.feature_selection import FeatureSelectionError
-from src.feature_selection import _created_at
-from src.feature_selection import _feature_sets
-from src.feature_selection import _load_feature_importance_rows
-from src.feature_selection import _load_lightgbm_artifact
-from src.feature_selection import _ranked_raw_features
-from src.feature_selection import _resolve_project_path
-from src.feature_selection import _run_single_feature_set
-from src.feature_selection import _select_feature_set
-from src.feature_selection import _write_csv
-from src.train import _load_labeled_training_frame
-from src.train import _split_labeled_frame
+from src.feature_selection import feature_sets
+from src.feature_selection import load_feature_importance_rows
+from src.feature_selection import load_lightgbm_artifact
+from src.feature_selection import ranked_raw_features
+from src.feature_selection import run_single_feature_set
+from src.feature_selection import select_feature_set
+from src.runtime import created_at_utc
+from src.runtime import resolve_project_path
+from src.runtime import write_csv
+from src.modeling import load_labeled_training_frame
+from src.modeling import split_labeled_frame
 
 
 DEFAULT_STABILITY_SEEDS = (17, 29, 43)
@@ -136,17 +136,17 @@ def run_model_stability_experiment(
 ) -> dict[str, Any]:
     seeds = _normalize_seeds(seeds)
     config = load_config(config_path)
-    duckdb_path = _resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = _resolve_project_path(config["paths"]["model_dir"])
-    report_dir = _resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
+    model_dir = resolve_project_path(config["paths"]["model_dir"])
+    report_dir = resolve_project_path(config["paths"]["report_dir"])
 
     if not duckdb_path.exists():
         raise ModelStabilityError(f"DuckDB database not found: {duckdb_path}")
 
-    base_artifact = _load_lightgbm_artifact(model_dir)
+    base_artifact = load_lightgbm_artifact(model_dir)
     full_feature_columns = list(base_artifact["feature_columns"])
-    importance_rows = _load_feature_importance_rows(report_dir)
-    ranked_features = _ranked_raw_features(importance_rows, full_feature_columns)
+    importance_rows = load_feature_importance_rows(report_dir)
+    ranked_features = ranked_raw_features(importance_rows, full_feature_columns)
     max_limit = max(feature_limits) if feature_limits else 0
     if len(ranked_features) < min(max_limit, len(full_feature_columns)):
         raise ModelStabilityError(
@@ -154,9 +154,9 @@ def run_model_stability_experiment(
             f"ranked={len(ranked_features)}, requested={max_limit}"
         )
 
-    created_at = _created_at()
+    created_at = created_at_utc()
     manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
-    feature_set_specs = _feature_sets(
+    feature_set_specs = feature_sets(
         ranked_features,
         full_feature_columns,
         feature_limits,
@@ -164,13 +164,22 @@ def run_model_stability_experiment(
     )
     run_rows: list[dict[str, Any]] = []
     with duckdb.connect(str(duckdb_path)) as connection:
-        training_frame = _load_labeled_training_frame(connection, full_feature_columns)
+        training_frame = load_labeled_training_frame(
+            connection,
+            full_feature_columns,
+            error_cls=ModelStabilityError,
+        )
         for seed in seeds:
-            split_frames = _split_labeled_frame(training_frame, config, seed)
+            split_frames = split_labeled_frame(
+                training_frame,
+                config,
+                seed,
+                error_cls=ModelStabilityError,
+            )
             seed_rows = []
             for feature_set_name, feature_columns, feature_limit in feature_set_specs:
                 seed_rows.append(
-                    _run_single_feature_set(
+                    run_single_feature_set(
                         config,
                         feature_set_name,
                         feature_columns,
@@ -181,7 +190,7 @@ def run_model_stability_experiment(
                         random_seed=seed,
                     )
                 )
-            seed_winner = _select_feature_set(seed_rows)
+            seed_winner = select_feature_set(seed_rows)
             for row in seed_rows:
                 run_row = dict(row)
                 run_row.pop("selected", None)
@@ -193,8 +202,8 @@ def run_model_stability_experiment(
                     }
                 )
 
-    aggregate_rows = _aggregate_stability_rows(run_rows, created_at)
-    selected_feature_set = _select_stability_feature_set(aggregate_rows)
+    aggregate_rows = aggregate_stability_rows(run_rows, created_at)
+    selected_feature_set = select_stability_feature_set(aggregate_rows)
     for row in aggregate_rows:
         row["selected"] = row["feature_set"] == selected_feature_set
 
@@ -204,8 +213,8 @@ def run_model_stability_experiment(
     seed_runs_path = report_dir / seed_runs_name
     summary_path = report_dir / summary_name
     report_path = experiments_dir / report_name
-    _write_csv(seed_runs_path, MODEL_STABILITY_RUN_COLUMNS, run_rows)
-    _write_csv(summary_path, MODEL_STABILITY_AGGREGATE_COLUMNS, aggregate_rows)
+    write_csv(seed_runs_path, MODEL_STABILITY_RUN_COLUMNS, run_rows)
+    write_csv(summary_path, MODEL_STABILITY_AGGREGATE_COLUMNS, aggregate_rows)
     _write_report(report_path, aggregate_rows, selected_feature_set, seeds)
 
     return {
@@ -276,7 +285,7 @@ def _normalize_seeds(seeds: tuple[int, ...]) -> tuple[int, ...]:
     return normalized
 
 
-def _aggregate_stability_rows(
+def aggregate_stability_rows(
     run_rows: list[dict[str, Any]],
     created_at: str,
 ) -> list[dict[str, Any]]:
@@ -287,7 +296,7 @@ def _aggregate_stability_rows(
     for metric in MEAN_STD_METRICS:
         frame[metric] = frame[metric].astype(float)
     seed_winners = {
-        seed: _select_feature_set(group.to_dict("records"))
+        seed: select_feature_set(group.to_dict("records"))
         for seed, group in frame.groupby("seed", sort=True)
     }
     aggregate_rows = []
@@ -319,7 +328,7 @@ def _aggregate_stability_rows(
     return aggregate_rows
 
 
-def _select_stability_feature_set(rows: list[dict[str, Any]]) -> str:
+def select_stability_feature_set(rows: list[dict[str, Any]]) -> str:
     selected = sorted(rows, key=_stability_selection_key, reverse=True)[0]
     return str(selected["feature_set"])
 

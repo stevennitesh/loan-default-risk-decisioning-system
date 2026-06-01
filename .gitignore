@@ -42,6 +42,10 @@ htmlcov/
 .tmp/*
 !.tmp/.gitkeep
 
+# Local agent/tooling state
+.agents/
+.codex/
+
 # Jupyter
 .ipynb_checkpoints/
 

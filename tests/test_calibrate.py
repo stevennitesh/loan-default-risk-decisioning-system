@@ -6,15 +6,13 @@ import duckdb
 import joblib
 import pytest
 
-from src.calibrate import (
-    MODEL_CALIBRATION_BINS_COMPARISON_COLUMNS,
-    MODEL_CALIBRATION_COMPARISON_COLUMNS,
-    _select_calibration_method,
-    run_calibration_experiment,
-)
+from src.calibrate import run_calibration_experiment
+from src.calibration import select_calibration_method
+from src.report_contracts import MODEL_CALIBRATION_BINS_COMPARISON_COLUMNS
+from src.report_contracts import MODEL_CALIBRATION_COMPARISON_COLUMNS
 from src.train import run_training
-from tests.test_train import create_training_database
-from tests.test_train import read_csv_rows
+from tests.helpers import create_training_database
+from tests.helpers import read_csv_rows
 
 
 CALIBRATION_METHODS = {"uncalibrated", "sigmoid", "isotonic"}
@@ -113,4 +111,4 @@ def test_calibration_selection_prefers_sigmoid_when_isotonic_brier_gain_is_tiny(
         },
     ]
 
-    assert _select_calibration_method(rows) == "sigmoid"
+    assert select_calibration_method(rows) == "sigmoid"

@@ -8,11 +8,11 @@ import pytest
 
 from src.calibrate import run_calibration_experiment
 from src.evaluate import run_evaluation
-from src.score_batch import CREDIT_RISK_SCORE_COLUMNS
+from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
 from src.score_batch import ScoringError
 from src.score_batch import run_scoring
 from src.train import run_training
-from tests.test_train import create_training_database
+from tests.helpers import create_training_database
 
 
 VALID_RISK_BANDS = {"low_risk", "medium_risk", "high_risk"}

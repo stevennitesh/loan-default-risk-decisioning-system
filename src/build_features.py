@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,14 +9,17 @@ import duckdb
 from src.config import is_post_v1_scope
 from src.config import load_config
 from src.ingest import STAGING_TABLES
+from src.mart_access import existing_tables
+from src.mart_access import table_columns
 from src.data_contracts import DataContractError
 from src.data_contracts import build_data_inventory
 from src.data_contracts import build_feature_inventory
 from src.data_contracts import validate_data_contracts
 from src.data_contracts import write_contract_reports
-
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from src.runtime import REPO_ROOT
+from src.runtime import created_at_utc
+from src.runtime import resolve_project_path
+from src.runtime import write_csv
 
 V1_FEATURE_SQL_FILES = [
     "sql/02_feature_applicant.sql",
@@ -84,8 +85,8 @@ class FeatureBuildError(RuntimeError):
 
 def run_feature_build(config_path: str | Path = "configs/base.yaml") -> list[dict[str, Any]]:
     config = load_config(config_path)
-    duckdb_path = _resolve_project_path(config["paths"]["duckdb_path"])
-    report_dir = _resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
+    report_dir = resolve_project_path(config["paths"]["report_dir"])
 
     report_dir.mkdir(parents=True, exist_ok=True)
     duckdb_path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,13 +120,6 @@ def main() -> None:
         raise SystemExit(str(error)) from error
 
 
-def _resolve_project_path(path_value: str) -> Path:
-    path = Path(path_value)
-    if path.is_absolute():
-        return path
-    return REPO_ROOT / path
-
-
 def _feature_sql_files(config: dict[str, Any]) -> list[str]:
     return POST_V1_FEATURE_SQL_FILES if is_post_v1_scope(config) else V1_FEATURE_SQL_FILES
 
@@ -139,8 +133,8 @@ def _required_staging_tables(config: dict[str, Any]) -> list[str]:
 
 
 def _ensure_staging_tables(connection: duckdb.DuckDBPyConnection, config: dict[str, Any]) -> None:
-    existing_tables = {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
-    missing_tables = sorted(set(_required_staging_tables(config)).difference(existing_tables))
+    available_tables = existing_tables(connection)
+    missing_tables = sorted(set(_required_staging_tables(config)).difference(available_tables))
     if missing_tables:
         raise FeatureBuildError(f"Missing required staging tables: {', '.join(missing_tables)}")
 
@@ -149,17 +143,17 @@ def _profile_feature_tables(
     connection: duckdb.DuckDBPyConnection,
     config: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    created_at_utc = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    profile_created_at = created_at_utc()
     rows: list[dict[str, Any]] = []
-    existing_tables = {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
+    available_tables = existing_tables(connection)
     profile_tables = _profile_tables(config)
 
-    missing_feature_tables = sorted(set(profile_tables).difference(existing_tables))
+    missing_feature_tables = sorted(set(profile_tables).difference(available_tables))
     if missing_feature_tables:
         raise FeatureBuildError(f"Missing feature output tables: {', '.join(missing_feature_tables)}")
 
     for table_name in profile_tables:
-        columns = _table_columns(connection, table_name)
+        columns = list(table_columns(connection, table_name))
         if "SK_ID_CURR" not in columns:
             raise FeatureBuildError(f"Feature table is missing SK_ID_CURR: {table_name}")
 
@@ -173,14 +167,10 @@ def _profile_feature_tables(
                 ),
                 "duplicate_key_count": _duplicate_key_count(connection, table_name, columns),
                 "column_count": len(columns),
-                "created_at_utc": created_at_utc,
+                "created_at_utc": profile_created_at,
             }
         )
     return rows
-
-
-def _table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -> list[str]:
-    return [row[1] for row in connection.execute(f"PRAGMA table_info('{table_name}')").fetchall()]
 
 
 def _duplicate_key_count(
@@ -214,10 +204,7 @@ def _fetch_count(connection: duckdb.DuckDBPyConnection, sql: str) -> int:
 
 
 def _write_profile(profile_path: Path, rows: list[dict[str, Any]]) -> None:
-    with profile_path.open("w", newline="", encoding="utf-8") as profile_file:
-        writer = csv.DictWriter(profile_file, fieldnames=FEATURE_PROFILE_COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv(profile_path, FEATURE_PROFILE_COLUMNS, rows)
 
 
 if __name__ == "__main__":

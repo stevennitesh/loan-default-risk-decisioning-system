@@ -6,13 +6,13 @@ import pytest
 
 from src.model_stability import MODEL_STABILITY_AGGREGATE_COLUMNS
 from src.model_stability import MODEL_STABILITY_RUN_COLUMNS
-from src.model_stability import _aggregate_stability_rows
-from src.model_stability import _select_stability_feature_set
+from src.model_stability import aggregate_stability_rows
 from src.model_stability import run_model_stability_experiment
+from src.model_stability import select_stability_feature_set
 from src.train import run_training
-from tests.test_feature_selection import _write_feature_importance
-from tests.test_train import create_training_database
-from tests.test_train import read_csv_rows
+from tests.helpers import create_training_database
+from tests.helpers import read_csv_rows
+from tests.helpers import write_feature_importance
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
@@ -26,8 +26,8 @@ def test_stability_selection_uses_validation_aggregate_not_test_edge() -> None:
         _stability_run("full", 29, validation_pr_auc=0.269, test_pr_auc=0.271, feature_count=140),
     ]
 
-    aggregate_rows = _aggregate_stability_rows(rows, created_at="2026-04-30T00:00:00Z")
-    selected_feature_set = _select_stability_feature_set(aggregate_rows)
+    aggregate_rows = aggregate_stability_rows(rows, created_at="2026-04-30T00:00:00Z")
+    selected_feature_set = select_stability_feature_set(aggregate_rows)
 
     assert selected_feature_set == "top_100"
     selected_row = next(row for row in aggregate_rows if row["feature_set"] == selected_feature_set)
@@ -45,7 +45,7 @@ def test_model_stability_experiment_writes_seed_and_aggregate_reports(
     create_training_database(database_path, train_rows=80, test_rows=12)
     training_result = run_training(project_config_path)
     report_dir = scratch_path / "reports"
-    _write_feature_importance(
+    write_feature_importance(
         report_dir / "model_feature_importance.csv",
         training_result["feature_columns"],
     )
@@ -92,7 +92,7 @@ def test_model_stability_experiment_can_write_named_outputs(
     create_training_database(database_path, train_rows=80, test_rows=12)
     training_result = run_training(project_config_path)
     report_dir = scratch_path / "reports"
-    _write_feature_importance(
+    write_feature_importance(
         report_dir / "model_feature_importance.csv",
         training_result["feature_columns"],
     )

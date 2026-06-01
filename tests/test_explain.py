@@ -6,14 +6,14 @@ import duckdb
 import joblib
 import pytest
 
-from src.explain import MODEL_FEATURE_IMPORTANCE_COLUMNS
 from src.explain import ExplainabilityError
 from src.explain import run_explain
+from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
 from src.score_batch import run_scoring
-from src.train import LIGHTGBM_MODEL_VERSION
+from src.model_contracts import LIGHTGBM_MODEL_VERSION
 from src.train import run_training
-from tests.test_train import create_training_database
-from tests.test_train import read_csv_rows
+from tests.helpers import create_training_database
+from tests.helpers import read_csv_rows
 
 
 FORBIDDEN_EXPLANATION_TERMS = {

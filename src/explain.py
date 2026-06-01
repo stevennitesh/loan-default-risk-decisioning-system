@@ -1,39 +1,39 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import warnings
 from pathlib import Path
 from typing import Any
 
 import duckdb
-import joblib
 import matplotlib
 import numpy as np
 import pandas as pd
 
 from src.config import load_config
-from src.score_batch import CREDIT_RISK_SCORE_COLUMNS
-from src.train import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.train import LIGHTGBM_MODEL_TYPE
-from src.train import LIGHTGBM_MODEL_VERSION
+from src.mart_access import require_table
+from src.mart_access import table_columns
+from src.model_contracts import BASELINE_MODEL_TYPE
+from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
+from src.model_contracts import LIGHTGBM_MODEL_TYPE
+from src.model_contracts import LIGHTGBM_MODEL_VERSION
+from src.model_artifacts import load_model_artifact
+from src.model_artifacts import load_selected_model_type
+from src.runtime import replace_duckdb_table
+from src.runtime import replace_duckdb_table_from_frame
+from src.runtime import resolve_project_path
+from src.runtime import sql_identifier
+from src.runtime import write_csv
+from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
+from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
 
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 MAX_SHAP_SUMMARY_ROWS = 5_000
 SHAP_BATCH_SIZE = 10_000
-
-MODEL_FEATURE_IMPORTANCE_COLUMNS = [
-    "model_version",
-    "feature_name",
-    "importance_type",
-    "importance_value",
-    "rank",
-]
 
 REASON_COLUMNS = ["top_reason_1", "top_reason_2", "top_reason_3"]
 
@@ -51,9 +51,9 @@ warnings.filterwarnings(
 
 def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = _resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = _resolve_project_path(config["paths"]["model_dir"])
-    report_dir = _resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
+    model_dir = resolve_project_path(config["paths"]["model_dir"])
+    report_dir = resolve_project_path(config["paths"]["report_dir"])
 
     if not duckdb_path.exists():
         raise ExplainabilityError(f"DuckDB database not found: {duckdb_path}")
@@ -61,7 +61,11 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
     excluded_terms = _excluded_output_terms(config)
 
     with duckdb.connect(str(duckdb_path)) as connection:
-        selected_model_type = _load_selected_model_type(connection)
+        selected_model_type = load_selected_model_type(
+            connection,
+            {BASELINE_MODEL_TYPE, LIGHTGBM_MODEL_TYPE},
+            error_cls=ExplainabilityError,
+        )
         if selected_model_type != LIGHTGBM_MODEL_TYPE:
             raise ExplainabilityError(
                 "Milestone 9 explainability is LightGBM-only; "
@@ -104,7 +108,7 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
         report_dir.mkdir(parents=True, exist_ok=True)
         figures_dir = report_dir / "figures"
         figures_dir.mkdir(parents=True, exist_ok=True)
-        _write_csv(
+        write_csv(
             report_dir / "model_feature_importance.csv",
             MODEL_FEATURE_IMPORTANCE_COLUMNS,
             importance_rows,
@@ -116,7 +120,7 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
             feature_labels,
             int(config["project"]["random_seed"]),
         )
-        _replace_duckdb_table(connection, "model_feature_importance", importance_rows)
+        replace_duckdb_table(connection, "model_feature_importance", importance_rows)
         _update_credit_risk_score_reasons(connection, reason_rows)
 
     return {
@@ -139,50 +143,24 @@ def main() -> None:
         raise SystemExit(str(error)) from error
 
 
-def _load_selected_model_type(connection: duckdb.DuckDBPyConnection) -> str:
-    _require_table(connection, "model_comparison_summary")
-    selected_values = {
-        row[0]
-        for row in connection.execute(
-            "SELECT DISTINCT selected_model_type FROM model_comparison_summary"
-        ).fetchall()
-    }
-    if len(selected_values) != 1:
-        raise ExplainabilityError(
-            f"model_comparison_summary must contain exactly one selected_model_type, got {sorted(selected_values)}"
-        )
-    return str(next(iter(selected_values)))
-
-
 def _load_lightgbm_artifact(model_dir: Path) -> dict[str, Any]:
     artifact_path = model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME
-    if not artifact_path.exists():
-        raise ExplainabilityError(f"Missing LightGBM model artifact: {artifact_path}")
-    artifact = joblib.load(artifact_path)
-    if not isinstance(artifact, dict):
-        raise ExplainabilityError(f"LightGBM model artifact must be a dict: {artifact_path}")
-
+    artifact = load_model_artifact(
+        artifact_path,
+        expected_model_type=LIGHTGBM_MODEL_TYPE,
+        expected_model_version=LIGHTGBM_MODEL_VERSION,
+        error_cls=ExplainabilityError,
+        artifact_label="LightGBM model artifact",
+        missing_label="LightGBM model artifact",
+        require_feature_columns=True,
+    )
     required_keys = {
-        "pipeline",
-        "model_version",
-        "model_type",
-        "feature_columns",
         "numeric_feature_columns",
         "categorical_feature_columns",
     }
     missing_keys = sorted(required_keys.difference(artifact))
     if missing_keys:
         raise ExplainabilityError(f"LightGBM model artifact is missing required keys: {missing_keys}")
-    if artifact["model_type"] != LIGHTGBM_MODEL_TYPE:
-        raise ExplainabilityError(
-            f"LightGBM artifact model_type={artifact['model_type']}, expected {LIGHTGBM_MODEL_TYPE}"
-        )
-    if artifact["model_version"] != LIGHTGBM_MODEL_VERSION:
-        raise ExplainabilityError(
-            f"LightGBM artifact model_version={artifact['model_version']}, expected {LIGHTGBM_MODEL_VERSION}"
-        )
-    if not artifact["feature_columns"]:
-        raise ExplainabilityError("LightGBM model artifact does not contain feature_columns")
     return artifact
 
 
@@ -191,9 +169,9 @@ def _load_scored_feature_frame(
     model_version: str,
     feature_columns: list[str],
 ) -> pd.DataFrame:
-    _require_table(connection, "credit_risk_scores")
-    _require_table(connection, "mart_credit_risk_features")
-    mart_columns = set(_table_columns(connection, "mart_credit_risk_features"))
+    require_table(connection, "credit_risk_scores", error_cls=ExplainabilityError)
+    require_table(connection, "mart_credit_risk_features", error_cls=ExplainabilityError)
+    mart_columns = set(table_columns(connection, "mart_credit_risk_features"))
     missing_feature_columns = sorted(set(feature_columns).difference(mart_columns))
     if missing_feature_columns:
         raise ExplainabilityError(
@@ -209,7 +187,7 @@ def _load_scored_feature_frame(
     if scored_row_count == 0:
         raise ExplainabilityError(f"credit_risk_scores has no rows for model_version={model_version}")
 
-    feature_select = ", ".join(f"m.{_sql_identifier(column)}" for column in feature_columns)
+    feature_select = ", ".join(f"m.{sql_identifier(column)}" for column in feature_columns)
     frame = connection.execute(
         f"""
         SELECT
@@ -432,7 +410,7 @@ def _update_credit_risk_score_reasons(
     for column in REASON_COLUMNS:
         score_indexed.loc[reason_frame.index, column] = reason_frame[column]
     updated_frame = score_indexed.reset_index()[CREDIT_RISK_SCORE_COLUMNS]
-    _replace_duckdb_table_from_frame(connection, "credit_risk_scores", updated_frame)
+    replace_duckdb_table_from_frame(connection, "credit_risk_scores", updated_frame)
 
 
 def _write_shap_summary(
@@ -561,63 +539,6 @@ def _excluded_output_terms(config: dict[str, Any]) -> set[str]:
 
 def _normalize_output_text(text: str) -> str:
     return " ".join(text.lower().replace("_", " ").split())
-
-
-def _replace_duckdb_table(
-    connection: duckdb.DuckDBPyConnection,
-    table_name: str,
-    rows: list[dict[str, Any]],
-) -> None:
-    frame = pd.DataFrame(rows)
-    _replace_duckdb_table_from_frame(connection, table_name, frame)
-
-
-def _replace_duckdb_table_from_frame(
-    connection: duckdb.DuckDBPyConnection,
-    table_name: str,
-    frame: pd.DataFrame,
-) -> None:
-    connection.register("output_frame", frame)
-    connection.execute(f"CREATE OR REPLACE TABLE {_sql_identifier(table_name)} AS SELECT * FROM output_frame")
-    connection.unregister("output_frame")
-
-
-def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def _require_table(connection: duckdb.DuckDBPyConnection, table_name: str) -> None:
-    if table_name not in _existing_tables(connection):
-        raise ExplainabilityError(f"Missing required DuckDB table: {table_name}")
-
-
-def _existing_tables(connection: duckdb.DuckDBPyConnection) -> set[str]:
-    return {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
-
-
-def _table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -> dict[str, str]:
-    return {
-        row[1]: row[2]
-        for row in connection.execute(f"PRAGMA table_info({_sql_literal(table_name)})").fetchall()
-    }
-
-
-def _resolve_project_path(path_value: str) -> Path:
-    path = Path(path_value)
-    if path.is_absolute():
-        return path
-    return REPO_ROOT / path
-
-
-def _sql_identifier(identifier: str) -> str:
-    return f'"{identifier.replace(chr(34), chr(34) + chr(34))}"'
-
-
-def _sql_literal(value: str) -> str:
-    return f"'{value.replace(chr(39), chr(39) + chr(39))}'"
 
 
 if __name__ == "__main__":

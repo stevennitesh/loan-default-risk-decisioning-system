@@ -1,6 +1,3 @@
-import csv
-from pathlib import Path
-
 import duckdb
 import pytest
 
@@ -15,13 +12,7 @@ from src.data_contracts import (
     get_model_feature_columns,
     validate_data_contracts,
 )
-
-
-def read_csv_rows(path: Path, expected_columns: list[str]) -> list[dict[str, str]]:
-    with path.open(newline="", encoding="utf-8") as csv_file:
-        reader = csv.DictReader(csv_file)
-        assert reader.fieldnames == expected_columns
-        return list(reader)
+from tests.helpers import read_csv_rows
 
 
 def test_data_contract_fails_when_feature_tables_are_missing(staged_feature_fixture) -> None:

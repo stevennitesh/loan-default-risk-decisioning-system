@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 
 import pytest
 
 from src.feature_selection import FEATURE_SELECTION_COMPARISON_COLUMNS
-from src.feature_selection import _ranked_raw_features
-from src.feature_selection import _readable_feature_label
+from src.feature_selection import ranked_raw_features
 from src.feature_selection import run_feature_selection_experiment
 from src.train import run_training
-from tests.test_train import create_training_database
-from tests.test_train import read_csv_rows
+from tests.helpers import create_training_database
+from tests.helpers import read_csv_rows
+from tests.helpers import write_feature_importance
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
@@ -32,7 +31,7 @@ def test_ranked_raw_features_maps_readable_shap_labels_to_model_columns() -> Non
         {"feature_name": "Amt credit", "rank": "5"},
     ]
 
-    assert _ranked_raw_features(importance_rows, feature_columns) == [
+    assert ranked_raw_features(importance_rows, feature_columns) == [
         "NAME_EDUCATION_TYPE",
         "EXT_SOURCE_MEAN",
         "credit_card_avg_credit_utilization",
@@ -48,7 +47,7 @@ def test_feature_selection_experiment_writes_comparison_and_report(
     create_training_database(database_path, train_rows=80, test_rows=12)
     training_result = run_training(project_config_path)
     report_dir = scratch_path / "reports"
-    _write_feature_importance(
+    write_feature_importance(
         report_dir / "model_feature_importance.csv",
         training_result["feature_columns"],
     )
@@ -89,7 +88,7 @@ def test_feature_selection_experiment_can_write_named_outputs(
     create_training_database(database_path, train_rows=80, test_rows=12)
     training_result = run_training(project_config_path)
     report_dir = scratch_path / "reports"
-    _write_feature_importance(
+    write_feature_importance(
         report_dir / "model_feature_importance.csv",
         training_result["feature_columns"],
     )
@@ -112,22 +111,3 @@ def test_feature_selection_experiment_can_write_named_outputs(
     report_text = result["report_path"].read_text(encoding="utf-8")
     assert "reports/experiments/013_selected_features.csv" in report_text
     assert not (report_dir / "experiments" / "005_feature_selection.md").exists()
-
-
-def _write_feature_importance(path: Path, feature_columns: list[str]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(
-            csv_file,
-            fieldnames=["model_version", "feature_name", "importance_type", "importance_value", "rank"],
-        )
-        writer.writeheader()
-        for rank, feature_name in enumerate(feature_columns, start=1):
-            writer.writerow(
-                {
-                    "model_version": "lightgbm_credit_risk_v1",
-                    "feature_name": _readable_feature_label(feature_name),
-                    "importance_type": "mean_abs_shap",
-                    "importance_value": 1 / rank,
-                    "rank": rank,
-                }
-            )
