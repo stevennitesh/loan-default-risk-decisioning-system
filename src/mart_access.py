@@ -48,6 +48,7 @@ def load_labeled_split_frame(
     require_both_target_classes: bool = False,
     missing_context: str = "split",
 ) -> pd.DataFrame:
+    require_table(connection, "mart_credit_risk_features", error_cls=error_cls)
     selected_columns = ["SK_ID_CURR", "TARGET", *feature_columns]
     ids_frame = pd.DataFrame({"SK_ID_CURR": applicant_ids})
     connection.register("split_ids", ids_frame)
@@ -85,6 +86,7 @@ def load_application_test_frame(
     feature_columns: list[str],
     error_cls: type[Exception] = ValueError,
 ) -> pd.DataFrame:
+    require_table(connection, "mart_credit_risk_features", error_cls=error_cls)
     selected_columns = ["SK_ID_CURR", "TARGET", *feature_columns]
     frame = connection.execute(
         f"""

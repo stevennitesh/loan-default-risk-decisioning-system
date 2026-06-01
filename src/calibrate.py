@@ -24,7 +24,6 @@ from src.metrics import nullable_mean
 from src.metrics import probability_metrics
 from src.metrics import with_probability_rank_bin
 from src.mart_access import load_labeled_split_frames
-from src.mart_access import require_table
 from src.model_artifacts import load_model_artifact
 from src.model_artifacts import normalize_split_ids
 from src.modeling import predict_probabilities
@@ -76,7 +75,12 @@ def run_calibration_experiment(config_path: str | Path = "configs/base.yaml") ->
     manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
 
     with duckdb.connect(str(duckdb_path)) as connection:
-        split_frames = _load_split_frames(connection, split_applicant_ids, feature_columns)
+        split_frames = load_labeled_split_frames(
+            connection,
+            split_applicant_ids,
+            feature_columns,
+            error_cls=CalibrationError,
+        )
         uncalibrated_predictions = _build_uncalibrated_predictions(
             artifact,
             split_frames,
@@ -144,20 +148,6 @@ def run_calibration_experiment(config_path: str | Path = "configs/base.yaml") ->
         "bin_rows": bin_rows,
         "artifact": model_dir / CALIBRATION_ARTIFACT_NAME,
     }
-
-
-def _load_split_frames(
-    connection: duckdb.DuckDBPyConnection,
-    split_applicant_ids: dict[str, list[int]],
-    feature_columns: list[str],
-) -> dict[str, pd.DataFrame]:
-    require_table(connection, "mart_credit_risk_features", error_cls=CalibrationError)
-    return load_labeled_split_frames(
-        connection,
-        split_applicant_ids,
-        feature_columns,
-        error_cls=CalibrationError,
-    )
 
 
 def _build_uncalibrated_predictions(

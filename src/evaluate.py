@@ -18,7 +18,6 @@ from src.metrics import nullable_mean
 from src.metrics import with_probability_rank_bin
 from src.mart_access import existing_tables
 from src.mart_access import load_labeled_split_frames
-from src.mart_access import require_table
 from src.model_contracts import BASELINE_MODEL_TYPE
 from src.model_contracts import BASELINE_MODEL_VERSION
 from src.model_contracts import EVALUATION_SPLITS
@@ -81,7 +80,12 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
 
     created_at = created_at_utc()
     with duckdb.connect(str(duckdb_path)) as connection:
-        split_frames = _load_split_frames(connection, split_applicant_ids, feature_columns)
+        split_frames = load_labeled_split_frames(
+            connection,
+            split_applicant_ids,
+            feature_columns,
+            error_cls=EvaluationError,
+        )
         prediction_frames = {
             model_type: _build_prediction_frames(artifact, split_frames, feature_columns)
             for model_type, artifact in artifacts.items()
@@ -204,20 +208,6 @@ def _validate_artifacts(
     if split_applicant_ids != lightgbm_split_applicant_ids:
         raise EvaluationError("Model artifacts must use the same split_applicant_ids")
     return feature_columns, split_applicant_ids
-
-
-def _load_split_frames(
-    connection: duckdb.DuckDBPyConnection,
-    split_applicant_ids: dict[str, list[int]],
-    feature_columns: list[str],
-) -> dict[str, pd.DataFrame]:
-    require_table(connection, "mart_credit_risk_features", error_cls=EvaluationError)
-    return load_labeled_split_frames(
-        connection,
-        split_applicant_ids,
-        feature_columns,
-        error_cls=EvaluationError,
-    )
 
 
 def _build_prediction_frames(

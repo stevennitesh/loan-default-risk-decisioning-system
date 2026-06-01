@@ -149,7 +149,6 @@ def _load_holdout_test_frame(
     applicant_ids: list[int],
     feature_columns: list[str],
 ) -> pd.DataFrame:
-    require_table(connection, "mart_credit_risk_features", error_cls=ScoringError)
     return load_labeled_split_frame(
         connection,
         applicant_ids,

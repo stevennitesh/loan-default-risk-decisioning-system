@@ -32,7 +32,68 @@ EXPECTED_STAGING_TABLES = {
     "installments_payments": "stg_installments_payments",
 }
 
-def write_required_csvs(raw_dir: Path) -> None:
+
+def test_ingestion_fails_before_conversion_when_required_raw_files_are_missing(
+    scratch_path: Path,
+    project_config_path: Path,
+) -> None:
+    raw_dir = scratch_path / "raw"
+    raw_dir.mkdir(parents=True)
+    (raw_dir / "application_train.csv").write_text(
+        "SK_ID_CURR,TARGET\n100001,0\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(IngestionError) as error:
+        run_ingestion(project_config_path)
+
+    message = str(error.value)
+    assert "Missing required raw CSV files" in message
+    assert "application_test.csv" in message
+    assert "bureau.csv" in message
+    assert not (scratch_path / "parquet" / "application_train.parquet").exists()
+    assert not (scratch_path / "db" / "credit_risk.duckdb").exists()
+
+
+def test_ingestion_converts_required_csvs_and_loads_duckdb_staging_without_optional_docs(
+    scratch_path: Path,
+    project_config_path: Path,
+) -> None:
+    _write_required_csvs(scratch_path / "raw")
+
+    summary = run_ingestion(project_config_path)
+    second_summary = run_ingestion(project_config_path)
+
+    assert {row["source_name"] for row in summary} == set(SOURCE_FILES)
+    assert {row["source_name"] for row in second_summary} == set(SOURCE_FILES)
+
+    for source_name in SOURCE_FILES:
+        assert (scratch_path / "parquet" / f"{source_name}.parquet").exists()
+
+    summary_rows = read_csv_rows(
+        scratch_path / "reports" / "ingestion_summary.csv",
+        INGESTION_SUMMARY_COLUMNS,
+    )
+    assert len(summary_rows) == len(SOURCE_FILES)
+    assert {row["source_name"] for row in summary_rows} == set(SOURCE_FILES)
+
+    with duckdb.connect(str(scratch_path / "db" / "credit_risk.duckdb"), read_only=True) as connection:
+        tables = table_names(connection)
+        assert set(EXPECTED_STAGING_TABLES.values()).issubset(tables)
+
+        for row in summary_rows:
+            assert row["staging_table"] == EXPECTED_STAGING_TABLES[row["source_name"]]
+            assert row["csv_rows"] == row["parquet_rows"] == row["duckdb_rows"]
+            duckdb_rows = connection.execute(
+                f"SELECT COUNT(*) FROM {row['staging_table']}"
+            ).fetchone()[0]
+            assert duckdb_rows == int(row["duckdb_rows"])
+
+        assert "TARGET" in read_table_columns(connection, "stg_application_train")
+        assert "TARGET" not in read_table_columns(connection, "stg_application_test")
+
+
+def _write_required_csvs(raw_dir: Path) -> None:
     raw_dir.mkdir(parents=True, exist_ok=True)
     csv_contents = {
         "application_train.csv": (
@@ -90,63 +151,3 @@ def write_required_csvs(raw_dir: Path) -> None:
     }
     for filename, content in csv_contents.items():
         (raw_dir / filename).write_text(content, encoding="utf-8")
-
-
-def test_ingestion_fails_before_conversion_when_required_raw_files_are_missing(
-    scratch_path: Path,
-    project_config_path: Path,
-) -> None:
-    raw_dir = scratch_path / "raw"
-    raw_dir.mkdir(parents=True)
-    (raw_dir / "application_train.csv").write_text(
-        "SK_ID_CURR,TARGET\n100001,0\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(IngestionError) as error:
-        run_ingestion(project_config_path)
-
-    message = str(error.value)
-    assert "Missing required raw CSV files" in message
-    assert "application_test.csv" in message
-    assert "bureau.csv" in message
-    assert not (scratch_path / "parquet" / "application_train.parquet").exists()
-    assert not (scratch_path / "db" / "credit_risk.duckdb").exists()
-
-
-def test_ingestion_converts_required_csvs_and_loads_duckdb_staging_without_optional_docs(
-    scratch_path: Path,
-    project_config_path: Path,
-) -> None:
-    write_required_csvs(scratch_path / "raw")
-
-    summary = run_ingestion(project_config_path)
-    second_summary = run_ingestion(project_config_path)
-
-    assert {row["source_name"] for row in summary} == set(SOURCE_FILES)
-    assert {row["source_name"] for row in second_summary} == set(SOURCE_FILES)
-
-    for source_name in SOURCE_FILES:
-        assert (scratch_path / "parquet" / f"{source_name}.parquet").exists()
-
-    summary_rows = read_csv_rows(
-        scratch_path / "reports" / "ingestion_summary.csv",
-        INGESTION_SUMMARY_COLUMNS,
-    )
-    assert len(summary_rows) == len(SOURCE_FILES)
-    assert {row["source_name"] for row in summary_rows} == set(SOURCE_FILES)
-
-    with duckdb.connect(str(scratch_path / "db" / "credit_risk.duckdb"), read_only=True) as connection:
-        tables = table_names(connection)
-        assert set(EXPECTED_STAGING_TABLES.values()).issubset(tables)
-
-        for row in summary_rows:
-            assert row["staging_table"] == EXPECTED_STAGING_TABLES[row["source_name"]]
-            assert row["csv_rows"] == row["parquet_rows"] == row["duckdb_rows"]
-            duckdb_rows = connection.execute(
-                f"SELECT COUNT(*) FROM {row['staging_table']}"
-            ).fetchone()[0]
-            assert duckdb_rows == int(row["duckdb_rows"])
-
-        assert "TARGET" in read_table_columns(connection, "stg_application_train")
-        assert "TARGET" not in read_table_columns(connection, "stg_application_test")

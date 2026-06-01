@@ -14,7 +14,6 @@ from src.calibration import fit_calibrators
 from src.calibration import select_calibration_method
 from src.feature_labels import readable_feature_label
 from src.mart_access import load_labeled_split_frames
-from src.mart_access import require_table
 from src.model_artifacts import load_model_artifact
 from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
 from src.model_contracts import LIGHTGBM_MODEL_TYPE
@@ -213,7 +212,6 @@ def load_split_frames(
     feature_columns: list[str],
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, pd.DataFrame]:
-    require_table(connection, "mart_credit_risk_features", error_cls=error_cls)
     return load_labeled_split_frames(
         connection,
         split_applicant_ids,
