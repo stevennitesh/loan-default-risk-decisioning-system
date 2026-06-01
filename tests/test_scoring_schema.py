@@ -12,7 +12,9 @@ from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
 from src.score_batch import ScoringError
 from src.score_batch import run_scoring
 from src.train import run_training
+from tests.helpers import assert_table_missing
 from tests.helpers import create_training_database
+from tests.helpers import read_table_columns
 
 
 VALID_RISK_BANDS = {"low_risk", "medium_risk", "high_risk"}
@@ -32,7 +34,7 @@ def test_scoring_fails_clearly_without_model_selection(
         run_scoring(project_config_path)
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
-        assert "credit_risk_scores" not in {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
+        assert_table_missing(connection, "credit_risk_scores")
 
 
 def test_scoring_fails_clearly_without_threshold_metrics(
@@ -47,7 +49,7 @@ def test_scoring_fails_clearly_without_threshold_metrics(
         run_scoring(project_config_path)
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
-        assert "credit_risk_scores" not in {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
+        assert_table_missing(connection, "credit_risk_scores")
 
 
 def test_scoring_fails_clearly_without_selected_model_artifact(
@@ -94,10 +96,7 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
     assert set(result["scoring_populations"]) == {"holdout_test", "kaggle_test"}
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
-        columns = [
-            row[1]
-            for row in connection.execute("PRAGMA table_info('credit_risk_scores')").fetchall()
-        ]
+        columns = read_table_columns(connection, "credit_risk_scores")
         assert columns == CREDIT_RISK_SCORE_COLUMNS
         assert connection.execute("SELECT COUNT(*) FROM credit_risk_scores").fetchone()[0] == expected_total_rows
         assert connection.execute(

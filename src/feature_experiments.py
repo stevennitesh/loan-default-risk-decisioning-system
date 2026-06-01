@@ -12,6 +12,7 @@ from src.calibration import CALIBRATION_METHODS
 from src.calibration import apply_calibration_method
 from src.calibration import fit_calibrators
 from src.calibration import select_calibration_method
+from src.feature_labels import readable_feature_label
 from src.mart_access import load_labeled_split_frames
 from src.mart_access import require_table
 from src.model_artifacts import load_model_artifact
@@ -179,14 +180,6 @@ def ranked_raw_features(
         ranked_features.append(raw_feature)
         seen_features.add(raw_feature)
     return ranked_features
-
-
-def readable_feature_label(raw_feature: str) -> str:
-    cleaned = raw_feature.replace("__", "_").replace("_", " ").strip()
-    cleaned = " ".join(cleaned.split())
-    if not cleaned:
-        return "Unknown feature"
-    return cleaned.lower().capitalize()
 
 
 def feature_sets(

@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import load_config
+from src.feature_labels import readable_feature_label
 from src.mart_access import require_table
 from src.mart_access import table_columns
 from src.model_contracts import BASELINE_MODEL_TYPE
@@ -292,7 +293,7 @@ def _readable_transformed_feature_labels(
         )
         if _contains_excluded_term(raw_feature, excluded_terms):
             raise ExplainabilityError(f"Excluded field appeared in SHAP feature output: {raw_feature}")
-        labels.append(_readable_feature_label(raw_feature, category_value))
+        labels.append(readable_feature_label(raw_feature, category_value))
     _validate_explanation_texts(labels, excluded_terms, "SHAP feature labels")
     return labels
 
@@ -502,21 +503,6 @@ def _to_dense(matrix: Any) -> np.ndarray:
     if hasattr(matrix, "toarray"):
         return np.asarray(matrix.toarray())
     return np.asarray(matrix)
-
-
-def _readable_feature_label(raw_feature: str, category_value: str | None = None) -> str:
-    label = _humanize_token(raw_feature)
-    if category_value is None:
-        return label
-    return f"{label}: {_humanize_token(category_value)}"
-
-
-def _humanize_token(value: str) -> str:
-    cleaned = value.replace("__", "_").replace("_", " ").strip()
-    cleaned = " ".join(cleaned.split())
-    if not cleaned:
-        return "Unknown feature"
-    return cleaned.lower().capitalize()
 
 
 def _validate_explanation_texts(texts: list[str], excluded_terms: set[str], output_name: str) -> None:

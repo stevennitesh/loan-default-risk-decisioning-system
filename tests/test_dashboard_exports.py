@@ -30,6 +30,7 @@ from src.runtime import sql_identifier
 from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
+from tests.helpers import table_exists
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
@@ -104,8 +105,7 @@ def test_run_dashboard_export_creates_power_bi_csv_bundle_and_segment_table(
             assert LIGHTGBM_MODEL_VERSION in {row["model_version"] for row in rows}
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
-        table_names = {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
-        assert "segment_performance_summary" in table_names
+        assert table_exists(connection, "segment_performance_summary")
         for table_name in DASHBOARD_EXPORT_TABLES:
             duckdb_count = connection.execute(
                 f'SELECT COUNT(*) FROM "{table_name}"'

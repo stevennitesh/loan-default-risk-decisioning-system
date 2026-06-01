@@ -12,6 +12,7 @@ from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
 from src.score_batch import run_scoring
 from src.model_contracts import LIGHTGBM_MODEL_VERSION
 from src.train import run_training
+from tests.helpers import assert_table_missing
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
 
@@ -46,7 +47,7 @@ def test_explain_fails_clearly_without_credit_risk_scores(
         run_explain(project_config_path)
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
-        assert "model_feature_importance" not in {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
+        assert_table_missing(connection, "model_feature_importance")
 
 
 def test_explain_fails_when_selected_model_is_not_lightgbm(

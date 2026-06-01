@@ -7,8 +7,9 @@ import pytest
 import yaml
 
 from src.ingest import IngestionError, run_ingestion
-from src.mart_access import table_columns
 from src.report_contracts import INGESTION_SUMMARY_COLUMNS
+from tests.helpers import read_table_columns
+from tests.helpers import table_names
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -218,7 +219,7 @@ def test_ingestion_converts_required_csvs_and_loads_duckdb_staging_without_optio
     assert {row["source_name"] for row in summary_rows} == set(SOURCE_FILES)
 
     with duckdb.connect(str(scratch_path / "db" / "credit_risk.duckdb"), read_only=True) as connection:
-        tables = {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
+        tables = table_names(connection)
         assert set(EXPECTED_STAGING_TABLES.values()).issubset(tables)
 
         for row in summary_rows:
@@ -229,5 +230,5 @@ def test_ingestion_converts_required_csvs_and_loads_duckdb_staging_without_optio
             ).fetchone()[0]
             assert duckdb_rows == int(row["duckdb_rows"])
 
-        assert "TARGET" in table_columns(connection, "stg_application_train")
-        assert "TARGET" not in table_columns(connection, "stg_application_test")
+        assert "TARGET" in read_table_columns(connection, "stg_application_train")
+        assert "TARGET" not in read_table_columns(connection, "stg_application_test")

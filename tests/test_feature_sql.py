@@ -6,8 +6,9 @@ import pytest
 import yaml
 
 from src.build_features import FeatureBuildError, run_feature_build
-from src.mart_access import table_columns
 from src.report_contracts import FEATURE_PROFILE_COLUMNS
+from tests.helpers import read_table_columns
+from tests.helpers import table_names
 
 
 FORBIDDEN_MART_COLUMNS = {
@@ -86,9 +87,9 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
     }
 
     with duckdb.connect(str(staged_feature_fixture.database_path), read_only=True) as connection:
-        mart_columns = table_columns(connection, "mart_credit_risk_features")
-        pressure_columns = table_columns(connection, "f_risk_pressure_features")
-        diagnostic_columns = table_columns(connection, "segment_diagnostics")
+        mart_columns = read_table_columns(connection, "mart_credit_risk_features")
+        pressure_columns = read_table_columns(connection, "f_risk_pressure_features")
+        diagnostic_columns = read_table_columns(connection, "segment_diagnostics")
 
         assert not FORBIDDEN_MART_COLUMNS.intersection(mart_columns)
         assert {
@@ -352,8 +353,8 @@ def test_feature_build_supports_v1_scope_without_post_v1_staging_tables(
     assert {row["table_name"] for row in profile_rows} == V1_PROFILE_TABLES
 
     with duckdb.connect(str(staged_feature_fixture.database_path), read_only=True) as connection:
-        tables = {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
-        mart_columns = table_columns(connection, "mart_credit_risk_features")
+        tables = table_names(connection)
+        mart_columns = read_table_columns(connection, "mart_credit_risk_features")
 
     assert not POST_V1_TABLES.intersection(tables)
     assert {

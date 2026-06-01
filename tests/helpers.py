@@ -6,7 +6,9 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from src.feature_experiments import readable_feature_label
+from src.feature_labels import readable_feature_label
+from src.mart_access import existing_tables
+from src.mart_access import table_columns
 from src.runtime import sql_identifier
 
 
@@ -15,6 +17,22 @@ def read_csv_rows(path: Path, expected_columns: list[str]) -> list[dict[str, str
         reader = csv.DictReader(csv_file)
         assert reader.fieldnames == expected_columns
         return list(reader)
+
+
+def table_names(connection: duckdb.DuckDBPyConnection) -> set[str]:
+    return existing_tables(connection)
+
+
+def table_exists(connection: duckdb.DuckDBPyConnection, table_name: str) -> bool:
+    return table_name in table_names(connection)
+
+
+def assert_table_missing(connection: duckdb.DuckDBPyConnection, table_name: str) -> None:
+    assert not table_exists(connection, table_name)
+
+
+def read_table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -> list[str]:
+    return list(table_columns(connection, table_name))
 
 
 def create_training_database(database_path: Path, train_rows: int = 40, test_rows: int = 6) -> None:

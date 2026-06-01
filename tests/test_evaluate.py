@@ -16,6 +16,7 @@ from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
 from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
+from tests.helpers import table_exists
 
 
 REQUIRED_EVALUATION_METRICS = {
@@ -241,5 +242,4 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
         assert connection.execute("SELECT COUNT(*) FROM model_threshold_metrics").fetchone()[0] == len(
             threshold_rows
         )
-        table_names = {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
-        assert "model_threshold_metrics" in table_names
+        assert table_exists(connection, "model_threshold_metrics")
