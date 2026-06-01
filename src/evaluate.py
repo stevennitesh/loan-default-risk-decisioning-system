@@ -179,43 +179,6 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate model metrics and export reporting tables.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    parser.add_argument("--export-dashboard-data", action="store_true", help="Export Power BI-ready dashboard data.")
-    parser.add_argument(
-        "--dashboard-export-dir",
-        default=None,
-        help="Optional override for the Power BI CSV export directory.",
-    )
-    parser.add_argument(
-        "--use-calibrated-dashboard-metrics",
-        action="store_true",
-        help="Apply the selected calibration artifact to Power BI probability-quality tables.",
-    )
-    args = parser.parse_args()
-
-    if args.export_dashboard_data:
-        # Keep dashboard export imports local so normal evaluation does not depend on export helpers.
-        from src.dashboard_exports import DashboardExportError
-        from src.dashboard_exports import run_dashboard_export
-
-        try:
-            run_dashboard_export(
-                args.config,
-                export_dir=args.dashboard_export_dir,
-                use_calibrated_probability_quality=args.use_calibrated_dashboard_metrics,
-            )
-        except DashboardExportError as error:
-            raise SystemExit(str(error)) from error
-        return
-
-    try:
-        run_evaluation(args.config)
-    except EvaluationError as error:
-        raise SystemExit(str(error)) from error
-
-
 def _validate_artifacts(
     artifacts: dict[str, dict[str, Any]],
 ) -> tuple[list[str], dict[str, list[int]]]:
@@ -368,6 +331,43 @@ def _verify_saved_model_selection(
             "Saved model_comparison_summary selection does not match recomputed validation PR-AUC "
             f"selection: saved={sorted(saved_selections)}, recomputed={selected_model_type}"
         )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Evaluate model metrics and export reporting tables.")
+    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    parser.add_argument("--export-dashboard-data", action="store_true", help="Export Power BI-ready dashboard data.")
+    parser.add_argument(
+        "--dashboard-export-dir",
+        default=None,
+        help="Optional override for the Power BI CSV export directory.",
+    )
+    parser.add_argument(
+        "--use-calibrated-dashboard-metrics",
+        action="store_true",
+        help="Apply the selected calibration artifact to Power BI probability-quality tables.",
+    )
+    args = parser.parse_args()
+
+    if args.export_dashboard_data:
+        # Keep dashboard export imports local so normal evaluation does not depend on export helpers.
+        from src.dashboard_exports import DashboardExportError
+        from src.dashboard_exports import run_dashboard_export
+
+        try:
+            run_dashboard_export(
+                args.config,
+                export_dir=args.dashboard_export_dir,
+                use_calibrated_probability_quality=args.use_calibrated_dashboard_metrics,
+            )
+        except DashboardExportError as error:
+            raise SystemExit(str(error)) from error
+        return
+
+    try:
+        run_evaluation(args.config)
+    except EvaluationError as error:
+        raise SystemExit(str(error)) from error
 
 
 if __name__ == "__main__":

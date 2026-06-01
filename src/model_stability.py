@@ -157,64 +157,6 @@ def run_model_stability_experiment(
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compare model-generation stability across repeated seeds.",
-    )
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    parser.add_argument(
-        "--seeds",
-        default="17,29,43",
-        help="Comma-separated random seeds for split/training repeats.",
-    )
-    parser.add_argument(
-        "--feature-limits",
-        default="40,60,80,100",
-        help="Comma-separated top-N feature limits to compare.",
-    )
-    parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
-    parser.add_argument(
-        "--seed-runs-name",
-        default="model_stability_seed_runs.csv",
-        help="CSV filename for per-seed stability rows under the report directory.",
-    )
-    parser.add_argument(
-        "--summary-name",
-        default="model_stability_summary.csv",
-        help="CSV filename for aggregate stability rows under the report directory.",
-    )
-    parser.add_argument(
-        "--report-name",
-        default=MODEL_STABILITY_REPORT_NAME,
-        help="Markdown report filename under reports/experiments.",
-    )
-    args = parser.parse_args()
-
-    seeds = tuple(int(value.strip()) for value in args.seeds.split(",") if value.strip())
-    feature_limits = tuple(int(value.strip()) for value in args.feature_limits.split(",") if value.strip())
-    try:
-        run_model_stability_experiment(
-            args.config,
-            seeds=seeds,
-            feature_limits=feature_limits,
-            include_full=not args.skip_full,
-            seed_runs_name=args.seed_runs_name,
-            summary_name=args.summary_name,
-            report_name=args.report_name,
-        )
-    except ModelStabilityError as error:
-        raise SystemExit(str(error)) from error
-
-
-def _normalize_seeds(seeds: tuple[int, ...]) -> tuple[int, ...]:
-    normalized = tuple(int(seed) for seed in seeds)
-    if not normalized:
-        raise ModelStabilityError("At least one seed is required")
-    if len(set(normalized)) != len(normalized):
-        raise ModelStabilityError("Seeds must be unique")
-    return normalized
-
-
 def aggregate_stability_rows(
     run_rows: list[dict[str, Any]],
     created_at: str,
@@ -261,6 +203,15 @@ def aggregate_stability_rows(
 def select_stability_feature_set(rows: list[dict[str, Any]]) -> str:
     selected = sorted(rows, key=_stability_selection_key, reverse=True)[0]
     return str(selected["feature_set"])
+
+
+def _normalize_seeds(seeds: tuple[int, ...]) -> tuple[int, ...]:
+    normalized = tuple(int(seed) for seed in seeds)
+    if not normalized:
+        raise ModelStabilityError("At least one seed is required")
+    if len(set(normalized)) != len(normalized):
+        raise ModelStabilityError("Seeds must be unique")
+    return normalized
 
 
 def _stability_selection_key(row: dict[str, Any]) -> tuple[float, float, float, float, float, float, float, int]:
@@ -356,6 +307,55 @@ def _std(values: pd.Series) -> float:
 
 def _seed_list(seeds: tuple[int, ...]) -> str:
     return ", ".join(str(seed) for seed in seeds)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Compare model-generation stability across repeated seeds.",
+    )
+    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    parser.add_argument(
+        "--seeds",
+        default="17,29,43",
+        help="Comma-separated random seeds for split/training repeats.",
+    )
+    parser.add_argument(
+        "--feature-limits",
+        default="40,60,80,100",
+        help="Comma-separated top-N feature limits to compare.",
+    )
+    parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
+    parser.add_argument(
+        "--seed-runs-name",
+        default="model_stability_seed_runs.csv",
+        help="CSV filename for per-seed stability rows under the report directory.",
+    )
+    parser.add_argument(
+        "--summary-name",
+        default="model_stability_summary.csv",
+        help="CSV filename for aggregate stability rows under the report directory.",
+    )
+    parser.add_argument(
+        "--report-name",
+        default=MODEL_STABILITY_REPORT_NAME,
+        help="Markdown report filename under reports/experiments.",
+    )
+    args = parser.parse_args()
+
+    seeds = tuple(int(value.strip()) for value in args.seeds.split(",") if value.strip())
+    feature_limits = tuple(int(value.strip()) for value in args.feature_limits.split(",") if value.strip())
+    try:
+        run_model_stability_experiment(
+            args.config,
+            seeds=seeds,
+            feature_limits=feature_limits,
+            include_full=not args.skip_full,
+            seed_runs_name=args.seed_runs_name,
+            summary_name=args.summary_name,
+            report_name=args.report_name,
+        )
+    except ModelStabilityError as error:
+        raise SystemExit(str(error)) from error
 
 
 if __name__ == "__main__":

@@ -127,48 +127,6 @@ def run_feature_selection_experiment(
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compare top-N feature-selection variants for the LightGBM risk model.",
-    )
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    parser.add_argument(
-        "--feature-limits",
-        default="40,60,80,100",
-        help="Comma-separated top-N feature limits to compare.",
-    )
-    parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
-    parser.add_argument(
-        "--comparison-name",
-        default="feature_selection_comparison.csv",
-        help="CSV filename for feature-selection comparison rows under the report directory.",
-    )
-    parser.add_argument(
-        "--selected-features-name",
-        default=SELECTED_FEATURES_NAME,
-        help="CSV filename for selected feature rows under reports/experiments.",
-    )
-    parser.add_argument(
-        "--report-name",
-        default=FEATURE_SELECTION_REPORT_NAME,
-        help="Markdown report filename under reports/experiments.",
-    )
-    args = parser.parse_args()
-    feature_limits = tuple(int(value.strip()) for value in args.feature_limits.split(",") if value.strip())
-
-    try:
-        run_feature_selection_experiment(
-            args.config,
-            feature_limits=feature_limits,
-            include_full=not args.skip_full,
-            comparison_name=args.comparison_name,
-            selected_features_name=args.selected_features_name,
-            report_name=args.report_name,
-        )
-    except FeatureSelectionError as error:
-        raise SystemExit(str(error)) from error
-
-
 def _selected_feature_rows(feature_set_name: str, feature_columns: list[str]) -> list[dict[str, Any]]:
     return [
         {
@@ -268,6 +226,48 @@ def _interpretation_text(rows: list[dict[str, Any]], selected_row: dict[str, Any
         f"{first_paragraph} It removes {removed_features} features compared with the full setup.\n\n"
         f"{test_caveat}"
     )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Compare top-N feature-selection variants for the LightGBM risk model.",
+    )
+    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    parser.add_argument(
+        "--feature-limits",
+        default="40,60,80,100",
+        help="Comma-separated top-N feature limits to compare.",
+    )
+    parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
+    parser.add_argument(
+        "--comparison-name",
+        default="feature_selection_comparison.csv",
+        help="CSV filename for feature-selection comparison rows under the report directory.",
+    )
+    parser.add_argument(
+        "--selected-features-name",
+        default=SELECTED_FEATURES_NAME,
+        help="CSV filename for selected feature rows under reports/experiments.",
+    )
+    parser.add_argument(
+        "--report-name",
+        default=FEATURE_SELECTION_REPORT_NAME,
+        help="Markdown report filename under reports/experiments.",
+    )
+    args = parser.parse_args()
+    feature_limits = tuple(int(value.strip()) for value in args.feature_limits.split(",") if value.strip())
+
+    try:
+        run_feature_selection_experiment(
+            args.config,
+            feature_limits=feature_limits,
+            include_full=not args.skip_full,
+            comparison_name=args.comparison_name,
+            selected_features_name=args.selected_features_name,
+            report_name=args.report_name,
+        )
+    except FeatureSelectionError as error:
+        raise SystemExit(str(error)) from error
 
 
 if __name__ == "__main__":

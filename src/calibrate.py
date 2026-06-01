@@ -146,19 +146,6 @@ def run_calibration_experiment(config_path: str | Path = "configs/base.yaml") ->
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Run post-v1 probability calibration comparison for the LightGBM model.",
-    )
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    args = parser.parse_args()
-
-    try:
-        run_calibration_experiment(args.config)
-    except CalibrationError as error:
-        raise SystemExit(str(error)) from error
-
-
 def _load_split_frames(
     connection: duckdb.DuckDBPyConnection,
     split_applicant_ids: dict[str, list[int]],
@@ -291,6 +278,19 @@ def _bin_error_summary(bin_rows: list[dict[str, Any]]) -> dict[str, dict[str, fl
             "max_absolute_bin_error": float(np.max(absolute_errors)) if absolute_errors else 0.0,
         }
     return summaries
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Run post-v1 probability calibration comparison for the LightGBM model.",
+    )
+    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    args = parser.parse_args()
+
+    try:
+        run_calibration_experiment(args.config)
+    except CalibrationError as error:
+        raise SystemExit(str(error)) from error
 
 
 if __name__ == "__main__":

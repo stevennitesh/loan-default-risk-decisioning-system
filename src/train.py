@@ -230,17 +230,6 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Train baseline and primary credit-risk models.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    args = parser.parse_args()
-
-    try:
-        run_training(args.config)
-    except TrainingError as error:
-        raise SystemExit(str(error)) from error
-
-
 def _build_lightgbm_tuning_summary_rows(
     tuning_result: dict[str, Any],
     created_at: str,
@@ -399,6 +388,17 @@ def _build_run_summary_row(
         "random_seed": random_seed,
         "created_at": created_at,
     }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Train baseline and primary credit-risk models.")
+    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    args = parser.parse_args()
+
+    try:
+        run_training(args.config)
+    except TrainingError as error:
+        raise SystemExit(str(error)) from error
 
 
 if __name__ == "__main__":

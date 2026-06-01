@@ -100,17 +100,6 @@ def run_feature_build(config_path: str | Path = "configs/base.yaml") -> list[dic
     return profile_rows
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Build SQL feature tables and the final feature mart.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    args = parser.parse_args()
-
-    try:
-        run_feature_build(args.config)
-    except (FeatureBuildError, DataContractError) as error:
-        raise SystemExit(str(error)) from error
-
-
 def _feature_sql_files(config: dict[str, Any]) -> list[str]:
     return POST_V1_FEATURE_SQL_FILES if is_post_v1_scope(config) else V1_FEATURE_SQL_FILES
 
@@ -191,6 +180,17 @@ def _duplicate_key_count(
         """,
         FeatureBuildError,
     )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build SQL feature tables and the final feature mart.")
+    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    args = parser.parse_args()
+
+    try:
+        run_feature_build(args.config)
+    except (FeatureBuildError, DataContractError) as error:
+        raise SystemExit(str(error)) from error
 
 
 if __name__ == "__main__":

@@ -109,17 +109,6 @@ def run_ingestion(config_path: str | Path = "configs/base.yaml") -> list[dict[st
     return summary_rows
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Convert raw CSV files to Parquet and DuckDB staging tables.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    args = parser.parse_args()
-
-    try:
-        run_ingestion(args.config)
-    except IngestionError as error:
-        raise SystemExit(str(error)) from error
-
-
 def _validate_source_name(source_name: str) -> None:
     if source_name not in SUPPORTED_SOURCE_FILES:
         raise IngestionError(f"Unsupported source file key: {source_name}")
@@ -138,6 +127,17 @@ def _display_path(path: Path) -> str:
         return resolved.relative_to(REPO_ROOT).as_posix()
     except ValueError:
         return resolved.as_posix()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Convert raw CSV files to Parquet and DuckDB staging tables.")
+    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    args = parser.parse_args()
+
+    try:
+        run_ingestion(args.config)
+    except IngestionError as error:
+        raise SystemExit(str(error)) from error
 
 
 if __name__ == "__main__":

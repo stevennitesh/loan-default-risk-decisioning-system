@@ -134,17 +134,6 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate SHAP feature importance and reason-code-style outputs.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    args = parser.parse_args()
-
-    try:
-        run_explain(args.config)
-    except ExplainabilityError as error:
-        raise SystemExit(str(error)) from error
-
-
 def _load_lightgbm_artifact(model_dir: Path) -> dict[str, Any]:
     artifact_path = model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME
     artifact = load_model_artifact(
@@ -529,6 +518,17 @@ def _excluded_output_terms(config: dict[str, Any]) -> set[str]:
 
 def _normalize_output_text(text: str) -> str:
     return " ".join(text.lower().replace("_", " ").split())
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate SHAP feature importance and reason-code-style outputs.")
+    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    args = parser.parse_args()
+
+    try:
+        run_explain(args.config)
+    except ExplainabilityError as error:
+        raise SystemExit(str(error)) from error
 
 
 if __name__ == "__main__":

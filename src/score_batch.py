@@ -116,17 +116,6 @@ def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Score applicants in batch and write DuckDB score outputs.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    args = parser.parse_args()
-
-    try:
-        run_scoring(args.config)
-    except ScoringError as error:
-        raise SystemExit(str(error)) from error
-
-
 def _load_balanced_threshold_policy(
     connection: duckdb.DuckDBPyConnection,
     model_version: str,
@@ -262,6 +251,17 @@ def _validate_output_rows(rows: list[dict[str, Any]]) -> None:
     score_columns = ["score", "raw_risk_score", "calibrated_risk_score"]
     if frame[score_columns].isna().any().any():
         raise ScoringError("Every scored row must have raw and calibrated score values")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Score applicants in batch and write DuckDB score outputs.")
+    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    args = parser.parse_args()
+
+    try:
+        run_scoring(args.config)
+    except ScoringError as error:
+        raise SystemExit(str(error)) from error
 
 
 if __name__ == "__main__":

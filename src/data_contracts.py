@@ -187,19 +187,6 @@ def build_data_inventory(
     return rows
 
 
-def _distinct_applicant_count(
-    connection: duckdb.DuckDBPyConnection,
-    table_name: str,
-    columns: dict[str, str],
-) -> int | None:
-    if "SK_ID_CURR" not in columns:
-        return None
-    return _fetch_count(
-        connection,
-        f"SELECT COUNT(DISTINCT SK_ID_CURR) FROM {sql_identifier(table_name)}",
-    )
-
-
 def build_feature_inventory(
     connection: duckdb.DuckDBPyConnection,
     config: dict[str, Any],
@@ -252,6 +239,19 @@ def write_contract_reports(
     report_path.mkdir(parents=True, exist_ok=True)
     write_csv(report_path / "data_inventory.csv", DATA_INVENTORY_COLUMNS, data_inventory_rows)
     write_csv(report_path / "feature_inventory.csv", FEATURE_INVENTORY_COLUMNS, feature_inventory_rows)
+
+
+def _distinct_applicant_count(
+    connection: duckdb.DuckDBPyConnection,
+    table_name: str,
+    columns: dict[str, str],
+) -> int | None:
+    if "SK_ID_CURR" not in columns:
+        return None
+    return _fetch_count(
+        connection,
+        f"SELECT COUNT(DISTINCT SK_ID_CURR) FROM {sql_identifier(table_name)}",
+    )
 
 
 def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[str]) -> None:
