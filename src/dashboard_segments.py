@@ -9,12 +9,12 @@ from sklearn.metrics import average_precision_score
 from sklearn.metrics import brier_score_loss
 from sklearn.metrics import roc_auc_score
 
-from src.dashboard_probability_quality import calibrated_probabilities
+from src.calibration import apply_saved_calibration_artifact
 from src.metrics import validate_probabilities
 from src.mart_access import load_labeled_segment_split_frame
 from src.model_artifacts import normalize_split_ids
 from src.model_contracts import REPORTING_SPLITS
-from src.runtime import feature_frame
+from src.modeling import predict_probabilities
 
 
 SEGMENT_DIMENSIONS = [
@@ -49,11 +49,19 @@ def build_segment_performance_rows(
             split_name,
             error_cls,
         )
-        probabilities = artifact["pipeline"].predict_proba(
-            feature_frame(split_frame, feature_columns)
-        )[:, 1]
-        validate_probabilities(probabilities, split_name, error_cls=error_cls)
-        probabilities = calibrated_probabilities(probabilities, calibration_artifact, error_cls)
+        probabilities = predict_probabilities(
+            artifact,
+            split_frame,
+            feature_columns,
+            split_name,
+            error_cls,
+        )
+        probabilities = apply_saved_calibration_artifact(
+            probabilities,
+            calibration_artifact,
+            error_cls=error_cls,
+            label="dashboard calibration",
+        )
         validate_probabilities(probabilities, f"{split_name} calibrated", error_cls=error_cls)
         split_frame = split_frame.copy()
         split_frame["probability"] = probabilities.astype(float)

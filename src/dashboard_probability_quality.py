@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 import duckdb
-import numpy as np
 import pandas as pd
 
-from src.calibration import apply_calibration_to_probabilities
+from src.calibration import apply_saved_calibration_artifact
 from src.metrics import build_calibration_bin_rows
 from src.metrics import build_probability_metric_rows
 from src.metrics import validate_probabilities
@@ -15,10 +14,11 @@ from src.mart_access import require_table_columns
 from src.model_artifacts import normalize_split_ids
 from src.model_contracts import EVALUATION_SPLITS
 from src.model_contracts import REPORTING_SPLITS
+from src.modeling import predict_probabilities
+from src.modeling import prediction_frame
 from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.runtime import created_at_utc
-from src.runtime import feature_frame
 from src.runtime import sql_identifier
 
 
@@ -55,20 +55,6 @@ def build_probability_quality_overrides(
     }
 
 
-def calibrated_probabilities(
-    raw_probabilities: np.ndarray,
-    calibration_artifact: dict[str, Any],
-    error_cls: type[Exception] = ValueError,
-) -> np.ndarray:
-    return apply_calibration_to_probabilities(
-        str(calibration_artifact["selected_method"]),
-        calibration_artifact["calibrators"],
-        raw_probabilities,
-        error_cls=error_cls,
-        label="dashboard calibration",
-    ).astype(float)
-
-
 def _build_calibrated_prediction_frames(
     connection: duckdb.DuckDBPyConnection,
     artifact: dict[str, Any],
@@ -91,23 +77,25 @@ def _build_calibrated_prediction_frames(
             split_name,
             error_cls,
         )
-        raw_probabilities = artifact["pipeline"].predict_proba(
-            feature_frame(split_frame, feature_columns)
-        )[:, 1]
-        validate_probabilities(raw_probabilities, split_name, error_cls=error_cls)
-        adjusted_probabilities = calibrated_probabilities(raw_probabilities, calibration_artifact, error_cls)
+        raw_probabilities = predict_probabilities(
+            artifact,
+            split_frame,
+            feature_columns,
+            split_name,
+            error_cls,
+        )
+        adjusted_probabilities = apply_saved_calibration_artifact(
+            raw_probabilities,
+            calibration_artifact,
+            error_cls=error_cls,
+            label="dashboard calibration",
+        )
         validate_probabilities(
             adjusted_probabilities,
             f"{split_name} calibrated",
             error_cls=error_cls,
         )
-        prediction_frames[split_name] = pd.DataFrame(
-            {
-                "SK_ID_CURR": split_frame["SK_ID_CURR"].astype(int),
-                "target": split_frame["TARGET"].astype(int),
-                "probability": adjusted_probabilities.astype(float),
-            }
-        )
+        prediction_frames[split_name] = prediction_frame(split_frame, adjusted_probabilities)
 
     return prediction_frames
 

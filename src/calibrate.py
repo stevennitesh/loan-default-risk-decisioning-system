@@ -27,16 +27,16 @@ from src.metrics import nullable_mean
 from src.metrics import precision_at_rate
 from src.metrics import recall_at_rate
 from src.metrics import top_decile_lift
-from src.metrics import validate_probabilities
 from src.metrics import with_probability_rank_bin
 from src.mart_access import load_labeled_split_frames
 from src.mart_access import require_table
 from src.model_artifacts import load_model_artifact
 from src.model_artifacts import normalize_split_ids
+from src.modeling import predict_probabilities
+from src.modeling import prediction_frame
 from src.report_contracts import MODEL_CALIBRATION_BINS_COMPARISON_COLUMNS
 from src.report_contracts import MODEL_CALIBRATION_COMPARISON_COLUMNS
 from src.runtime import created_at_utc
-from src.runtime import feature_frame
 from src.runtime import replace_duckdb_table
 from src.runtime import resolve_project_path
 from src.runtime import write_csv
@@ -183,18 +183,16 @@ def _build_uncalibrated_predictions(
     split_frames: dict[str, pd.DataFrame],
     feature_columns: list[str],
 ) -> dict[str, pd.DataFrame]:
-    pipeline = artifact["pipeline"]
     prediction_frames = {}
     for split_name, frame in split_frames.items():
-        probabilities = pipeline.predict_proba(feature_frame(frame, feature_columns))[:, 1]
-        validate_probabilities(probabilities, f"{LIGHTGBM_MODEL_VERSION}_{split_name}", error_cls=CalibrationError)
-        prediction_frames[split_name] = pd.DataFrame(
-            {
-                "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
-                "target": frame["TARGET"].astype(int),
-                "probability": probabilities.astype(float),
-            }
+        probabilities = predict_probabilities(
+            artifact,
+            frame,
+            feature_columns,
+            f"{LIGHTGBM_MODEL_VERSION}_{split_name}",
+            CalibrationError,
         )
+        prediction_frames[split_name] = prediction_frame(frame, probabilities)
     return prediction_frames
 
 

@@ -20,6 +20,7 @@ from sklearn.preprocessing import StandardScaler
 from src.metrics import precision_at_rate
 from src.metrics import recall_at_rate
 from src.metrics import top_decile_lift
+from src.metrics import validate_probabilities
 from src.runtime import feature_frame
 from src.runtime import sql_identifier
 
@@ -310,6 +311,31 @@ def probability_metrics(
             error_cls=error_cls,
         ),
     }
+
+
+def predict_probabilities(
+    artifact: dict[str, Any],
+    frame: pd.DataFrame,
+    feature_columns: list[str],
+    label: str,
+    error_cls: type[Exception] = ValueError,
+) -> np.ndarray:
+    pipeline = artifact["pipeline"]
+    if not hasattr(pipeline, "predict_proba"):
+        raise error_cls(f"Model {artifact['model_version']} does not expose predict_proba")
+    probabilities = pipeline.predict_proba(feature_frame(frame, feature_columns))[:, 1]
+    validate_probabilities(probabilities, label, error_cls=error_cls)
+    return probabilities.astype(float)
+
+
+def prediction_frame(frame: pd.DataFrame, probabilities: np.ndarray) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
+            "target": frame["TARGET"].astype(int),
+            "probability": probabilities.astype(float),
+        }
+    )
 
 
 def build_lightgbm_tuning_artifact(tuning_result: dict[str, Any]) -> dict[str, Any]:

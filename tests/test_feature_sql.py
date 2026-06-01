@@ -1,4 +1,3 @@
-import csv
 from pathlib import Path
 
 import duckdb
@@ -7,6 +6,7 @@ import yaml
 
 from src.build_features import FeatureBuildError, run_feature_build
 from src.report_contracts import FEATURE_PROFILE_COLUMNS
+from tests.helpers import read_csv_rows
 from tests.helpers import read_table_columns
 from tests.helpers import table_names
 
@@ -47,10 +47,7 @@ POST_V1_TABLES = {
 
 
 def read_profile(profile_path: Path) -> list[dict[str, str]]:
-    with profile_path.open(newline="", encoding="utf-8") as profile_file:
-        reader = csv.DictReader(profile_file)
-        assert reader.fieldnames == FEATURE_PROFILE_COLUMNS
-        return list(reader)
+    return read_csv_rows(profile_path, FEATURE_PROFILE_COLUMNS)
 
 
 def test_feature_build_fails_clearly_when_staging_tables_are_missing(

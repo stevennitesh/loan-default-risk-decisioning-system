@@ -79,6 +79,21 @@ def apply_calibration_to_probabilities(
     return adjusted_probabilities
 
 
+def apply_saved_calibration_artifact(
+    probabilities: np.ndarray,
+    calibration_artifact: dict[str, Any],
+    error_cls: type[Exception] = ValueError,
+    label: str = "saved calibration",
+) -> np.ndarray:
+    return apply_calibration_to_probabilities(
+        str(calibration_artifact["selected_method"]),
+        calibration_artifact["calibrators"],
+        probabilities,
+        error_cls=error_cls,
+        label=label,
+    ).astype(float)
+
+
 def select_calibration_method(
     comparison_rows: list[dict[str, Any]],
     error_cls: type[Exception] = ValueError,

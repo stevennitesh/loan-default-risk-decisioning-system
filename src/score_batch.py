@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
-from src.calibration import apply_calibration_to_probabilities
+from src.calibration import apply_saved_calibration_artifact
 from src.config import load_config
 from src.mart_access import load_application_test_frame
 from src.mart_access import load_labeled_split_frame
@@ -196,7 +196,12 @@ def _score_population(
 ) -> list[dict[str, Any]]:
     raw_probabilities = artifact["pipeline"].predict_proba(feature_frame(frame, feature_columns))[:, 1]
     _validate_scores(raw_probabilities, scoring_population)
-    calibrated_probabilities = _calibrated_probabilities(raw_probabilities, calibration_artifact)
+    calibrated_probabilities = apply_saved_calibration_artifact(
+        raw_probabilities,
+        calibration_artifact,
+        error_cls=ScoringError,
+        label="score calibration",
+    )
     _validate_scores(calibrated_probabilities, f"{scoring_population} calibrated")
     risk_actions = assign_risk_bands(raw_probabilities, threshold_policy)
     ranked_frame = pd.DataFrame(
@@ -238,19 +243,6 @@ def _score_population(
             }
         )
     return rows
-
-
-def _calibrated_probabilities(
-    raw_probabilities: np.ndarray,
-    calibration_artifact: dict[str, Any],
-) -> np.ndarray:
-    return apply_calibration_to_probabilities(
-        str(calibration_artifact["selected_method"]),
-        calibration_artifact["calibrators"],
-        raw_probabilities,
-        error_cls=ScoringError,
-        label="score calibration",
-    ).astype(float)
 
 
 def _score_deciles(frame: pd.DataFrame) -> pd.Series:

@@ -14,7 +14,7 @@ from src.feature_experiments import load_feature_importance_rows
 from src.feature_experiments import load_lightgbm_artifact
 from src.feature_experiments import load_split_frames
 from src.feature_experiments import normalize_split_ids
-from src.feature_experiments import ranked_raw_features as ranked_raw_features
+from src.feature_experiments import ranked_raw_features
 from src.feature_experiments import run_single_feature_set
 from src.feature_experiments import select_feature_set
 from src.runtime import created_at_utc

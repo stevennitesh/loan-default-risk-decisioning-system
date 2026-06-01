@@ -1,4 +1,3 @@
-import csv
 import shutil
 from pathlib import Path
 
@@ -8,6 +7,7 @@ import yaml
 
 from src.ingest import IngestionError, run_ingestion
 from src.report_contracts import INGESTION_SUMMARY_COLUMNS
+from tests.helpers import read_csv_rows
 from tests.helpers import read_table_columns
 from tests.helpers import table_names
 
@@ -171,10 +171,7 @@ def write_required_csvs(raw_dir: Path) -> None:
 
 
 def read_summary(summary_path: Path) -> list[dict[str, str]]:
-    with summary_path.open(newline="", encoding="utf-8") as summary_file:
-        reader = csv.DictReader(summary_file)
-        assert reader.fieldnames == INGESTION_SUMMARY_COLUMNS
-        return list(reader)
+    return read_csv_rows(summary_path, INGESTION_SUMMARY_COLUMNS)
 
 
 def test_ingestion_fails_before_conversion_when_required_raw_files_are_missing(

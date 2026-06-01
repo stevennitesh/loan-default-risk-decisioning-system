@@ -26,8 +26,9 @@ from src.modeling import build_lightgbm_tuning_artifact
 from src.modeling import classify_feature_columns
 from src.modeling import fit_tuned_lightgbm
 from src.modeling import lightgbm_params
+from src.modeling import predict_probabilities
+from src.modeling import prediction_frame
 from src.modeling import probability_metrics
-from src.runtime import feature_frame
 from src.thresholding import build_threshold_metric_rows
 from src.thresholding import resolve_scenario_thresholds
 
@@ -67,7 +68,13 @@ def run_single_feature_set(
         error_cls=error_cls,
     )
     pipeline = tuning["pipeline"]
-    raw_predictions = prediction_frames(pipeline, split_frames, feature_columns)
+    raw_predictions = prediction_frames(
+        pipeline,
+        split_frames,
+        feature_columns,
+        feature_set_name,
+        error_cls,
+    )
     calibrators = fit_calibrators(
         raw_predictions["validation"]["probability"].to_numpy(),
         raw_predictions["validation"]["target"].to_numpy(),
@@ -228,18 +235,21 @@ def prediction_frames(
     pipeline: Any,
     split_frames: dict[str, pd.DataFrame],
     feature_columns: list[str],
+    label_prefix: str = "feature experiment",
+    error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, pd.DataFrame]:
     frames = {}
+    artifact = {"pipeline": pipeline, "model_version": label_prefix}
     for split_name in REPORTING_SPLITS:
         frame = split_frames[split_name]
-        probabilities = pipeline.predict_proba(feature_frame(frame, feature_columns))[:, 1]
-        frames[split_name] = pd.DataFrame(
-            {
-                "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
-                "target": frame["TARGET"].astype(int),
-                "probability": probabilities.astype(float),
-            }
+        probabilities = predict_probabilities(
+            artifact,
+            frame,
+            feature_columns,
+            f"{label_prefix}_{split_name}",
+            error_cls,
         )
+        frames[split_name] = prediction_frame(frame, probabilities)
     return frames
 
 
