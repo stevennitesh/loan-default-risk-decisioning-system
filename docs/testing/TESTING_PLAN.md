@@ -433,7 +433,7 @@ Test expectations:
 
 ### 15.1 Local smoke commands
 
-At minimum, these commands should run without uncaught errors once implemented:
+At minimum, these repo commands are the documented local smoke path:
 
 ```bash
 make test
@@ -449,20 +449,12 @@ For CI, use synthetic or tiny sample data instead of the full Kaggle dataset.
 
 ### 15.2 Suggested CI behavior
 
-A lightweight GitHub Actions workflow can run:
+A lightweight GitHub Actions workflow should run the checked-in test suite:
 
 ```bash
 python -m pip install -r requirements.txt
-pytest -q
+python -m pytest -q
 ```
-
-Optional later:
-
-```bash
-make sample-pipeline
-```
-
-Where `sample-pipeline` runs ingestion, features, train, evaluate, and score on tiny fixture data.
 
 ---
 
@@ -486,18 +478,18 @@ Recommended order during development:
 
 ## 17. Minimum Test Suite for v1 Release
 
-v1 should not be considered complete unless these tests pass:
+Implemented v1 test coverage tracks these release gates:
 
-- [ ] config parses and required sections exist;
-- [ ] feature mart has one row per applicant;
-- [ ] no duplicate applicant IDs in scoring output;
-- [ ] required feature and scoring columns exist;
-- [ ] model feature list excludes forbidden fields;
-- [ ] threshold policy assigns exactly one band to each score;
-- [ ] expected-value calculations match fixture examples;
-- [ ] scores are bounded between 0 and 1;
-- [ ] dashboard export files exist and are readable;
-- [ ] SHAP/reason-code outputs exclude diagnostic-only fields.
+- [x] config parses and required sections exist;
+- [x] feature mart has one row per applicant;
+- [x] no duplicate applicant IDs in scoring output;
+- [x] required feature and scoring columns exist;
+- [x] model feature list excludes forbidden fields;
+- [x] threshold policy assigns exactly one band to each score;
+- [x] expected-value calculations match fixture examples;
+- [x] scores are bounded between 0 and 1;
+- [x] dashboard export files exist and are readable;
+- [x] SHAP/reason-code outputs exclude diagnostic-only fields.
 
 ---
 

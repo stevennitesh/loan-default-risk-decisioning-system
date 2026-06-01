@@ -16,8 +16,6 @@ from src.feature_labels import readable_feature_label
 from src.mart_access import load_labeled_split_frames
 from src.mart_access import require_table
 from src.model_artifacts import load_model_artifact
-from src.model_artifacts import normalize_split_ids as normalize_model_split_ids
-from src.model_contracts import EVALUATION_SPLITS
 from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
 from src.model_contracts import LIGHTGBM_MODEL_TYPE
 from src.model_contracts import LIGHTGBM_MODEL_VERSION
@@ -28,7 +26,7 @@ from src.modeling import fit_tuned_lightgbm
 from src.modeling import lightgbm_params
 from src.modeling import predict_probabilities
 from src.modeling import prediction_frame
-from src.modeling import probability_metrics
+from src.metrics import probability_metrics
 from src.thresholding import build_threshold_metric_rows
 from src.thresholding import resolve_scenario_thresholds
 
@@ -207,13 +205,6 @@ def feature_sets(
     if include_full:
         candidate_sets.append(("full", full_feature_columns, None))
     return candidate_sets
-
-
-def normalize_split_ids(
-    raw_split_ids: Any,
-    error_cls: type[Exception] = FeatureExperimentError,
-) -> dict[str, list[int]]:
-    return normalize_model_split_ids(raw_split_ids, EVALUATION_SPLITS, error_cls=error_cls)
 
 
 def load_split_frames(

@@ -9,17 +9,12 @@ from lightgbm import LGBMClassifier
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import brier_score_loss
-from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 
-from src.metrics import precision_at_rate
-from src.metrics import recall_at_rate
-from src.metrics import top_decile_lift
+from src.metrics import probability_metrics
 from src.metrics import validate_probabilities
 from src.runtime import feature_frame
 from src.runtime import sql_identifier
@@ -287,29 +282,6 @@ def fit_tuned_lightgbm(
         "ranked_candidates": ranked_candidates,
         "selected_candidate": selected_candidate,
         "pipeline": selected_candidate["pipeline"],
-    }
-
-
-def probability_metrics(
-    y_true: pd.Series,
-    probabilities: np.ndarray,
-    manual_review_capacity_rate: float,
-    error_cls: type[Exception] = ValueError,
-) -> dict[str, float]:
-    return {
-        "roc_auc": roc_auc_score(y_true, probabilities),
-        "pr_auc": average_precision_score(y_true, probabilities),
-        "brier_score": brier_score_loss(y_true, probabilities),
-        "min_predicted_probability": float(np.min(probabilities)),
-        "max_predicted_probability": float(np.max(probabilities)),
-        "top_decile_lift": top_decile_lift(y_true, probabilities, error_cls=error_cls),
-        "precision_at_top_decile": precision_at_rate(y_true, probabilities, 0.10, error_cls=error_cls),
-        "recall_at_manual_review_capacity": recall_at_rate(
-            y_true,
-            probabilities,
-            manual_review_capacity_rate,
-            error_cls=error_cls,
-        ),
     }
 
 

@@ -49,23 +49,18 @@ make pipeline-post-v1
 
 If the upstream post-v1 artifacts already exist, `make dashboard-data-post-v1` refreshes only the post-v1 CSV bundle.
 
-To make the post-v1 report, duplicate `powerbi/dashboard.pbix` as `powerbi/dashboard_post_v1.pbix`, then change only the CSV folder/data-source path from `reports/dashboard_data/` to `reports/dashboard_data_post_v1/`. Keep the same table names, columns, pages, visuals, and slicers so v1 and post-v1 remain directly comparable.
+The post-v1 report is maintained as `powerbi/dashboard_post_v1.pbix`. Its CSV folder/data-source path should remain `reports/dashboard_data_post_v1/`, while table names, columns, pages, visuals, and slicers stay aligned with the v1 report so the two dashboards remain directly comparable.
 
-## Required Report
+## Required Reports
 
-The curated report artifact is:
+The curated report artifacts are:
 
 ```text
 powerbi/dashboard.pbix
-```
-
-The optional post-v1 companion report should be:
-
-```text
 powerbi/dashboard_post_v1.pbix
 ```
 
-It should contain two pages:
+They should contain two pages:
 
 - `Decisioning Overview`
 - `Model Validation Appendix`

@@ -8,6 +8,7 @@ import duckdb
 
 from src.config import SUPPORTED_SOURCE_FILES
 from src.config import load_config
+from src.mart_access import fetch_count
 from src.report_contracts import INGESTION_SUMMARY_COLUMNS
 from src.runtime import REPO_ROOT
 from src.runtime import created_at_utc
@@ -25,6 +26,7 @@ STAGING_TABLES = {
     "previous_application": "stg_previous_application",
     "installments_payments": "stg_installments_payments",
 }
+
 
 class IngestionError(RuntimeError):
     """Raised when ingestion cannot satisfy the Milestone 1 contract."""
@@ -63,24 +65,30 @@ def run_ingestion(config_path: str | Path = "configs/base.yaml") -> list[dict[st
             parquet_path = parquet_dir / f"{source_name}.parquet"
             staging_table = STAGING_TABLES[source_name]
 
-            csv_rows = _fetch_count(connection, f"SELECT COUNT(*) FROM read_csv_auto({_sql_path(raw_path)})")
+            csv_rows = fetch_count(
+                connection,
+                f"SELECT COUNT(*) FROM read_csv_auto({_sql_path(raw_path)})",
+                IngestionError,
+            )
             if parquet_path.exists():
                 parquet_path.unlink()
             connection.execute(
                 f"COPY (SELECT * FROM read_csv_auto({_sql_path(raw_path)})) "
                 f"TO {_sql_path(parquet_path)} (FORMAT PARQUET)"
             )
-            parquet_rows = _fetch_count(
+            parquet_rows = fetch_count(
                 connection,
                 f"SELECT COUNT(*) FROM read_parquet({_sql_path(parquet_path)})",
+                IngestionError,
             )
             connection.execute(
                 f"CREATE OR REPLACE TABLE {sql_identifier(staging_table)} AS "
                 f"SELECT * FROM read_parquet({_sql_path(parquet_path)})"
             )
-            duckdb_rows = _fetch_count(
+            duckdb_rows = fetch_count(
                 connection,
                 f"SELECT COUNT(*) FROM {sql_identifier(staging_table)}",
+                IngestionError,
             )
 
             summary_rows.append(
@@ -122,13 +130,6 @@ def _validate_source_name(source_name: str) -> None:
 def _sql_path(path: Path) -> str:
     escaped = path.resolve().as_posix().replace("'", "''")
     return f"'{escaped}'"
-
-
-def _fetch_count(connection: duckdb.DuckDBPyConnection, sql: str) -> int:
-    result = connection.execute(sql).fetchone()
-    if result is None:
-        raise IngestionError(f"Count query returned no rows: {sql}")
-    return int(result[0])
 
 
 def _display_path(path: Path) -> str:

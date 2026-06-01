@@ -10,6 +10,7 @@ from src.config import is_post_v1_scope
 from src.config import load_config
 from src.ingest import STAGING_TABLES
 from src.mart_access import existing_tables
+from src.mart_access import fetch_count
 from src.mart_access import table_columns
 from src.report_contracts import FEATURE_PROFILE_COLUMNS
 from src.data_contracts import DataContractError
@@ -150,10 +151,15 @@ def _profile_feature_tables(
         rows.append(
             {
                 "table_name": table_name,
-                "row_count": _fetch_count(connection, f'SELECT COUNT(*) FROM "{table_name}"'),
-                "distinct_applicant_count": _fetch_count(
+                "row_count": fetch_count(
+                    connection,
+                    f'SELECT COUNT(*) FROM "{table_name}"',
+                    FeatureBuildError,
+                ),
+                "distinct_applicant_count": fetch_count(
                     connection,
                     f'SELECT COUNT(DISTINCT SK_ID_CURR) FROM "{table_name}"',
+                    FeatureBuildError,
                 ),
                 "duplicate_key_count": _duplicate_key_count(connection, table_name, columns),
                 "column_count": len(columns),
@@ -172,7 +178,7 @@ def _duplicate_key_count(
         key_columns = "SK_ID_CURR, source_population"
     else:
         key_columns = "SK_ID_CURR"
-    return _fetch_count(
+    return fetch_count(
         connection,
         f"""
         SELECT COUNT(*)
@@ -183,14 +189,8 @@ def _duplicate_key_count(
             HAVING COUNT(*) > 1
         )
         """,
+        FeatureBuildError,
     )
-
-
-def _fetch_count(connection: duckdb.DuckDBPyConnection, sql: str) -> int:
-    result = connection.execute(sql).fetchone()
-    if result is None:
-        raise FeatureBuildError(f"Count query returned no rows: {sql}")
-    return int(result[0])
 
 
 if __name__ == "__main__":

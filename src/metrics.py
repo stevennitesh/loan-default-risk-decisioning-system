@@ -85,6 +85,41 @@ def nullable_mean(series: pd.Series) -> float | None:
     return float(series.mean())
 
 
+def roc_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
+    if set(targets.astype(int).unique()) != {0, 1}:
+        return None
+    return float(roc_auc_score(targets, probabilities))
+
+
+def pr_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
+    if set(targets.astype(int).unique()) != {0, 1}:
+        return None
+    return float(average_precision_score(targets, probabilities))
+
+
+def probability_metrics(
+    y_true: pd.Series,
+    probabilities: np.ndarray,
+    manual_review_capacity_rate: float,
+    error_cls: type[Exception] = ValueError,
+) -> dict[str, float]:
+    return {
+        "roc_auc": roc_auc_score(y_true, probabilities),
+        "pr_auc": average_precision_score(y_true, probabilities),
+        "brier_score": brier_score_loss(y_true, probabilities),
+        "min_predicted_probability": float(np.min(probabilities)),
+        "max_predicted_probability": float(np.max(probabilities)),
+        "top_decile_lift": top_decile_lift(y_true, probabilities, error_cls=error_cls),
+        "precision_at_top_decile": precision_at_rate(y_true, probabilities, 0.10, error_cls=error_cls),
+        "recall_at_manual_review_capacity": recall_at_rate(
+            y_true,
+            probabilities,
+            manual_review_capacity_rate,
+            error_cls=error_cls,
+        ),
+    }
+
+
 def build_probability_metric_rows(
     model_version: str,
     prediction_frames: dict[str, pd.DataFrame],
@@ -97,26 +132,7 @@ def build_probability_metric_rows(
     for split_name, frame in prediction_frames.items():
         y_true = frame["target"]
         probabilities = frame["probability"].to_numpy(dtype=float)
-        metrics = {
-            "roc_auc": roc_auc_score(y_true, probabilities),
-            "pr_auc": average_precision_score(y_true, probabilities),
-            "brier_score": brier_score_loss(y_true, probabilities),
-            "min_predicted_probability": float(np.min(probabilities)),
-            "max_predicted_probability": float(np.max(probabilities)),
-            "top_decile_lift": top_decile_lift(y_true, probabilities, error_cls=error_cls),
-            "precision_at_top_decile": precision_at_rate(
-                y_true,
-                probabilities,
-                0.10,
-                error_cls=error_cls,
-            ),
-            "recall_at_manual_review_capacity": recall_at_rate(
-                y_true,
-                probabilities,
-                manual_review_capacity_rate,
-                error_cls=error_cls,
-            ),
-        }
+        metrics = probability_metrics(y_true, probabilities, manual_review_capacity_rate, error_cls)
         rows.extend(
             {
                 "model_version": model_version,

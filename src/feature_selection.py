@@ -13,10 +13,11 @@ from src.feature_experiments import feature_sets
 from src.feature_experiments import load_feature_importance_rows
 from src.feature_experiments import load_lightgbm_artifact
 from src.feature_experiments import load_split_frames
-from src.feature_experiments import normalize_split_ids
 from src.feature_experiments import ranked_raw_features
 from src.feature_experiments import run_single_feature_set
 from src.feature_experiments import select_feature_set
+from src.model_artifacts import normalize_split_ids
+from src.model_contracts import EVALUATION_SPLITS
 from src.runtime import created_at_utc
 from src.runtime import resolve_project_path
 from src.runtime import write_csv
@@ -52,6 +53,7 @@ def run_feature_selection_experiment(
     full_feature_columns = list(base_artifact["feature_columns"])
     split_applicant_ids = normalize_split_ids(
         base_artifact["split_applicant_ids"],
+        EVALUATION_SPLITS,
         error_cls=FeatureSelectionError,
     )
     importance_rows = load_feature_importance_rows(report_dir, error_cls=FeatureSelectionError)

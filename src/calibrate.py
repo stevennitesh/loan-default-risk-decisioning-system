@@ -8,9 +8,6 @@ import duckdb
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import brier_score_loss
-from sklearn.metrics import roc_auc_score
 
 from src.calibration import CALIBRATION_FIT_SPLIT
 from src.calibration import CALIBRATION_METHODS
@@ -24,9 +21,7 @@ from src.model_contracts import LIGHTGBM_MODEL_TYPE
 from src.model_contracts import LIGHTGBM_MODEL_VERSION
 from src.model_contracts import REPORTING_SPLITS
 from src.metrics import nullable_mean
-from src.metrics import precision_at_rate
-from src.metrics import recall_at_rate
-from src.metrics import top_decile_lift
+from src.metrics import probability_metrics
 from src.metrics import with_probability_rank_bin
 from src.mart_access import load_labeled_split_frames
 from src.mart_access import require_table
@@ -212,6 +207,12 @@ def _build_comparison_outputs(
             frame = split_predictions[split_name]
             probabilities = frame["probability"].to_numpy()
             y_true = frame["target"]
+            metrics = probability_metrics(
+                y_true,
+                probabilities,
+                manual_review_capacity_rate,
+                CalibrationError,
+            )
             split_bin_errors = bin_errors[split_name]
             comparison_rows.append(
                 {
@@ -219,24 +220,14 @@ def _build_comparison_outputs(
                     "base_model_version": LIGHTGBM_MODEL_VERSION,
                     "calibration_method": method,
                     "split": split_name,
-                    "roc_auc": roc_auc_score(y_true, probabilities),
-                    "pr_auc": average_precision_score(y_true, probabilities),
-                    "brier_score": brier_score_loss(y_true, probabilities),
-                    "min_predicted_probability": float(np.min(probabilities)),
-                    "max_predicted_probability": float(np.max(probabilities)),
-                    "top_decile_lift": top_decile_lift(y_true, probabilities, error_cls=CalibrationError),
-                    "precision_at_top_decile": precision_at_rate(
-                        y_true,
-                        probabilities,
-                        0.10,
-                        error_cls=CalibrationError,
-                    ),
-                    "recall_at_manual_review_capacity": recall_at_rate(
-                        y_true,
-                        probabilities,
-                        manual_review_capacity_rate,
-                        error_cls=CalibrationError,
-                    ),
+                    "roc_auc": metrics["roc_auc"],
+                    "pr_auc": metrics["pr_auc"],
+                    "brier_score": metrics["brier_score"],
+                    "min_predicted_probability": metrics["min_predicted_probability"],
+                    "max_predicted_probability": metrics["max_predicted_probability"],
+                    "top_decile_lift": metrics["top_decile_lift"],
+                    "precision_at_top_decile": metrics["precision_at_top_decile"],
+                    "recall_at_manual_review_capacity": metrics["recall_at_manual_review_capacity"],
                     "mean_absolute_bin_error": split_bin_errors["mean_absolute_bin_error"],
                     "weighted_calibration_error": split_bin_errors["weighted_calibration_error"],
                     "max_absolute_bin_error": split_bin_errors["max_absolute_bin_error"],

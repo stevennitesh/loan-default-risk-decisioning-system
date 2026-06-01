@@ -602,6 +602,7 @@ Required visuals:
 
 ```text
 powerbi/dashboard.pbix
+powerbi/dashboard_post_v1.pbix
 powerbi/screenshots/decisioning_overview.png
 powerbi/screenshots/model_validation_appendix.png
 ```

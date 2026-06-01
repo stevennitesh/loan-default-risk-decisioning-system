@@ -26,8 +26,8 @@ from src.modeling import fit_tuned_lightgbm
 from src.modeling import lightgbm_params
 from src.modeling import load_labeled_training_frame
 from src.modeling import predict_probabilities
-from src.modeling import probability_metrics
 from src.modeling import split_labeled_frame
+from src.metrics import probability_metrics
 from src.report_contracts import LIGHTGBM_TUNING_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_COMPARISON_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS

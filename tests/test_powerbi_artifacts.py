@@ -15,11 +15,15 @@ MIN_SCREENSHOT_WIDTH = 1200
 MIN_SCREENSHOT_HEIGHT = 700
 
 
-def test_powerbi_dashboard_pbix_exists_and_is_non_empty() -> None:
-    dashboard_path = POWERBI_DIR / "dashboard.pbix"
+def test_powerbi_dashboard_pbix_files_exist_and_are_non_empty() -> None:
+    dashboard_paths = [
+        POWERBI_DIR / "dashboard.pbix",
+        POWERBI_DIR / "dashboard_post_v1.pbix",
+    ]
 
-    assert dashboard_path.exists(), "Expected curated Power BI report at powerbi/dashboard.pbix"
-    assert dashboard_path.stat().st_size >= MIN_PBIX_SIZE_BYTES
+    for dashboard_path in dashboard_paths:
+        assert dashboard_path.exists(), f"Expected curated Power BI report at {dashboard_path}"
+        assert dashboard_path.stat().st_size >= MIN_PBIX_SIZE_BYTES
 
 
 def test_powerbi_dashboard_screenshots_are_readable_pngs() -> None:

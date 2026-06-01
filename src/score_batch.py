@@ -70,7 +70,12 @@ def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
             error_cls=ScoringError,
         )
         feature_columns = list(artifact["feature_columns"])
-        split_applicant_ids = _normalize_split_ids(artifact)
+        split_applicant_ids = normalize_split_ids(
+            artifact["split_applicant_ids"],
+            ("test",),
+            error_cls=ScoringError,
+            label="Selected model artifact split_applicant_ids",
+        )
         threshold_policy = _load_balanced_threshold_policy(connection, str(artifact["model_version"]))
 
         holdout_frame = _load_holdout_test_frame(
@@ -78,7 +83,7 @@ def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
             split_applicant_ids["test"],
             feature_columns,
         )
-        kaggle_frame = _load_kaggle_test_frame(connection, feature_columns)
+        kaggle_frame = load_application_test_frame(connection, feature_columns, error_cls=ScoringError)
         score_rows = [
             *_score_population(
                 artifact,
@@ -120,18 +125,6 @@ def main() -> None:
         run_scoring(args.config)
     except ScoringError as error:
         raise SystemExit(str(error)) from error
-
-
-def _normalize_split_ids(artifact: dict[str, Any]) -> dict[str, list[int]]:
-    try:
-        return normalize_split_ids(
-            artifact["split_applicant_ids"],
-            ("test",),
-            error_cls=ScoringError,
-            label="Selected model artifact split_applicant_ids",
-        )
-    except KeyError as error:
-        raise ScoringError("Selected model artifact must contain split_applicant_ids['test']") from error
 
 
 def _load_balanced_threshold_policy(
@@ -176,14 +169,6 @@ def _load_holdout_test_frame(
         error_cls=ScoringError,
         missing_context="holdout test split",
     )
-
-
-def _load_kaggle_test_frame(
-    connection: duckdb.DuckDBPyConnection,
-    feature_columns: list[str],
-) -> pd.DataFrame:
-    require_table(connection, "mart_credit_risk_features", error_cls=ScoringError)
-    return load_application_test_frame(connection, feature_columns, error_cls=ScoringError)
 
 
 def _score_population(

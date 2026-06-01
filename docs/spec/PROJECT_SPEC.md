@@ -101,7 +101,7 @@ This project will not:
 - optimize for Kaggle leaderboard rank;
 - use deep learning;
 - use Spark;
-- add MLflow before the core pipeline is complete;
+- add MLflow to this portfolio scope;
 - build a real-time API in v1;
 - commit raw Kaggle data to GitHub.
 
@@ -932,6 +932,7 @@ loan-default-decisioning/
 │
 ├── powerbi/
 │   ├── dashboard.pbix
+│   ├── dashboard_post_v1.pbix
 │   └── screenshots/
 │
 └── models/
@@ -1061,28 +1062,28 @@ Required README artifacts:
 
 ---
 
-## 26. Acceptance Criteria
+## 26. Implemented Acceptance Criteria
 
-v1 is complete when:
+The frozen v1 portfolio contract is complete when these remain true:
 
-- [ ] `make ingest` converts raw Kaggle CSV files to Parquet and creates DuckDB staging tables.
-- [ ] `make features` builds a one-row-per-applicant `mart_credit_risk_features` table.
-- [ ] Feature mart includes application, bureau, previous-application, and installment features.
-- [ ] Feature mart and model feature list exclude target, identifiers, and v1 demographic/protected-status-like exclusions.
-- [ ] `make train` trains a logistic regression baseline and a LightGBM model.
-- [ ] Model artifact includes feature list, preprocessing details, model version, and run metadata.
-- [ ] `make evaluate` exports ROC-AUC, PR-AUC, Brier score, lift by decile, calibration bins, and confusion matrix by threshold.
-- [ ] Threshold analysis compares growth-oriented, balanced, and risk-averse scenarios.
-- [ ] Expected-value simulation uses explicit configurable assumptions from `configs/base.yaml`.
-- [ ] `make score` writes predictions to `credit_risk_scores`.
-- [ ] Scoring distinguishes labeled holdout scoring from unlabeled Kaggle test scoring.
-- [ ] SHAP outputs identify global drivers and applicant-level reason-code-style explanations.
-- [ ] `make dashboard-data` exports Power BI-ready tables.
-- [ ] Power BI page 1 reads scored/evaluation outputs and has a saved screenshot in `powerbi/screenshots/`.
-- [ ] `make test` passes tests for data contracts, scoring, thresholding, and expected-value logic.
-- [ ] README includes final metrics, architecture diagram, dashboard screenshot, limitations, and run instructions.
-- [ ] `reports/model_card.md` exists and clearly states intended use, non-use, metrics, thresholds, and limitations.
-- [ ] The repo can be run from a clean environment using documented commands.
+- [x] `make ingest` converts raw Kaggle CSV files to Parquet and creates DuckDB staging tables.
+- [x] `make features` builds a one-row-per-applicant `mart_credit_risk_features` table.
+- [x] Feature mart includes application, bureau, previous-application, and installment features.
+- [x] Feature mart and model feature list exclude target, identifiers, and v1 demographic/protected-status-like exclusions.
+- [x] `make train` trains a logistic regression baseline and a LightGBM model.
+- [x] Model artifact includes feature list, preprocessing details, model version, and run metadata.
+- [x] `make evaluate` exports ROC-AUC, PR-AUC, Brier score, lift by decile, calibration bins, and confusion matrix by threshold.
+- [x] Threshold analysis compares growth-oriented, balanced, and risk-averse scenarios.
+- [x] Expected-value simulation uses explicit configurable assumptions from `configs/base.yaml`.
+- [x] `make score` writes predictions to `credit_risk_scores`.
+- [x] Scoring distinguishes labeled holdout scoring from unlabeled Kaggle test scoring.
+- [x] SHAP outputs identify global drivers and applicant-level reason-code-style explanations.
+- [x] `make dashboard-data` exports Power BI-ready tables.
+- [x] Power BI page 1 reads scored/evaluation outputs and has a saved screenshot in `powerbi/screenshots/`.
+- [x] `make test` passes tests for data contracts, scoring, thresholding, and expected-value logic.
+- [x] README includes final metrics, architecture diagram, dashboard screenshot, limitations, and run instructions.
+- [x] `reports/model_card.md` exists and clearly states intended use, non-use, metrics, thresholds, and limitations.
+- [x] The repo can be run from a clean environment using documented commands.
 
 ---
 

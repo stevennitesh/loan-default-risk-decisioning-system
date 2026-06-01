@@ -7,6 +7,17 @@ from src.runtime import sql_identifier
 from src.runtime import sql_literal
 
 
+def fetch_count(
+    connection: duckdb.DuckDBPyConnection,
+    sql: str,
+    error_cls: type[Exception] = ValueError,
+) -> int:
+    result = connection.execute(sql).fetchone()
+    if result is None:
+        raise error_cls(f"Count query returned no rows: {sql}")
+    return int(result[0])
+
+
 def load_labeled_split_frames(
     connection: duckdb.DuckDBPyConnection,
     split_applicant_ids: dict[str, list[int]],

@@ -510,23 +510,23 @@ The model card should explicitly state:
 
 ## 10. Minimum Release Standard
 
-The project should not be released as v1 until:
+The frozen v1 release standard remains satisfied while these checks stay true:
 
-- [ ] data/target validation is documented;
-- [ ] train/validation/test split summary is documented;
-- [ ] leakage controls are documented;
-- [ ] baseline model results are reported;
-- [ ] LightGBM results are reported;
-- [ ] calibration is evaluated;
-- [ ] lift-by-decile table exists;
-- [ ] threshold scenarios exist;
-- [ ] business-value assumptions are explicit;
-- [ ] final test-set metrics are reported after thresholds are fixed;
-- [ ] segment diagnostics are included or explicitly deferred;
-- [ ] SHAP/global driver outputs are reviewed;
-- [ ] scoring output is validated;
-- [ ] dashboard screenshot reconciles to exported metrics;
-- [ ] README limitations are clear.
+- [x] data/target validation is documented;
+- [x] train/validation/test split summary is documented;
+- [x] leakage controls are documented;
+- [x] baseline model results are reported;
+- [x] LightGBM results are reported;
+- [x] calibration is evaluated;
+- [x] lift-by-decile table exists;
+- [x] threshold scenarios exist;
+- [x] business-value assumptions are explicit;
+- [x] final test-set metrics are reported after thresholds are fixed;
+- [x] segment diagnostics are included;
+- [x] SHAP/global driver outputs are reviewed;
+- [x] scoring output is validated;
+- [x] dashboard screenshot reconciles to exported metrics;
+- [x] README limitations are clear.
 
 ---
 

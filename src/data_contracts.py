@@ -8,6 +8,7 @@ import duckdb
 
 from src.config import is_post_v1_scope
 from src.mart_access import existing_tables
+from src.mart_access import fetch_count
 from src.mart_access import table_columns
 from src.report_contracts import DATA_INVENTORY_COLUMNS
 from src.report_contracts import FEATURE_INVENTORY_COLUMNS
@@ -455,7 +456,4 @@ def _target_count(
 
 
 def _fetch_count(connection: duckdb.DuckDBPyConnection, sql: str) -> int:
-    result = connection.execute(sql).fetchone()
-    if result is None:
-        raise DataContractError(f"Count query returned no rows: {sql}")
-    return int(result[0])
+    return fetch_count(connection, sql, DataContractError)

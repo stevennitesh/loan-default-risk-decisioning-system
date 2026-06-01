@@ -3,13 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 import duckdb
-import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score
 from sklearn.metrics import brier_score_loss
-from sklearn.metrics import roc_auc_score
 
 from src.calibration import apply_saved_calibration_artifact
+from src.metrics import pr_auc_or_none
+from src.metrics import roc_auc_or_none
 from src.metrics import validate_probabilities
 from src.mart_access import load_labeled_segment_split_frame
 from src.model_artifacts import normalize_split_ids
@@ -81,8 +80,8 @@ def build_segment_performance_rows(
                         "applicant_count": len(segment_frame),
                         "observed_default_rate": float(segment_targets.mean()),
                         "average_score": float(segment_probabilities.mean()),
-                        "roc_auc": _roc_auc_or_none(segment_targets, segment_probabilities),
-                        "pr_auc": _pr_auc_or_none(segment_targets, segment_probabilities),
+                        "roc_auc": roc_auc_or_none(segment_targets, segment_probabilities),
+                        "pr_auc": pr_auc_or_none(segment_targets, segment_probabilities),
                         "brier_score": float(brier_score_loss(segment_targets, segment_probabilities)),
                     }
                 )
@@ -93,18 +92,6 @@ def build_segment_performance_rows(
     if not rows:
         raise error_cls("segment_performance_summary must not be empty")
     return rows
-
-
-def _roc_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
-    if set(targets.astype(int).unique()) != {0, 1}:
-        return None
-    return float(roc_auc_score(targets, probabilities))
-
-
-def _pr_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
-    if set(targets.astype(int).unique()) != {0, 1}:
-        return None
-    return float(average_precision_score(targets, probabilities))
 
 
 def _segment_value(value: Any) -> str:
