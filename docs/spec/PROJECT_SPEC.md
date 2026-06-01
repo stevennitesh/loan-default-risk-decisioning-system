@@ -225,8 +225,7 @@ v1 uses **DuckDB only**. Postgres can be added later as an optional extension if
 data/
 ├── raw/                  # original Kaggle CSVs; ignored by git
 ├── parquet/              # converted Parquet files; ignored by git
-├── db/                   # DuckDB database file; ignored by git
-└── sample/               # tiny synthetic/sample data for tests or docs
+└── db/                   # DuckDB database file; ignored by git
 ```
 
 ### 8.2 Staging tables
@@ -840,11 +839,19 @@ Sensitive or legally risky fields should not be used casually as model drivers. 
 
 | Test file | Purpose |
 |---|---|
+| `test_config.py` | Validate config shape and reproducibility profiles |
+| `test_ingest.py` | Validate raw-to-staging ingestion contracts |
 | `test_data_contract.py` | Validate expected columns, primary keys, and no duplicate applicant IDs |
-| `test_feature_sql.py` | Validate representative feature calculations on small sample data |
+| `test_feature_sql.py` | Validate representative feature calculations on synthetic fixtures |
+| `test_train.py` | Validate model training artifacts, split summaries, and metrics |
+| `test_evaluate.py` | Validate evaluation tables, lift, calibration, and selected model checks |
 | `test_threshold_policy.py` | Validate approve/review/high-risk action assignment |
 | `test_expected_value.py` | Validate expected-value math |
 | `test_scoring_schema.py` | Validate prediction table columns, score ranges, and risk bands |
+| `test_calibrate.py` | Validate calibration comparison outputs and artifact selection |
+| `test_explain.py` | Validate SHAP/reason-code outputs exclude diagnostic-only fields |
+| `test_dashboard_exports.py` | Validate Power BI export schemas and dashboard-ready summaries |
+| `test_powerbi_artifacts.py` | Validate committed Power BI report artifacts |
 
 Required test expectations:
 
@@ -917,12 +924,11 @@ loan-default-decisioning/
 ├── tests/
 │   ├── test_data_contract.py
 │   ├── test_feature_sql.py
-│   ├── test_threshold_policy.py
-│   ├── test_expected_value.py
-│   └── test_scoring_schema.py
-│
-├── notebooks/
-│   └── 01_eda.ipynb
+│   ├── test_train.py
+│   ├── test_evaluate.py
+│   ├── test_scoring_schema.py
+│   ├── test_dashboard_exports.py
+│   └── test_powerbi_artifacts.py
 │
 ├── reports/
 │   ├── figures/

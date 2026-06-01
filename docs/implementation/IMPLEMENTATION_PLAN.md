@@ -92,11 +92,9 @@ configs/
 data/raw/
 data/parquet/
 data/db/
-data/sample/
 sql/
 src/
 tests/
-notebooks/
 reports/figures/
 powerbi/screenshots/
 models/
@@ -280,7 +278,7 @@ Prevent modeling from starting until the feature mart is structurally correct.
 
 - Add `tests/test_data_contract.py`.
 - Add `tests/test_feature_sql.py`.
-- Create small synthetic fixtures in `data/sample/` or `tests/fixtures/`.
+- Create small synthetic fixtures through pytest helpers.
 - Validate:
   - required columns exist;
   - no duplicate applicant IDs;
@@ -294,7 +292,7 @@ Prevent modeling from starting until the feature mart is structurally correct.
 ```text
 tests/test_data_contract.py
 tests/test_feature_sql.py
-data/sample/*.csv or tests/fixtures/*.csv
+tests/conftest.py
 ```
 
 ### Gate

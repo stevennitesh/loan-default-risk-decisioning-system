@@ -200,7 +200,6 @@ loan-default-risk-decisioning-system/
 |-- data/                 # local raw/parquet/db directories; data files ignored
 |-- docs/                 # project spec, implementation, testing, and validation plans
 |-- models/               # generated model artifacts ignored; directory retained with .gitkeep
-|-- notebooks/            # optional exploratory workspace
 |-- powerbi/              # Power BI files and screenshots
 |-- reports/              # model card, experiment reports, curated comparison artifacts
 |-- sql/                  # staging and feature-mart SQL
