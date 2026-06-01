@@ -1,5 +1,51 @@
 from __future__ import annotations
 
+INGESTION_SUMMARY_COLUMNS = [
+    "source_name",
+    "source_file",
+    "raw_path",
+    "parquet_path",
+    "staging_table",
+    "csv_rows",
+    "parquet_rows",
+    "duckdb_rows",
+    "created_at_utc",
+]
+
+FEATURE_PROFILE_COLUMNS = [
+    "table_name",
+    "row_count",
+    "distinct_applicant_count",
+    "duplicate_key_count",
+    "column_count",
+    "created_at_utc",
+]
+
+DATA_INVENTORY_COLUMNS = [
+    "table_name",
+    "layer",
+    "grain_key",
+    "row_count",
+    "distinct_applicant_count",
+    "duplicate_grain_key_count",
+    "has_target_column",
+    "target_non_null_count",
+    "target_null_count",
+    "created_at_utc",
+]
+
+FEATURE_INVENTORY_COLUMNS = [
+    "table_name",
+    "column_name",
+    "duckdb_type",
+    "is_model_feature",
+    "exclusion_group",
+    "missing_count",
+    "missing_rate",
+    "distinct_value_count",
+    "created_at_utc",
+]
+
 CREDIT_RISK_SCORE_COLUMNS = [
     "applicant_id",
     "scoring_population",
@@ -24,6 +70,64 @@ MODEL_METRICS_SUMMARY_COLUMNS = [
     "split",
     "metric_name",
     "metric_value",
+    "created_at",
+]
+
+MODEL_RUN_SUMMARY_COLUMNS = [
+    "model_version",
+    "run_id",
+    "model_type",
+    "data_scope_version",
+    "train_rows",
+    "validation_rows",
+    "test_rows",
+    "feature_count",
+    "positive_rate_train",
+    "random_seed",
+    "created_at",
+]
+
+SPLIT_SUMMARY_COLUMNS = [
+    "model_version",
+    "run_id",
+    "split",
+    "row_count",
+    "positive_count",
+    "negative_count",
+    "positive_rate",
+    "created_at",
+]
+
+MODEL_COMPARISON_SUMMARY_COLUMNS = [
+    "metric_name",
+    "baseline_metric_value",
+    "lightgbm_metric_value",
+    "lightgbm_minus_baseline",
+    "selected_model_type",
+]
+
+LIGHTGBM_TUNING_SUMMARY_COLUMNS = [
+    "candidate_rank",
+    "selected",
+    "candidate_name",
+    "candidate_source",
+    "validation_selection_score",
+    "validation_pr_auc",
+    "validation_roc_auc",
+    "validation_brier_score",
+    "validation_top_decile_lift",
+    "validation_precision_at_top_decile",
+    "validation_recall_at_manual_review_capacity",
+    "n_estimators",
+    "learning_rate",
+    "num_leaves",
+    "max_depth",
+    "min_child_samples",
+    "subsample",
+    "colsample_bytree",
+    "reg_alpha",
+    "reg_lambda",
+    "scale_pos_weight",
     "created_at",
 ]
 
@@ -131,4 +235,110 @@ SEGMENT_PERFORMANCE_SUMMARY_COLUMNS = [
     "roc_auc",
     "pr_auc",
     "brier_score",
+]
+
+FEATURE_SELECTION_COMPARISON_COLUMNS = [
+    "feature_set",
+    "selected",
+    "feature_count",
+    "feature_limit",
+    "selected_calibration_method",
+    "selected_candidate_name",
+    "validation_pr_auc",
+    "validation_roc_auc",
+    "validation_brier_score",
+    "validation_top_decile_lift",
+    "validation_precision_at_top_decile",
+    "validation_recall_at_review_capacity",
+    "validation_weighted_calibration_error",
+    "test_pr_auc",
+    "test_roc_auc",
+    "test_brier_score",
+    "test_top_decile_lift",
+    "test_precision_at_top_decile",
+    "test_recall_at_review_capacity",
+    "test_weighted_calibration_error",
+    "validation_balanced_ev_per_applicant",
+    "test_balanced_ev_per_applicant",
+    "created_at",
+]
+
+SELECTED_FEATURE_COLUMNS = [
+    "feature_set",
+    "feature_rank",
+    "feature_name",
+]
+
+MODEL_STABILITY_RUN_COLUMNS = [
+    "seed",
+    "feature_set",
+    "seed_validation_winner",
+    "feature_count",
+    "feature_limit",
+    "selected_calibration_method",
+    "selected_candidate_name",
+    "validation_pr_auc",
+    "validation_roc_auc",
+    "validation_brier_score",
+    "validation_top_decile_lift",
+    "validation_precision_at_top_decile",
+    "validation_recall_at_review_capacity",
+    "validation_weighted_calibration_error",
+    "test_pr_auc",
+    "test_roc_auc",
+    "test_brier_score",
+    "test_top_decile_lift",
+    "test_precision_at_top_decile",
+    "test_recall_at_review_capacity",
+    "test_weighted_calibration_error",
+    "validation_balanced_ev_per_applicant",
+    "test_balanced_ev_per_applicant",
+    "created_at",
+]
+
+MODEL_STABILITY_AGGREGATE_COLUMNS = [
+    "feature_set",
+    "selected",
+    "feature_count",
+    "feature_limit",
+    "seed_count",
+    "validation_win_count",
+    "validation_win_rate",
+    "validation_pr_auc_mean",
+    "validation_pr_auc_std",
+    "validation_roc_auc_mean",
+    "validation_roc_auc_std",
+    "validation_brier_score_mean",
+    "validation_brier_score_std",
+    "validation_top_decile_lift_mean",
+    "validation_top_decile_lift_std",
+    "validation_precision_at_top_decile_mean",
+    "validation_precision_at_top_decile_std",
+    "validation_recall_at_review_capacity_mean",
+    "validation_recall_at_review_capacity_std",
+    "validation_weighted_calibration_error_mean",
+    "validation_weighted_calibration_error_std",
+    "validation_balanced_ev_per_applicant_mean",
+    "validation_balanced_ev_per_applicant_std",
+    "test_pr_auc_mean",
+    "test_pr_auc_std",
+    "test_roc_auc_mean",
+    "test_roc_auc_std",
+    "test_brier_score_mean",
+    "test_brier_score_std",
+    "test_top_decile_lift_mean",
+    "test_top_decile_lift_std",
+    "test_precision_at_top_decile_mean",
+    "test_precision_at_top_decile_std",
+    "test_recall_at_review_capacity_mean",
+    "test_recall_at_review_capacity_std",
+    "test_weighted_calibration_error_mean",
+    "test_weighted_calibration_error_std",
+    "test_balanced_ev_per_applicant_mean",
+    "test_balanced_ev_per_applicant_std",
+    "pr_auc_generalization_gap",
+    "abs_pr_auc_generalization_gap",
+    "balanced_ev_generalization_gap",
+    "abs_balanced_ev_generalization_gap",
+    "created_at",
 ]

@@ -27,71 +27,16 @@ from src.modeling import lightgbm_params
 from src.modeling import load_labeled_training_frame
 from src.modeling import probability_metrics
 from src.modeling import split_labeled_frame
+from src.report_contracts import LIGHTGBM_TUNING_SUMMARY_COLUMNS
+from src.report_contracts import MODEL_COMPARISON_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
+from src.report_contracts import MODEL_RUN_SUMMARY_COLUMNS
+from src.report_contracts import SPLIT_SUMMARY_COLUMNS
 from src.runtime import created_at_utc
 from src.runtime import feature_frame
 from src.runtime import replace_duckdb_table
 from src.runtime import resolve_project_path
 from src.runtime import write_csv
-
-MODEL_RUN_SUMMARY_COLUMNS = [
-    "model_version",
-    "run_id",
-    "model_type",
-    "data_scope_version",
-    "train_rows",
-    "validation_rows",
-    "test_rows",
-    "feature_count",
-    "positive_rate_train",
-    "random_seed",
-    "created_at",
-]
-
-SPLIT_SUMMARY_COLUMNS = [
-    "model_version",
-    "run_id",
-    "split",
-    "row_count",
-    "positive_count",
-    "negative_count",
-    "positive_rate",
-    "created_at",
-]
-
-MODEL_COMPARISON_SUMMARY_COLUMNS = [
-    "metric_name",
-    "baseline_metric_value",
-    "lightgbm_metric_value",
-    "lightgbm_minus_baseline",
-    "selected_model_type",
-]
-
-LIGHTGBM_TUNING_SUMMARY_COLUMNS = [
-    "candidate_rank",
-    "selected",
-    "candidate_name",
-    "candidate_source",
-    "validation_selection_score",
-    "validation_pr_auc",
-    "validation_roc_auc",
-    "validation_brier_score",
-    "validation_top_decile_lift",
-    "validation_precision_at_top_decile",
-    "validation_recall_at_manual_review_capacity",
-    "n_estimators",
-    "learning_rate",
-    "num_leaves",
-    "max_depth",
-    "min_child_samples",
-    "subsample",
-    "colsample_bytree",
-    "reg_alpha",
-    "reg_lambda",
-    "scale_pos_weight",
-    "created_at",
-]
-
 
 class TrainingError(RuntimeError):
     """Raised when baseline training cannot satisfy the Milestone 4 contract."""

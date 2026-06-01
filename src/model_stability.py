@@ -9,97 +9,25 @@ import numpy as np
 import pandas as pd
 
 from src.config import load_config
-from src.feature_selection import DEFAULT_FEATURE_LIMITS
-from src.feature_selection import FeatureSelectionError
-from src.feature_selection import feature_sets
-from src.feature_selection import load_feature_importance_rows
-from src.feature_selection import load_lightgbm_artifact
-from src.feature_selection import ranked_raw_features
-from src.feature_selection import run_single_feature_set
-from src.feature_selection import select_feature_set
+from src.feature_experiments import DEFAULT_FEATURE_LIMITS
+from src.feature_experiments import FeatureExperimentError
+from src.feature_experiments import feature_sets
+from src.feature_experiments import load_feature_importance_rows
+from src.feature_experiments import load_lightgbm_artifact
+from src.feature_experiments import ranked_raw_features
+from src.feature_experiments import run_single_feature_set
+from src.feature_experiments import select_feature_set
 from src.runtime import created_at_utc
 from src.runtime import resolve_project_path
 from src.runtime import write_csv
 from src.modeling import load_labeled_training_frame
 from src.modeling import split_labeled_frame
+from src.report_contracts import MODEL_STABILITY_AGGREGATE_COLUMNS
+from src.report_contracts import MODEL_STABILITY_RUN_COLUMNS
 
 
 DEFAULT_STABILITY_SEEDS = (17, 29, 43)
 MODEL_STABILITY_REPORT_NAME = "006_model_stability.md"
-
-MODEL_STABILITY_RUN_COLUMNS = [
-    "seed",
-    "feature_set",
-    "seed_validation_winner",
-    "feature_count",
-    "feature_limit",
-    "selected_calibration_method",
-    "selected_candidate_name",
-    "validation_pr_auc",
-    "validation_roc_auc",
-    "validation_brier_score",
-    "validation_top_decile_lift",
-    "validation_precision_at_top_decile",
-    "validation_recall_at_review_capacity",
-    "validation_weighted_calibration_error",
-    "test_pr_auc",
-    "test_roc_auc",
-    "test_brier_score",
-    "test_top_decile_lift",
-    "test_precision_at_top_decile",
-    "test_recall_at_review_capacity",
-    "test_weighted_calibration_error",
-    "validation_balanced_ev_per_applicant",
-    "test_balanced_ev_per_applicant",
-    "created_at",
-]
-
-MODEL_STABILITY_AGGREGATE_COLUMNS = [
-    "feature_set",
-    "selected",
-    "feature_count",
-    "feature_limit",
-    "seed_count",
-    "validation_win_count",
-    "validation_win_rate",
-    "validation_pr_auc_mean",
-    "validation_pr_auc_std",
-    "validation_roc_auc_mean",
-    "validation_roc_auc_std",
-    "validation_brier_score_mean",
-    "validation_brier_score_std",
-    "validation_top_decile_lift_mean",
-    "validation_top_decile_lift_std",
-    "validation_precision_at_top_decile_mean",
-    "validation_precision_at_top_decile_std",
-    "validation_recall_at_review_capacity_mean",
-    "validation_recall_at_review_capacity_std",
-    "validation_weighted_calibration_error_mean",
-    "validation_weighted_calibration_error_std",
-    "validation_balanced_ev_per_applicant_mean",
-    "validation_balanced_ev_per_applicant_std",
-    "test_pr_auc_mean",
-    "test_pr_auc_std",
-    "test_roc_auc_mean",
-    "test_roc_auc_std",
-    "test_brier_score_mean",
-    "test_brier_score_std",
-    "test_top_decile_lift_mean",
-    "test_top_decile_lift_std",
-    "test_precision_at_top_decile_mean",
-    "test_precision_at_top_decile_std",
-    "test_recall_at_review_capacity_mean",
-    "test_recall_at_review_capacity_std",
-    "test_weighted_calibration_error_mean",
-    "test_weighted_calibration_error_std",
-    "test_balanced_ev_per_applicant_mean",
-    "test_balanced_ev_per_applicant_std",
-    "pr_auc_generalization_gap",
-    "abs_pr_auc_generalization_gap",
-    "balanced_ev_generalization_gap",
-    "abs_balanced_ev_generalization_gap",
-    "created_at",
-]
 
 MEAN_STD_METRICS = [
     "validation_pr_auc",
@@ -121,7 +49,7 @@ MEAN_STD_METRICS = [
 ]
 
 
-class ModelStabilityError(RuntimeError):
+class ModelStabilityError(FeatureExperimentError):
     """Raised when the model-stability experiment cannot run safely."""
 
 
@@ -143,9 +71,9 @@ def run_model_stability_experiment(
     if not duckdb_path.exists():
         raise ModelStabilityError(f"DuckDB database not found: {duckdb_path}")
 
-    base_artifact = load_lightgbm_artifact(model_dir)
+    base_artifact = load_lightgbm_artifact(model_dir, error_cls=ModelStabilityError)
     full_feature_columns = list(base_artifact["feature_columns"])
-    importance_rows = load_feature_importance_rows(report_dir)
+    importance_rows = load_feature_importance_rows(report_dir, error_cls=ModelStabilityError)
     ranked_features = ranked_raw_features(importance_rows, full_feature_columns)
     max_limit = max(feature_limits) if feature_limits else 0
     if len(ranked_features) < min(max_limit, len(full_feature_columns)):
@@ -161,6 +89,7 @@ def run_model_stability_experiment(
         full_feature_columns,
         feature_limits,
         include_full,
+        error_cls=ModelStabilityError,
     )
     run_rows: list[dict[str, Any]] = []
     with duckdb.connect(str(duckdb_path)) as connection:
@@ -188,6 +117,7 @@ def run_model_stability_experiment(
                         manual_review_capacity_rate,
                         created_at,
                         random_seed=seed,
+                        error_cls=ModelStabilityError,
                     )
                 )
             seed_winner = select_feature_set(seed_rows)
@@ -272,7 +202,7 @@ def main() -> None:
             summary_name=args.summary_name,
             report_name=args.report_name,
         )
-    except (FeatureSelectionError, ModelStabilityError) as error:
+    except ModelStabilityError as error:
         raise SystemExit(str(error)) from error
 
 

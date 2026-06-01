@@ -4,14 +4,13 @@ import duckdb
 import joblib
 import pytest
 
+from src.report_contracts import LIGHTGBM_TUNING_SUMMARY_COLUMNS
+from src.report_contracts import MODEL_COMPARISON_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
-from src.train import (
-    MODEL_COMPARISON_SUMMARY_COLUMNS,
-    MODEL_RUN_SUMMARY_COLUMNS,
-    SPLIT_SUMMARY_COLUMNS,
-    TrainingError,
-    run_training,
-)
+from src.report_contracts import MODEL_RUN_SUMMARY_COLUMNS
+from src.report_contracts import SPLIT_SUMMARY_COLUMNS
+from src.train import TrainingError
+from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
 
@@ -26,31 +25,6 @@ REQUIRED_METRICS = {
     "precision_at_top_decile",
     "recall_at_manual_review_capacity",
 }
-
-LIGHTGBM_TUNING_SUMMARY_COLUMNS = [
-    "candidate_rank",
-    "selected",
-    "candidate_name",
-    "candidate_source",
-    "validation_selection_score",
-    "validation_pr_auc",
-    "validation_roc_auc",
-    "validation_brier_score",
-    "validation_top_decile_lift",
-    "validation_precision_at_top_decile",
-    "validation_recall_at_manual_review_capacity",
-    "n_estimators",
-    "learning_rate",
-    "num_leaves",
-    "max_depth",
-    "min_child_samples",
-    "subsample",
-    "colsample_bytree",
-    "reg_alpha",
-    "reg_lambda",
-    "scale_pos_weight",
-    "created_at",
-]
 
 FORBIDDEN_FEATURES = {
     "SK_ID_CURR",

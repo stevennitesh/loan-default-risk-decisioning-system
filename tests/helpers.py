@@ -6,7 +6,8 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from src.feature_selection import readable_feature_label
+from src.feature_experiments import readable_feature_label
+from src.runtime import sql_identifier
 
 
 def read_csv_rows(path: Path, expected_columns: list[str]) -> list[dict[str, str]]:
@@ -250,6 +251,6 @@ def _create_table_from_frame(
 ) -> None:
     connection.register("table_frame", frame)
     try:
-        connection.execute(f'CREATE OR REPLACE TABLE "{table_name}" AS SELECT * FROM table_frame')
+        connection.execute(f"CREATE OR REPLACE TABLE {sql_identifier(table_name)} AS SELECT * FROM table_frame")
     finally:
         connection.unregister("table_frame")

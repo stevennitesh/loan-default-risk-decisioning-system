@@ -11,6 +11,7 @@ from src.config import load_config
 from src.ingest import STAGING_TABLES
 from src.mart_access import existing_tables
 from src.mart_access import table_columns
+from src.report_contracts import FEATURE_PROFILE_COLUMNS
 from src.data_contracts import DataContractError
 from src.data_contracts import build_data_inventory
 from src.data_contracts import build_feature_inventory
@@ -68,16 +69,6 @@ POST_V1_PROFILE_TABLES = [
     "mart_credit_risk_features",
 ]
 PROFILE_TABLES = POST_V1_PROFILE_TABLES
-
-FEATURE_PROFILE_COLUMNS = [
-    "table_name",
-    "row_count",
-    "distinct_applicant_count",
-    "duplicate_key_count",
-    "column_count",
-    "created_at_utc",
-]
-
 
 class FeatureBuildError(RuntimeError):
     """Raised when feature building cannot satisfy the Milestone 2 contract."""

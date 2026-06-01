@@ -217,6 +217,7 @@ loan-default-risk-decisioning-system/
 | `docs/testing/TESTING_PLAN.md` | Test scope, fixture strategy, and verification expectations. |
 | `docs/validation/VALIDATION_PLAN.md` | Model and reporting gates. |
 | `reports/model_card.md` | Intended use, limitations, validation summary, and model-risk framing. |
+| `reports/README.md` | Explains committed experiment evidence versus regenerated local outputs. |
 | `reports/experiments/` | Post-v1 experiment reports and comparison log. |
 | `reports/experiments/v1_to_post_v1_model_diff.md` | Recruiter-friendly v1 to best post-v1 improvement summary. |
 | `configs/v1.yaml` | Reproducible frozen-v1 pipeline scope. |

@@ -6,6 +6,8 @@ import pytest
 import yaml
 
 from src.build_features import FeatureBuildError, run_feature_build
+from src.mart_access import table_columns
+from src.report_contracts import FEATURE_PROFILE_COLUMNS
 
 
 FORBIDDEN_MART_COLUMNS = {
@@ -18,14 +20,6 @@ FORBIDDEN_MART_COLUMNS = {
     "CNT_CHILDREN",
     "CNT_FAM_MEMBERS",
 }
-PROFILE_COLUMNS = [
-    "table_name",
-    "row_count",
-    "distinct_applicant_count",
-    "duplicate_key_count",
-    "column_count",
-    "created_at_utc",
-]
 V1_SOURCE_FILES = {
     "application_train": "application_train.csv",
     "application_test": "application_test.csv",
@@ -51,14 +45,10 @@ POST_V1_TABLES = {
 }
 
 
-def table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -> set[str]:
-    return {row[1] for row in connection.execute(f"PRAGMA table_info('{table_name}')").fetchall()}
-
-
 def read_profile(profile_path: Path) -> list[dict[str, str]]:
     with profile_path.open(newline="", encoding="utf-8") as profile_file:
         reader = csv.DictReader(profile_file)
-        assert reader.fieldnames == PROFILE_COLUMNS
+        assert reader.fieldnames == FEATURE_PROFILE_COLUMNS
         return list(reader)
 
 

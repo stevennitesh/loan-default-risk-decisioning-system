@@ -26,6 +26,7 @@ from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
 from src.report_contracts import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
+from src.runtime import sql_identifier
 from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
@@ -574,5 +575,5 @@ def _replace_table(
     frame: pd.DataFrame,
 ) -> None:
     connection.register("table_frame", frame)
-    connection.execute(f'CREATE OR REPLACE TABLE "{table_name}" AS SELECT * FROM table_frame')
+    connection.execute(f"CREATE OR REPLACE TABLE {sql_identifier(table_name)} AS SELECT * FROM table_frame")
     connection.unregister("table_frame")

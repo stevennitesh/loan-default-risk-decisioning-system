@@ -9,35 +9,12 @@ import duckdb
 from src.config import is_post_v1_scope
 from src.mart_access import existing_tables
 from src.mart_access import table_columns
+from src.report_contracts import DATA_INVENTORY_COLUMNS
+from src.report_contracts import FEATURE_INVENTORY_COLUMNS
 from src.runtime import created_at_utc as current_created_at_utc
 from src.runtime import sql_identifier
 from src.runtime import write_csv
 
-
-DATA_INVENTORY_COLUMNS = [
-    "table_name",
-    "layer",
-    "grain_key",
-    "row_count",
-    "distinct_applicant_count",
-    "duplicate_grain_key_count",
-    "has_target_column",
-    "target_non_null_count",
-    "target_null_count",
-    "created_at_utc",
-]
-
-FEATURE_INVENTORY_COLUMNS = [
-    "table_name",
-    "column_name",
-    "duckdb_type",
-    "is_model_feature",
-    "exclusion_group",
-    "missing_count",
-    "missing_rate",
-    "distinct_value_count",
-    "created_at_utc",
-]
 
 ALLOWED_SOURCE_POPULATIONS = {"application_train", "application_test"}
 MART_TABLE = "mart_credit_risk_features"

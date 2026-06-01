@@ -8,9 +8,11 @@ import duckdb
 
 from src.config import SUPPORTED_SOURCE_FILES
 from src.config import load_config
+from src.report_contracts import INGESTION_SUMMARY_COLUMNS
 from src.runtime import REPO_ROOT
 from src.runtime import created_at_utc
 from src.runtime import resolve_project_path
+from src.runtime import sql_identifier
 from src.runtime import write_csv
 
 STAGING_TABLES = {
@@ -23,19 +25,6 @@ STAGING_TABLES = {
     "previous_application": "stg_previous_application",
     "installments_payments": "stg_installments_payments",
 }
-
-INGESTION_SUMMARY_COLUMNS = [
-    "source_name",
-    "source_file",
-    "raw_path",
-    "parquet_path",
-    "staging_table",
-    "csv_rows",
-    "parquet_rows",
-    "duckdb_rows",
-    "created_at_utc",
-]
-
 
 class IngestionError(RuntimeError):
     """Raised when ingestion cannot satisfy the Milestone 1 contract."""
@@ -86,12 +75,12 @@ def run_ingestion(config_path: str | Path = "configs/base.yaml") -> list[dict[st
                 f"SELECT COUNT(*) FROM read_parquet({_sql_path(parquet_path)})",
             )
             connection.execute(
-                f"CREATE OR REPLACE TABLE {_sql_identifier(staging_table)} AS "
+                f"CREATE OR REPLACE TABLE {sql_identifier(staging_table)} AS "
                 f"SELECT * FROM read_parquet({_sql_path(parquet_path)})"
             )
             duckdb_rows = _fetch_count(
                 connection,
-                f"SELECT COUNT(*) FROM {_sql_identifier(staging_table)}",
+                f"SELECT COUNT(*) FROM {sql_identifier(staging_table)}",
             )
 
             summary_rows.append(
@@ -133,12 +122,6 @@ def _validate_source_name(source_name: str) -> None:
 def _sql_path(path: Path) -> str:
     escaped = path.resolve().as_posix().replace("'", "''")
     return f"'{escaped}'"
-
-
-def _sql_identifier(identifier: str) -> str:
-    if not identifier.replace("_", "").isalnum():
-        raise IngestionError(f"Unsafe DuckDB identifier: {identifier}")
-    return f'"{identifier}"'
 
 
 def _fetch_count(connection: duckdb.DuckDBPyConnection, sql: str) -> int:
