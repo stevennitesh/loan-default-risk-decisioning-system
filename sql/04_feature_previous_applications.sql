@@ -1,3 +1,5 @@
+-- Previous applications are reduced to applicant-level approval history and
+-- prior credit sizing signals.
 CREATE OR REPLACE TABLE f_previous_application_agg AS
 SELECT
     SK_ID_CURR,

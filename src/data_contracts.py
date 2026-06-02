@@ -35,12 +35,15 @@ ALWAYS_EXCLUDED_COLUMNS = {
 
 @dataclass(frozen=True)
 class TableContract:
+    """Expected table grain and layer metadata for contract checks."""
+
     table_name: str
     layer: str
     grain_columns: tuple[str, ...]
 
     @property
     def grain_key(self) -> str:
+        """Return the report-friendly comma-separated grain key."""
         return ",".join(self.grain_columns)
 
 
@@ -118,6 +121,7 @@ class DataContractError(RuntimeError):
 def validate_data_contracts(
     connection: duckdb.DuckDBPyConnection, config: dict[str, Any]
 ) -> None:
+    """Validate the feature mart, supporting feature tables, and diagnostics."""
     available_tables = existing_tables(connection)
     missing_tables = sorted(
         table.table_name
@@ -145,6 +149,7 @@ def get_model_feature_columns(
     connection: duckdb.DuckDBPyConnection,
     config: dict[str, Any],
 ) -> list[str]:
+    """Return mart columns that are allowed to enter the model feature surface."""
     exclusion_groups = _exclusion_group_map(config)
     # The mart is the only modeling surface; diagnostics stay separate even when available in DuckDB.
     return [
@@ -159,6 +164,7 @@ def build_data_inventory(
     config: dict[str, Any] | None = None,
     created_at_utc: str | None = None,
 ) -> list[dict[str, Any]]:
+    """Build table-level contract inventory rows for reporting."""
     timestamp = created_at_utc or current_created_at_utc()
     rows: list[dict[str, Any]] = []
 
@@ -207,6 +213,7 @@ def build_feature_inventory(
     config: dict[str, Any],
     created_at_utc: str | None = None,
 ) -> list[dict[str, Any]]:
+    """Build column-level feature inventory rows for reporting."""
     timestamp = created_at_utc or current_created_at_utc()
     exclusion_groups = _exclusion_group_map(config)
     model_features = set(get_model_feature_columns(connection, config))
@@ -253,6 +260,7 @@ def write_contract_reports(
     data_inventory_rows: list[dict[str, Any]],
     feature_inventory_rows: list[dict[str, Any]],
 ) -> None:
+    """Write data and feature inventory CSV reports."""
     report_path = Path(report_dir)
     ensure_directories(report_path)
     write_csv(
@@ -270,6 +278,7 @@ def _distinct_applicant_count(
     table_name: str,
     columns: dict[str, str],
 ) -> int | None:
+    """Count distinct applicants when the table has an applicant key."""
     if "SK_ID_CURR" not in columns:
         return None
     return _fetch_count(
@@ -281,6 +290,7 @@ def _distinct_applicant_count(
 def _validate_mart_contract(
     connection: duckdb.DuckDBPyConnection, errors: list[str]
 ) -> None:
+    """Validate mart grain, population labels, and target availability."""
     mart_columns = set(table_columns(connection, MART_TABLE))
     missing_columns = {"SK_ID_CURR", "source_population", "TARGET"}.difference(
         mart_columns
@@ -360,6 +370,7 @@ def _validate_applicant_row_reconciliation(
     connection: duckdb.DuckDBPyConnection,
     errors: list[str],
 ) -> None:
+    """Ensure each application population retains its staging row count in the mart."""
     for source_population, staging_table in [
         ("application_train", "stg_application_train"),
         ("application_test", "stg_application_test"),
@@ -384,6 +395,7 @@ def _validate_applicant_row_reconciliation(
 
 
 def _required_tables(config: dict[str, Any] | None) -> list[TableContract]:
+    """Return the contract table list for the configured data scope."""
     # v1 remains reproducible after post-v1 tables were added, so table requirements are scope-aware.
     if config is not None and not is_post_v1_scope(config):
         return V1_REQUIRED_TABLES
@@ -391,12 +403,14 @@ def _required_tables(config: dict[str, Any] | None) -> list[TableContract]:
 
 
 def _feature_inventory_tables(config: dict[str, Any]) -> list[str]:
+    """Return tables included in the feature inventory for the data scope."""
     if not is_post_v1_scope(config):
         return V1_FEATURE_INVENTORY_TABLES
     return FEATURE_INVENTORY_TABLES
 
 
 def _aggregate_tables(config: dict[str, Any]) -> list[str]:
+    """Return aggregate feature tables that must stay at applicant grain."""
     if not is_post_v1_scope(config):
         return V1_AGGREGATE_TABLES
     return AGGREGATE_TABLES
@@ -407,6 +421,7 @@ def _validate_aggregate_keys(
     config: dict[str, Any],
     errors: list[str],
 ) -> None:
+    """Validate that aggregate feature tables do not expand applicants."""
     for table_name in _aggregate_tables(config):
         duplicate_keys = duplicate_key_count(
             connection,
@@ -425,6 +440,7 @@ def _validate_diagnostic_separation(
     config: dict[str, Any],
     errors: list[str],
 ) -> None:
+    """Validate sensitive-like fields are kept out of the model mart."""
     mart_columns = set(table_columns(connection, MART_TABLE))
     diagnostic_columns = set(table_columns(connection, DIAGNOSTIC_TABLE))
 
@@ -451,6 +467,7 @@ def _validate_model_feature_quality(
     config: dict[str, Any],
     errors: list[str],
 ) -> None:
+    """Validate model features have usable non-null signal."""
     all_missing_features = []
     row_count = _fetch_count(
         connection, f"SELECT COUNT(*) FROM {sql_identifier(MART_TABLE)}"
@@ -478,6 +495,7 @@ def _validate_model_feature_quality(
 
 
 def _exclusion_group_map(config: dict[str, Any]) -> dict[str, str]:
+    """Map excluded column names to their exclusion group."""
     exclusions = dict(ALWAYS_EXCLUDED_COLUMNS)
     for group_name, column_names in config["excluded_features"].items():
         for column_name in column_names:
@@ -490,6 +508,7 @@ def _target_count(
     table_name: str,
     null_predicate: str,
 ) -> int:
+    """Count target nullness in a table using the supplied SQL predicate."""
     return _fetch_count(
         connection,
         f"""
@@ -501,4 +520,5 @@ def _target_count(
 
 
 def _fetch_count(connection: duckdb.DuckDBPyConnection, sql: str) -> int:
+    """Execute a contract count query with DataContractError on failure."""
     return fetch_count(connection, sql, DataContractError)

@@ -29,6 +29,7 @@ def build_segment_performance_rows(
     dashboard_model_version: str,
     error_cls: type[Exception] = ValueError,
 ) -> list[dict[str, Any]]:
+    """Build segment-level validation and test performance rows for dashboards."""
     feature_columns = list(artifact["feature_columns"])
     split_applicant_ids = normalize_split_ids(
         artifact["split_applicant_ids"],
@@ -100,6 +101,7 @@ def build_segment_performance_rows(
 
 
 def _segment_value(value: Any) -> str:
+    """Normalize segment values for stable dashboard labels."""
     if pd.isna(value):
         return "missing"
     if isinstance(value, float) and value.is_integer():

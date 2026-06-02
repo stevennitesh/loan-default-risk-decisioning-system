@@ -23,6 +23,7 @@ def validate_threshold_pair(
     threshold_high: Any,
     scenario_name: str,
 ) -> dict[str, float]:
+    """Coerce and validate an ordered low/high scenario threshold pair."""
     low = _coerce_threshold(threshold_low, scenario_name, "threshold_low")
     high = _coerce_threshold(threshold_high, scenario_name, "threshold_high")
     if low >= high:
@@ -36,6 +37,7 @@ def resolve_scenario_thresholds(
     threshold_policy_config: dict[str, Any],
     validation_probabilities: np.ndarray,
 ) -> dict[str, dict[str, float]]:
+    """Resolve configured or validation-derived thresholds for each scenario."""
     scenario_config = threshold_policy_config["scenarios"]
     scenario_names = set(scenario_config)
     if scenario_names != set(SCENARIO_NAMES):
@@ -71,6 +73,7 @@ def assign_risk_bands(
     probabilities: np.ndarray,
     thresholds: dict[str, float],
 ) -> np.ndarray:
+    """Assign approve, manual-review, or high-risk bands from default scores."""
     scores = np.asarray(probabilities, dtype=float)
     if scores.ndim != 1:
         raise ThresholdingError("Scores must be one-dimensional")
@@ -105,6 +108,7 @@ def calculate_expected_value(
     manual_review_count: int,
     assumptions: dict[str, Any],
 ) -> float:
+    """Calculate simple expected value for approved and manually reviewed loans."""
     return float(
         approved_good_count * assumptions["expected_margin_per_good_loan"]
         - approved_bad_count * assumptions["expected_loss_per_bad_loan"]
@@ -121,6 +125,7 @@ def build_threshold_metric_rows(
     created_at: str,
     splits: tuple[str, ...] = ("validation", "test"),
 ) -> list[dict[str, Any]]:
+    """Build threshold policy metric rows for reporting splits and scenarios."""
     rows = []
     for split_name in splits:
         frame = prediction_frames[split_name]
@@ -184,6 +189,7 @@ def build_confusion_matrix_rows(
     scenario_thresholds: dict[str, dict[str, float]],
     splits: tuple[str, ...] = ("validation", "test"),
 ) -> list[dict[str, Any]]:
+    """Build binary confusion rows with high-risk as the positive prediction."""
     rows = []
     for split_name in splits:
         frame = prediction_frames[split_name]
@@ -218,6 +224,7 @@ def _confusion_count(
     true_label: int,
     predicted_label: int,
 ) -> int:
+    """Count one binary confusion-matrix cell."""
     return int(
         ((frame["target"] == true_label) & (predicted_labels == predicted_label)).sum()
     )
@@ -228,6 +235,7 @@ def _derive_threshold_pair(
     low_quantile: float,
     high_quantile: float,
 ) -> tuple[float, float]:
+    """Derive ordered threshold cut points from validation score quantiles."""
     scores = np.asarray(probabilities, dtype=float)
     if scores.ndim != 1:
         raise ThresholdingError("Validation scores must be one-dimensional")
@@ -246,6 +254,8 @@ def _derive_threshold_pair(
     if threshold_low < threshold_high:
         return threshold_low, threshold_high
 
+    # Tied probability distributions can collapse quantiles to the same value;
+    # fall back to adjacent unique scores so risk bands remain ordered.
     low_index = min(
         int(np.floor(low_quantile * (len(unique_probabilities) - 1))),
         len(unique_probabilities) - 2,
@@ -265,6 +275,7 @@ def _derive_threshold_pair(
 
 
 def _coerce_threshold(value: Any, scenario_name: str, field_name: str) -> float:
+    """Coerce one threshold field to a finite probability value."""
     try:
         threshold = float(value)
     except (TypeError, ValueError) as error:

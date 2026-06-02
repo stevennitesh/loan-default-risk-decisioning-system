@@ -88,6 +88,7 @@ def run_dashboard_export(
     export_dir: str | Path | None = None,
     use_calibrated_probability_quality: bool = False,
 ) -> dict[str, Any]:
+    """Export Power BI-ready CSV tables from validated DuckDB reporting tables."""
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -132,6 +133,8 @@ def run_dashboard_export(
             if use_calibrated_probability_quality
             else source_model_version
         )
+        # Calibrated dashboard exports keep the trained model artifact untouched
+        # while relabeling probability-quality rows to a dashboard-only version.
         model_version_relabel = (
             (source_model_version, dashboard_model_version)
             if dashboard_model_version != source_model_version
@@ -193,6 +196,7 @@ def _export_table(
     export_path: Path,
     model_version_relabel: tuple[str, str] | None = None,
 ) -> int:
+    """Export one DuckDB table using its declared report column order."""
     columns = EXPORT_TABLE_COLUMNS[table_name]
     frame = connection.execute(
         f"""
@@ -205,6 +209,7 @@ def _export_table(
 
 
 def _export_frame(frame: pd.DataFrame, export_path: Path) -> int:
+    """Write a frame to CSV and return the exported row count."""
     frame.to_csv(export_path, index=False)
     return len(frame)
 
@@ -213,6 +218,7 @@ def _relabel_model_version(
     frame: pd.DataFrame,
     model_version_relabel: tuple[str, str] | None,
 ) -> pd.DataFrame:
+    """Return a copy with model_version relabeled for dashboard-only outputs."""
     if model_version_relabel is None or "model_version" not in frame.columns:
         return frame
     source_model_version, dashboard_model_version = model_version_relabel
@@ -226,6 +232,7 @@ def _relabel_model_version(
 
 
 def _validate_export_source_columns(connection: duckdb.DuckDBPyConnection) -> None:
+    """Validate dashboard source tables and declared export columns."""
     available_tables = existing_tables(connection)
     missing_tables = sorted(
         table for table in DASHBOARD_EXPORT_TABLES if table not in available_tables

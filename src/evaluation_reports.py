@@ -31,6 +31,7 @@ def write_validation_report(
     threshold_rows: list[dict[str, Any]],
     assumptions: dict[str, Any],
 ) -> None:
+    """Write the markdown validation report from evaluated metric rows."""
     metrics = {
         (row["model_version"], row["split"], row["metric_name"]): float(
             row["metric_value"]
@@ -130,6 +131,7 @@ def write_business_value_report(
     threshold_rows: list[dict[str, Any]],
     assumptions: dict[str, Any],
 ) -> None:
+    """Write the markdown business-value report from threshold metric rows."""
     rows = sorted(
         threshold_rows,
         key=lambda row: (row["split"], row["scenario_name"]),
@@ -183,6 +185,7 @@ def write_figures(
     lift_rows: list[dict[str, Any]],
     calibration_rows: list[dict[str, Any]],
 ) -> None:
+    """Write evaluation ROC, PR, calibration, and lift figures."""
     _write_roc_curve(figures_dir / "roc_curve.png", model_version, prediction_frames)
     _write_pr_curve(figures_dir / "pr_curve.png", model_version, prediction_frames)
     _write_calibration_curve(
@@ -192,6 +195,7 @@ def write_figures(
 
 
 def _build_post_v1_calibration_section(report_dir: Path) -> str:
+    """Build optional validation-report text from calibration comparison output."""
     row_lookup = _calibration_comparison_lookup(report_dir)
     if not row_lookup:
         return ""
@@ -217,6 +221,7 @@ def _build_post_v1_calibration_section(report_dir: Path) -> str:
 
 
 def _build_business_value_calibration_note(report_dir: Path) -> str:
+    """Build optional business-value text for the saved calibration experiment."""
     row_lookup = _calibration_comparison_lookup(report_dir)
     if not row_lookup:
         return ""
@@ -236,6 +241,7 @@ Post-v1 Experiment 004 materially improves probability quality with a separate s
 def _calibration_comparison_lookup(
     report_dir: Path,
 ) -> dict[tuple[str, str], dict[str, str]]:
+    """Load calibration comparison rows keyed by method and split."""
     comparison_path = report_dir / "model_calibration_comparison.csv"
     if not comparison_path.exists():
         return {}
@@ -251,6 +257,7 @@ def _write_roc_curve(
     model_version: str,
     prediction_frames: dict[str, pd.DataFrame],
 ) -> None:
+    """Write ROC curve figure for reporting splits."""
     figure, axis = plt.subplots(figsize=(7, 5))
     for split_name in REPORTING_SPLITS:
         frame = prediction_frames[split_name]
@@ -271,6 +278,7 @@ def _write_pr_curve(
     model_version: str,
     prediction_frames: dict[str, pd.DataFrame],
 ) -> None:
+    """Write precision-recall curve figure for reporting splits."""
     figure, axis = plt.subplots(figsize=(7, 5))
     for split_name in REPORTING_SPLITS:
         frame = prediction_frames[split_name]
@@ -292,6 +300,7 @@ def _write_calibration_curve(
     model_version: str,
     calibration_rows: list[dict[str, Any]],
 ) -> None:
+    """Write observed-vs-predicted calibration curve figure."""
     figure, axis = plt.subplots(figsize=(7, 5))
     for split_name in REPORTING_SPLITS:
         rows = [
@@ -319,6 +328,7 @@ def _write_lift_chart(
     model_version: str,
     lift_rows: list[dict[str, Any]],
 ) -> None:
+    """Write lift-by-decile figure for reporting splits."""
     figure, axis = plt.subplots(figsize=(7, 5))
     for split_name in REPORTING_SPLITS:
         rows = [
@@ -341,6 +351,7 @@ def _write_lift_chart(
 
 
 def _save_figure(path: Path, figure: Any) -> None:
+    """Persist and close a matplotlib figure."""
     figure.tight_layout()
     figure.savefig(path, dpi=150)
     plt.close(figure)

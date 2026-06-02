@@ -47,6 +47,7 @@ class ConfigError(ValueError):
 
 
 def load_config(path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+    """Load and validate the project YAML config as a mapping."""
     config_path = Path(path)
     if not config_path.exists():
         raise ConfigError(f"Config file not found: {config_path}")
@@ -62,6 +63,7 @@ def load_config(path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
 
 
 def validate_config(config: dict[str, Any]) -> None:
+    """Validate the config sections that control data, modeling, and policy."""
     missing_sections = REQUIRED_SECTIONS.difference(config)
     if missing_sections:
         raise ConfigError(f"Missing config sections: {sorted(missing_sections)}")
@@ -93,7 +95,18 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ConfigError(f"Unexpected business assumptions: {sorted(assumptions)}")
 
 
+def data_scope_version(config: dict[str, Any]) -> str:
+    """Read the configured data scope version as a string."""
+    return str(config["project"].get("data_scope_version", ""))
+
+
+def is_post_v1_scope(config: dict[str, Any]) -> bool:
+    """Return whether the config enables post-v1 source tables and features."""
+    return data_scope_version(config).startswith("post_v1")
+
+
 def required_source_files_for_scope(config: dict[str, Any]) -> set[str]:
+    """Return the exact raw source file keys required for the configured scope."""
     scope_version = data_scope_version(config)
     if scope_version == "v1":
         return V1_SOURCE_FILES
@@ -102,29 +115,26 @@ def required_source_files_for_scope(config: dict[str, Any]) -> set[str]:
     raise ConfigError(f"Unsupported data_scope_version: {scope_version}")
 
 
-def is_post_v1_scope(config: dict[str, Any]) -> bool:
-    return data_scope_version(config).startswith("post_v1")
-
-
-def data_scope_version(config: dict[str, Any]) -> str:
-    return str(config["project"].get("data_scope_version", ""))
-
-
 def manual_review_capacity_rate(config: dict[str, Any]) -> float:
+    """Read the manual-review capacity rate used for recall and threshold metrics."""
     return float(config["business_assumptions"]["manual_review_capacity_rate"])
 
 
 def project_random_seed(config: dict[str, Any]) -> int:
+    """Read the project-level random seed used for reproducible experiments."""
     return int(config["project"]["random_seed"])
 
 
 def business_assumptions(config: dict[str, Any]) -> dict[str, Any]:
+    """Return the business-value assumptions from the validated config."""
     return config["business_assumptions"]
 
 
 def threshold_policy(config: dict[str, Any]) -> dict[str, Any]:
+    """Return the threshold policy section from the validated config."""
     return config["threshold_policy"]
 
 
 def threshold_version(config: dict[str, Any]) -> str:
+    """Read the configured threshold policy version."""
     return str(threshold_policy(config)["threshold_version"])

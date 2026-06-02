@@ -1,3 +1,4 @@
+-- Collapse bureau credit history to applicant grain before mart joins.
 CREATE OR REPLACE TABLE f_bureau_agg AS
 SELECT
     SK_ID_CURR,

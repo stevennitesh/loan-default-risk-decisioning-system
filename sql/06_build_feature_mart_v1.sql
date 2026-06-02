@@ -1,3 +1,5 @@
+-- v1 mart joins only applicant-grain feature tables, preserving one row per
+-- (SK_ID_CURR, source_population). Diagnostic segment fields stay outside.
 CREATE OR REPLACE TABLE mart_credit_risk_features AS
 SELECT
     applicant.*,
@@ -39,6 +41,7 @@ SELECT
     installments.payment_amount_ratio,
     installments.avg_payment_to_instalment_ratio
 FROM f_applicant_static AS applicant
+-- LEFT JOINs keep applicants without a given history source in the mart.
 LEFT JOIN f_bureau_agg AS bureau
     ON applicant.SK_ID_CURR = bureau.SK_ID_CURR
 LEFT JOIN f_previous_application_agg AS previous

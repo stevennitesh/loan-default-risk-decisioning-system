@@ -73,6 +73,7 @@ warnings.filterwarnings(
 
 
 def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+    """Train baseline and LightGBM models and persist artifacts plus reports."""
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -269,6 +270,7 @@ def _build_lightgbm_tuning_summary_rows(
     tuning_result: dict[str, Any],
     created_at: str,
 ) -> list[dict[str, Any]]:
+    """Build report rows for all ranked LightGBM tuning candidates."""
     selected_name = tuning_result["selected_candidate"]["candidate_name"]
     rows: list[dict[str, Any]] = []
     for rank, candidate in enumerate(tuning_result["ranked_candidates"], start=1):
@@ -312,6 +314,7 @@ def _build_split_summary(
     run_id: str,
     created_at: str,
 ) -> list[dict[str, Any]]:
+    """Build split-size and class-balance rows for model reports."""
     rows = []
     for split_name, frame in split_frames.items():
         positives = int(frame["TARGET"].sum())
@@ -339,6 +342,7 @@ def _build_metric_rows(
     created_at: str,
     review_capacity_rate: float,
 ) -> list[dict[str, Any]]:
+    """Predict each split and build probability metric rows for one model."""
     artifact = {"pipeline": pipeline, "model_version": model_version}
     prediction_frames = {}
     for split_name, frame in split_frames.items():
@@ -363,6 +367,7 @@ def _build_model_comparison_rows(
     baseline_metric_rows: list[dict[str, Any]],
     lightgbm_metric_rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    """Build validation-only baseline-vs-LightGBM comparison rows."""
     baseline_validation = {
         row["metric_name"]: float(row["metric_value"])
         for row in baseline_metric_rows
@@ -400,6 +405,7 @@ def _build_run_summary_row(
     created_at: str,
     random_seed: int,
 ) -> dict[str, Any]:
+    """Build one model run summary row."""
     split_rows = {row["split"]: row for row in split_summary_rows}
     return {
         "model_version": model_version,
@@ -417,6 +423,7 @@ def _build_run_summary_row(
 
 
 def main() -> None:
+    """Run the training CLI."""
     parser = argparse.ArgumentParser(
         description="Train baseline and primary credit-risk models."
     )

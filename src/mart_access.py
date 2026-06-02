@@ -15,6 +15,7 @@ def fetch_count(
     error_cls: type[Exception] = ValueError,
     params: list[Any] | None = None,
 ) -> int:
+    """Execute a scalar count query and return the first column as an integer."""
     result = (
         connection.execute(sql, params).fetchone()
         if params is not None
@@ -31,6 +32,7 @@ def duplicate_key_count(
     key_columns: tuple[str, ...],
     error_cls: type[Exception] = ValueError,
 ) -> int:
+    """Count duplicate grain keys in a DuckDB table."""
     key_select = ", ".join(sql_identifier(column_name) for column_name in key_columns)
     return fetch_count(
         connection,
@@ -47,12 +49,64 @@ def duplicate_key_count(
     )
 
 
+def existing_tables(connection: duckdb.DuckDBPyConnection) -> set[str]:
+    """Return the current DuckDB table names."""
+    return {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
+
+
+def require_table(
+    connection: duckdb.DuckDBPyConnection,
+    table_name: str,
+    error_cls: type[Exception] = ValueError,
+) -> None:
+    """Require one DuckDB table to exist."""
+    if table_name not in existing_tables(connection):
+        raise error_cls(f"Missing required DuckDB table: {table_name}")
+
+
+def require_tables(
+    connection: duckdb.DuckDBPyConnection,
+    table_names: list[str] | tuple[str, ...],
+    error_cls: type[Exception] = ValueError,
+) -> None:
+    """Require multiple DuckDB tables to exist."""
+    missing_tables = sorted(set(table_names).difference(existing_tables(connection)))
+    if missing_tables:
+        raise error_cls(f"Missing required DuckDB tables: {', '.join(missing_tables)}")
+
+
+def table_columns(
+    connection: duckdb.DuckDBPyConnection, table_name: str
+) -> dict[str, str]:
+    """Return DuckDB column names mapped to types for a table."""
+    return {
+        row[1]: row[2]
+        for row in connection.execute(
+            f"PRAGMA table_info({sql_literal(table_name)})"
+        ).fetchall()
+    }
+
+
+def require_table_columns(
+    connection: duckdb.DuckDBPyConnection,
+    table_name: str,
+    expected_columns: list[str] | tuple[str, ...] | set[str],
+    error_cls: type[Exception] = ValueError,
+) -> None:
+    """Require a DuckDB table to expose the expected columns."""
+    existing_columns = set(table_columns(connection, table_name))
+    missing_columns = sorted(set(expected_columns).difference(existing_columns))
+    if missing_columns:
+        raise error_cls(f"{table_name} is missing required columns: {missing_columns}")
+
+
 def load_labeled_split_frames(
     connection: duckdb.DuckDBPyConnection,
     split_applicant_ids: dict[str, list[int]],
     feature_columns: list[str],
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, pd.DataFrame]:
+    """Load all labeled split frames from saved applicant IDs."""
     split_frames = {}
 
     for split_name, applicant_ids in split_applicant_ids.items():
@@ -77,6 +131,7 @@ def load_labeled_split_frame(
     require_both_target_classes: bool = False,
     missing_context: str = "split",
 ) -> pd.DataFrame:
+    """Load one labeled split from the mart and reconcile it to saved IDs."""
     require_table(connection, "mart_credit_risk_features", error_cls=error_cls)
     selected_columns = ["SK_ID_CURR", "TARGET", *feature_columns]
     frame = _fetch_with_split_ids(
@@ -116,6 +171,7 @@ def load_application_test_frame(
     feature_columns: list[str],
     error_cls: type[Exception] = ValueError,
 ) -> pd.DataFrame:
+    """Load the unlabeled Kaggle application_test scoring population."""
     require_table(connection, "mart_credit_risk_features", error_cls=error_cls)
     selected_columns = ["SK_ID_CURR", "TARGET", *feature_columns]
     frame = connection.execute(
@@ -143,6 +199,7 @@ def load_labeled_segment_split_frame(
     split_name: str,
     error_cls: type[Exception] = ValueError,
 ) -> pd.DataFrame:
+    """Load a labeled split with separate diagnostic segment columns joined in."""
     mart_columns = set(table_columns(connection, "mart_credit_risk_features"))
     diagnostic_columns = set(table_columns(connection, "segment_diagnostics"))
     missing_feature_columns = sorted(set(feature_columns).difference(mart_columns))
@@ -202,6 +259,7 @@ def _fetch_with_split_ids(
     applicant_ids: list[int],
     sql: str,
 ) -> pd.DataFrame:
+    """Execute a split-scoped query using applicant IDs as a temporary relation."""
     ids_frame = pd.DataFrame({"SK_ID_CURR": applicant_ids})
     connection.register("split_ids", ids_frame)
     try:
@@ -216,6 +274,7 @@ def _require_applicant_id_reconciliation(
     error_cls: type[Exception],
     message_template: str,
 ) -> None:
+    """Raise when loaded rows no longer match the persisted split applicant IDs."""
     if len(frame) == len(applicant_ids):
         return
     found_ids = (
@@ -223,49 +282,3 @@ def _require_applicant_id_reconciliation(
     )
     missing_ids = sorted(set(applicant_ids).difference(found_ids))
     raise error_cls(message_template.format(missing_ids=missing_ids[:10]))
-
-
-def existing_tables(connection: duckdb.DuckDBPyConnection) -> set[str]:
-    return {row[0] for row in connection.execute("SHOW TABLES").fetchall()}
-
-
-def require_table(
-    connection: duckdb.DuckDBPyConnection,
-    table_name: str,
-    error_cls: type[Exception] = ValueError,
-) -> None:
-    if table_name not in existing_tables(connection):
-        raise error_cls(f"Missing required DuckDB table: {table_name}")
-
-
-def require_tables(
-    connection: duckdb.DuckDBPyConnection,
-    table_names: list[str] | tuple[str, ...],
-    error_cls: type[Exception] = ValueError,
-) -> None:
-    missing_tables = sorted(set(table_names).difference(existing_tables(connection)))
-    if missing_tables:
-        raise error_cls(f"Missing required DuckDB tables: {', '.join(missing_tables)}")
-
-
-def table_columns(
-    connection: duckdb.DuckDBPyConnection, table_name: str
-) -> dict[str, str]:
-    return {
-        row[1]: row[2]
-        for row in connection.execute(
-            f"PRAGMA table_info({sql_literal(table_name)})"
-        ).fetchall()
-    }
-
-
-def require_table_columns(
-    connection: duckdb.DuckDBPyConnection,
-    table_name: str,
-    expected_columns: list[str] | tuple[str, ...] | set[str],
-    error_cls: type[Exception] = ValueError,
-) -> None:
-    existing_columns = set(table_columns(connection, table_name))
-    missing_columns = sorted(set(expected_columns).difference(existing_columns))
-    if missing_columns:
-        raise error_cls(f"{table_name} is missing required columns: {missing_columns}")

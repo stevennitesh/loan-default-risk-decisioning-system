@@ -1,3 +1,5 @@
+-- Credit-card balance is monthly per previous credit-card account. This table
+-- summarizes utilization, payment, drawing, and delinquency signals per applicant.
 CREATE OR REPLACE TABLE f_credit_card_agg AS
 WITH credit_card AS (
     SELECT
@@ -15,6 +17,7 @@ WITH credit_card AS (
         LOWER(NAME_CONTRACT_STATUS) AS contract_status,
         SK_DPD,
         SK_DPD_DEF,
+        -- Use NULLIF so zero-limit records do not create infinite utilization.
         AMT_BALANCE / NULLIF(AMT_CREDIT_LIMIT_ACTUAL, 0) AS credit_utilization
     FROM stg_credit_card_balance
 )

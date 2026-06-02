@@ -56,6 +56,7 @@ warnings.filterwarnings(
 
 
 def run_explain(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+    """Generate SHAP feature importance and score reason fields for LightGBM."""
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -150,6 +151,7 @@ def run_explain(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
 
 
 def _load_lightgbm_artifact(model_dir: Path) -> dict[str, Any]:
+    """Load the LightGBM artifact and verify explainability metadata exists."""
     artifact_path = model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME
     artifact = load_model_artifact(
         artifact_path,
@@ -177,6 +179,7 @@ def _load_scored_feature_frame(
     model_version: str,
     feature_columns: list[str],
 ) -> pd.DataFrame:
+    """Join scored applicants back to model features for SHAP explanation."""
     require_table(connection, "credit_risk_scores", error_cls=ExplainabilityError)
     require_table(
         connection, "mart_credit_risk_features", error_cls=ExplainabilityError
@@ -236,6 +239,7 @@ def _transform_features(
     artifact: dict[str, Any],
     frame: pd.DataFrame,
 ) -> tuple[Any, list[str], Any]:
+    """Apply the saved preprocessor and return transformed names plus classifier."""
     pipeline = artifact["pipeline"]
     if not hasattr(pipeline, "named_steps"):
         raise ExplainabilityError("LightGBM artifact pipeline must expose named_steps")
@@ -268,6 +272,7 @@ def _compute_shap_values(
     transformed_features: Any,
     transformed_feature_count: int,
 ) -> np.ndarray:
+    """Compute LightGBM SHAP contribution values in bounded batches."""
     row_count = transformed_features.shape[0]
     batches = []
     for start in range(0, row_count, SHAP_BATCH_SIZE):
@@ -305,6 +310,7 @@ def _readable_transformed_feature_labels(
     categorical_feature_columns: list[str],
     excluded_terms: set[str],
 ) -> list[str]:
+    """Map transformed feature names back to safe human-readable feature labels."""
     labels = []
     for transformed_name in transformed_feature_names:
         raw_feature, category_value = _raw_feature_for_transformed_name(
@@ -326,6 +332,7 @@ def _raw_feature_for_transformed_name(
     feature_columns: list[str],
     categorical_feature_columns: list[str],
 ) -> tuple[str, str | None]:
+    """Resolve a transformed sklearn feature name to raw feature and category."""
     name_without_transformer = (
         transformed_name.split("__", 1)[1]
         if "__" in transformed_name
@@ -348,6 +355,7 @@ def _build_feature_importance_rows(
     feature_labels: list[str],
     shap_values: np.ndarray,
 ) -> list[dict[str, Any]]:
+    """Aggregate transformed SHAP values into feature-importance rows."""
     mean_abs_values = np.abs(shap_values).mean(axis=0)
     importance_by_label: dict[str, float] = {}
     for feature_label, importance_value in zip(
@@ -386,6 +394,7 @@ def _build_reason_rows(
     feature_labels: list[str],
     shap_values: np.ndarray,
 ) -> list[dict[str, Any]]:
+    """Build up to three positive-risk SHAP reason labels for each scored row."""
     rows: list[dict[str, Any]] = []
     for row_index, scored_record in scored_frame.iterrows():
         local_values = shap_values[row_index]
@@ -424,6 +433,7 @@ def _update_credit_risk_score_reasons(
     connection: duckdb.DuckDBPyConnection,
     reason_rows: list[dict[str, Any]],
 ) -> None:
+    """Merge generated reason fields back into credit_risk_scores."""
     score_frame = connection.execute("SELECT * FROM credit_risk_scores").fetch_df()
     if score_frame.empty:
         raise ExplainabilityError("credit_risk_scores must not be empty")
@@ -464,6 +474,7 @@ def _write_shap_summary(
     feature_labels: list[str],
     random_seed: int,
 ) -> None:
+    """Write SHAP summary plot, falling back to a local matplotlib version."""
     sample_indexes = _summary_sample_indexes(shap_values.shape[0], random_seed)
     sampled_shap_values = shap_values[sample_indexes]
     sampled_features = _to_dense(transformed_features[sample_indexes])
@@ -510,6 +521,7 @@ def _write_shap_package_summary(
     sampled_shap_values: np.ndarray,
     feature_labels: list[str],
 ) -> bool:
+    """Write a SHAP package summary plot when shap is installed."""
     try:
         import shap
     except ImportError:
@@ -530,6 +542,7 @@ def _write_shap_package_summary(
 
 
 def _save_shap_figure(path: Path, figure: Any) -> None:
+    """Persist and validate a SHAP figure file."""
     figure.tight_layout()
     figure.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(figure)
@@ -538,6 +551,7 @@ def _save_shap_figure(path: Path, figure: Any) -> None:
 
 
 def _summary_sample_indexes(row_count: int, random_seed: int) -> np.ndarray:
+    """Return deterministic row indexes for bounded SHAP summary plotting."""
     if row_count <= 0:
         raise ExplainabilityError(
             "Cannot sample SHAP summary rows from an empty explanation set"
@@ -551,6 +565,7 @@ def _summary_sample_indexes(row_count: int, random_seed: int) -> np.ndarray:
 
 
 def _to_dense(matrix: Any) -> np.ndarray:
+    """Convert sparse or dense transformed features to a numpy array."""
     if hasattr(matrix, "toarray"):
         return np.asarray(matrix.toarray())
     return np.asarray(matrix)
@@ -559,6 +574,7 @@ def _to_dense(matrix: Any) -> np.ndarray:
 def _validate_explanation_texts(
     texts: list[str], excluded_terms: set[str], output_name: str
 ) -> None:
+    """Validate explanation labels do not expose excluded raw fields."""
     for text in texts:
         if _contains_excluded_term(text, excluded_terms):
             raise ExplainabilityError(
@@ -567,6 +583,7 @@ def _validate_explanation_texts(
 
 
 def _contains_excluded_term(text: str, excluded_terms: set[str]) -> bool:
+    """Return whether normalized text includes any excluded raw feature term."""
     normalized_text = _normalize_output_text(text)
     return any(
         _normalize_output_text(term) in normalized_text for term in excluded_terms
@@ -574,6 +591,7 @@ def _contains_excluded_term(text: str, excluded_terms: set[str]) -> bool:
 
 
 def _excluded_output_terms(config: dict[str, Any]) -> set[str]:
+    """Build the set of raw config fields barred from explanation text."""
     terms = {"source_population"}
     for column_names in config["excluded_features"].values():
         terms.update(str(column_name) for column_name in column_names)
@@ -581,10 +599,12 @@ def _excluded_output_terms(config: dict[str, Any]) -> set[str]:
 
 
 def _normalize_output_text(text: str) -> str:
+    """Normalize labels for conservative excluded-term matching."""
     return " ".join(text.lower().replace("_", " ").split())
 
 
 def main() -> None:
+    """Run the explainability CLI."""
     parser = argparse.ArgumentParser(
         description="Generate SHAP feature importance and reason-code-style outputs."
     )

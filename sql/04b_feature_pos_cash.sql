@@ -1,3 +1,5 @@
+-- POS cash balance is monthly per previous loan. This table summarizes status,
+-- delinquency, and remaining-installment pressure at applicant grain.
 CREATE OR REPLACE TABLE f_pos_cash_agg AS
 WITH pos_cash AS (
     SELECT

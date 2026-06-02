@@ -57,6 +57,7 @@ class CalibrationError(RuntimeError):
 def run_calibration_experiment(
     config_path: str | Path = DEFAULT_CONFIG_PATH,
 ) -> dict[str, Any]:
+    """Run the LightGBM probability calibration comparison and save its artifact."""
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -167,6 +168,7 @@ def _build_uncalibrated_predictions(
     split_frames: dict[str, pd.DataFrame],
     feature_columns: list[str],
 ) -> dict[str, pd.DataFrame]:
+    """Predict raw LightGBM probabilities for all evaluation splits."""
     prediction_frames = {}
     for split_name, frame in split_frames.items():
         probabilities = predict_probabilities(
@@ -185,6 +187,7 @@ def _build_comparison_outputs(
     manual_review_capacity_rate: float,
     created_at: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build calibration comparison metric rows and bin rows."""
     comparison_rows: list[dict[str, Any]] = []
     all_bin_rows: list[dict[str, Any]] = []
     for method, split_predictions in predictions_by_method.items():
@@ -240,6 +243,7 @@ def _build_bin_rows(
     prediction_frames: dict[str, pd.DataFrame],
     created_at: str,
 ) -> list[dict[str, Any]]:
+    """Build calibration-bin rows annotated with calibration method metadata."""
     return [
         {
             **row,
@@ -254,6 +258,7 @@ def _build_bin_rows(
 
 
 def _bin_error_summary(bin_rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    """Summarize absolute calibration-bin errors for each reporting split."""
     summaries: dict[str, dict[str, float]] = {}
     for split_name in REPORTING_SPLITS:
         split_rows = [
@@ -285,6 +290,7 @@ def _bin_error_summary(bin_rows: list[dict[str, Any]]) -> dict[str, dict[str, fl
 
 
 def main() -> None:
+    """Run the calibration experiment CLI."""
     parser = argparse.ArgumentParser(
         description="Run post-v1 probability calibration comparison for the LightGBM model.",
     )

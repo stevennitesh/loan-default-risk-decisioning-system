@@ -38,6 +38,7 @@ class IngestionError(RuntimeError):
 def run_ingestion(
     config_path: str | Path = DEFAULT_CONFIG_PATH,
 ) -> list[dict[str, Any]]:
+    """Convert configured raw CSV files to Parquet and DuckDB staging tables."""
     config = load_config(config_path)
 
     raw_dir = resolve_config_path(config, "raw_dir")
@@ -114,6 +115,7 @@ def run_ingestion(
 
 
 def _validate_source_name(source_name: str) -> None:
+    """Validate that a configured source name has a supported staging table."""
     if source_name not in SUPPORTED_SOURCE_FILES:
         raise IngestionError(f"Unsupported source file key: {source_name}")
     if source_name not in STAGING_TABLES:
@@ -123,11 +125,13 @@ def _validate_source_name(source_name: str) -> None:
 
 
 def _sql_path(path: Path) -> str:
+    """Return a SQL-safe absolute path literal for DuckDB file functions."""
     escaped = path.resolve().as_posix().replace("'", "''")
     return f"'{escaped}'"
 
 
 def _display_path(path: Path) -> str:
+    """Return a repo-relative path when possible for inventory reports."""
     resolved = path.resolve()
     try:
         return resolved.relative_to(REPO_ROOT).as_posix()
@@ -136,6 +140,7 @@ def _display_path(path: Path) -> str:
 
 
 def main() -> None:
+    """Run the ingestion CLI."""
     parser = argparse.ArgumentParser(
         description="Convert raw CSV files to Parquet and DuckDB staging tables."
     )

@@ -22,6 +22,7 @@ def select_model_type_by_validation_pr_auc(
     baseline_pr_auc: float,
     lightgbm_pr_auc: float,
 ) -> str:
+    """Select the model family using validation PR-AUC as the controlling metric."""
     return (
         LIGHTGBM_MODEL_TYPE
         if lightgbm_pr_auc >= baseline_pr_auc

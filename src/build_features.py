@@ -86,6 +86,7 @@ class FeatureBuildError(RuntimeError):
 def run_feature_build(
     config_path: str | Path = DEFAULT_CONFIG_PATH,
 ) -> list[dict[str, Any]]:
+    """Execute feature SQL, validate contracts, and write feature reports."""
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     report_dir = resolve_config_path(config, "report_dir")
@@ -115,22 +116,26 @@ def run_feature_build(
 
 
 def _feature_sql_files(config: dict[str, Any]) -> list[str]:
+    """Return the ordered feature SQL files for the configured data scope."""
     return (
         POST_V1_FEATURE_SQL_FILES if is_post_v1_scope(config) else V1_FEATURE_SQL_FILES
     )
 
 
 def _profile_tables(config: dict[str, Any]) -> list[str]:
+    """Return feature tables that should be summarized after SQL execution."""
     return POST_V1_PROFILE_TABLES if is_post_v1_scope(config) else V1_PROFILE_TABLES
 
 
 def _required_staging_tables(config: dict[str, Any]) -> list[str]:
+    """Return staging table names required before feature SQL can run."""
     return [STAGING_TABLES[source_name] for source_name in config["source_files"]]
 
 
 def _ensure_staging_tables(
     connection: duckdb.DuckDBPyConnection, config: dict[str, Any]
 ) -> None:
+    """Raise when feature SQL prerequisites are missing from DuckDB."""
     available_tables = existing_tables(connection)
     missing_tables = sorted(
         set(_required_staging_tables(config)).difference(available_tables)
@@ -145,6 +150,7 @@ def _profile_feature_tables(
     connection: duckdb.DuckDBPyConnection,
     config: dict[str, Any],
 ) -> list[dict[str, Any]]:
+    """Build row, applicant, duplicate-key, and column counts for feature tables."""
     profile_created_at = created_at_utc()
     rows: list[dict[str, Any]] = []
     available_tables = existing_tables(connection)
@@ -190,12 +196,14 @@ def _profile_feature_tables(
 
 
 def _profile_key_columns(columns: list[str]) -> tuple[str, ...]:
+    """Return the grain key used for duplicate counts in profile reports."""
     if "source_population" in columns:
         return ("SK_ID_CURR", "source_population")
     return ("SK_ID_CURR",)
 
 
 def main() -> None:
+    """Run the feature-build CLI."""
     parser = argparse.ArgumentParser(
         description="Build SQL feature tables and the final feature mart."
     )

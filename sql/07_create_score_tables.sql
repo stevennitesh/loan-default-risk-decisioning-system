@@ -1,3 +1,5 @@
+-- Legacy score-table DDL for manual DuckDB bootstrap. Runtime scoring replaces
+-- credit_risk_scores from Python using the current report_contracts column set.
 CREATE TABLE IF NOT EXISTS credit_risk_scores (
     applicant_id BIGINT,
     scoring_population VARCHAR,

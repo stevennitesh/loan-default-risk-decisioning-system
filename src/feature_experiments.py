@@ -61,6 +61,7 @@ def run_single_feature_set(
     random_seed: int | None = None,
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, Any]:
+    """Train, calibrate, threshold, and summarize one feature-set candidate."""
     random_seed = (
         project_random_seed(config) if random_seed is None else int(random_seed)
     )
@@ -166,6 +167,7 @@ def load_lightgbm_artifact(
     model_dir: Path,
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, Any]:
+    """Load the base LightGBM artifact for feature experiments."""
     artifact_path = model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME
     return load_model_artifact(
         artifact_path,
@@ -181,6 +183,7 @@ def load_feature_importance_rows(
     report_dir: Path,
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> list[dict[str, Any]]:
+    """Load feature-importance rows that seed top-N feature subsets."""
     path = report_dir / "model_feature_importance.csv"
     if not path.exists():
         raise error_cls(f"Missing feature importance report: {path}")
@@ -191,6 +194,7 @@ def ranked_raw_features(
     importance_rows: list[dict[str, Any]],
     feature_columns: list[str],
 ) -> list[str]:
+    """Map ranked display labels back to raw model feature names."""
     label_to_raw_feature = {
         _normalize_feature_label(readable_feature_label(feature_column)): feature_column
         for feature_column in feature_columns
@@ -215,6 +219,7 @@ def feature_sets(
     include_full: bool,
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> list[tuple[str, list[str], int | None]]:
+    """Build top-N and optional full feature-set specifications."""
     candidate_sets = []
     full_count = len(full_feature_columns)
     for limit in feature_limits:
@@ -237,6 +242,7 @@ def prepare_feature_set_specs(
     include_full: bool,
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> list[tuple[str, list[str], int | None]]:
+    """Build feature-set specifications from saved SHAP importance ranking."""
     importance_rows = load_feature_importance_rows(report_dir, error_cls=error_cls)
     ranked_features = ranked_raw_features(importance_rows, full_feature_columns)
     max_limit = max(feature_limits) if feature_limits else 0
@@ -260,6 +266,7 @@ def load_split_frames(
     feature_columns: list[str],
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, pd.DataFrame]:
+    """Load experiment split frames for a candidate feature surface."""
     return load_labeled_split_frames(
         connection,
         split_applicant_ids,
@@ -275,6 +282,7 @@ def prediction_frames(
     label_prefix: str = "feature experiment",
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, pd.DataFrame]:
+    """Build validation and test prediction frames for a candidate pipeline."""
     frames = {}
     artifact = {"pipeline": pipeline, "model_version": label_prefix}
     for split_name in REPORTING_SPLITS:
@@ -295,6 +303,7 @@ def calibration_metric_rows(
     manual_review_capacity_rate: float,
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> list[dict[str, Any]]:
+    """Build calibration-selection rows with validation and test Brier scores."""
     rows = []
     for method, split_predictions in predictions_by_method.items():
         for split_name in REPORTING_SPLITS:
@@ -320,6 +329,7 @@ def metrics_by_split(
     manual_review_capacity_rate: float,
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, dict[str, float]]:
+    """Return the standard probability metric bundle keyed by split."""
     return {
         split_name: probability_metrics(
             frame["target"],
@@ -332,6 +342,7 @@ def metrics_by_split(
 
 
 def weighted_calibration_error(frame: pd.DataFrame) -> float:
+    """Calculate applicant-weighted absolute calibration-bin error."""
     ranked = with_probability_rank_bin(frame, "bin_id", descending=False)
     total_count = len(ranked)
     weighted_error = 0.0
@@ -352,6 +363,7 @@ def balanced_threshold_rows(
     prediction_frames_by_split: dict[str, pd.DataFrame],
     created_at: str,
 ) -> list[dict[str, Any]]:
+    """Build balanced-scenario threshold rows for a feature experiment."""
     scenario_thresholds = resolve_scenario_thresholds(
         threshold_policy(config),
         prediction_frames_by_split["validation"]["probability"].to_numpy(),
@@ -367,6 +379,7 @@ def balanced_threshold_rows(
 
 
 def select_feature_set(rows: list[dict[str, Any]]) -> str:
+    """Select the best feature set using the validation-only ranking key."""
     selected = max(rows, key=feature_set_selection_key)
     return str(selected["feature_set"])
 
@@ -374,6 +387,7 @@ def select_feature_set(rows: list[dict[str, Any]]) -> str:
 def feature_set_selection_key(
     row: dict[str, Any],
 ) -> tuple[float, float, float, float, float, int]:
+    """Return the validation-first ranking key for feature-set selection."""
     return (
         float(row["validation_pr_auc"]),
         float(row["validation_top_decile_lift"]),
@@ -385,4 +399,5 @@ def feature_set_selection_key(
 
 
 def _normalize_feature_label(label: str) -> str:
+    """Normalize display labels before mapping them back to raw features."""
     return " ".join(label.lower().split())

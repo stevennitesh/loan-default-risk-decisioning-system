@@ -1,3 +1,5 @@
+-- Risk-pressure features combine applicant affordability with external scores
+-- and historical repayment/debt signals. Output stays at applicant population grain.
 CREATE OR REPLACE TABLE f_risk_pressure_features AS
 SELECT
     applicant.SK_ID_CURR,

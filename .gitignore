@@ -1,4 +1,4 @@
-# OS and editor noise
+# OS, editor, and notebook noise
 .DS_Store
 Thumbs.db
 Desktop.ini
@@ -6,18 +6,19 @@ Desktop.ini
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.example.json
+.ipynb_checkpoints/
 
-# Local environment and secrets
+# Local environment, secrets, and machine-specific config
 .env
 .env.*
 !.env.example
 *.local
+.python-version
 
-# Python
+# Python environments, bytecode, build outputs, and package metadata
 __pycache__/
 *.py[cod]
 *$py.class
-.python-version
 .venv/
 venv/
 env/
@@ -28,25 +29,26 @@ dist/
 *.egg-info/
 .eggs/
 
-# Python tooling caches
+# Python test, lint, type-check, and coverage caches
 .pytest_cache/
 pytest-cache-files-*/
 .ruff_cache/
 .mypy_cache/
 .pyre/
+.hypothesis/
 .coverage
+.coverage.*
 coverage.xml
+junit.xml
 htmlcov/
 
-# Local scratch
+# Local scratch and agent/tooling state
 .tmp/*
 !.tmp/.gitkeep
-
-# Local agent/tooling state
 .agents/
 .codex/
 
-# Data: keep directories via .gitkeep, not Kaggle/source/intermediate files
+# Data: keep directory placeholders, not Kaggle/source/intermediate files
 data/raw/*
 data/parquet/*
 data/db/*
@@ -109,6 +111,8 @@ reports/figures/generated/
 reports/tables/generated/
 !reports/**/.gitkeep
 
+# Curated experiment evidence under reports/experiments/ is intentionally tracked.
+
 # Power BI and Office temp files
 *.pbix.Backup
 *.pbit.Backup
@@ -116,6 +120,7 @@ reports/tables/generated/
 powerbi/**/.pbi/
 powerbi/**/PowerBICache/
 
-# Logs
+# Logs and local profiling output
 *.log
 logs/
+*.prof
