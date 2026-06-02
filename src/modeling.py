@@ -15,6 +15,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 
 from src.metrics import probability_metrics
+from src.metrics import target_class_values
 from src.metrics import validate_probabilities
 from src.runtime import feature_frame
 from src.runtime import sql_identifier
@@ -47,7 +48,7 @@ def load_labeled_training_frame(
     frame = connection.execute(query).fetch_df()
     if frame.empty:
         raise error_cls("No labeled application_train rows are available for training")
-    target_values = set(frame["TARGET"].dropna().astype(int).unique())
+    target_values = target_class_values(frame["TARGET"], dropna=True)
     if target_values != {0, 1}:
         raise error_cls(f"Training TARGET must contain both binary classes, got {sorted(target_values)}")
     return frame
@@ -86,7 +87,7 @@ def split_labeled_frame(
         "test": test_frame.sort_values("SK_ID_CURR").reset_index(drop=True),
     }
     for split_name, split_frame in split_frames.items():
-        split_targets = set(split_frame["TARGET"].astype(int).unique())
+        split_targets = target_class_values(split_frame["TARGET"])
         if split_targets != {0, 1}:
             raise error_cls(f"{split_name} split must contain both target classes")
     return split_frames

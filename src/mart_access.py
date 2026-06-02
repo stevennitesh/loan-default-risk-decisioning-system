@@ -5,6 +5,7 @@ from typing import Any
 import duckdb
 import pandas as pd
 
+from src.metrics import target_class_values
 from src.runtime import sql_identifier
 from src.runtime import sql_literal
 
@@ -103,7 +104,7 @@ def load_labeled_split_frame(
     if frame["TARGET"].isna().any():
         raise error_cls(f"{split_name} rows must have observed TARGET values")
     if require_both_target_classes:
-        targets = set(frame["TARGET"].astype(int).unique())
+        targets = target_class_values(frame["TARGET"])
         if targets != {0, 1}:
             raise error_cls(f"{split_name} split must contain binary TARGET classes, got {sorted(targets)}")
     return frame.reset_index(drop=True)
@@ -177,7 +178,7 @@ def load_labeled_segment_split_frame(
         error_cls,
         f"Saved split IDs no longer reconcile for {split_name} dashboard export: missing {{missing_ids}}",
     )
-    target_values = set(frame["TARGET"].dropna().astype(int).unique())
+    target_values = target_class_values(frame["TARGET"], dropna=True)
     if target_values != {0, 1}:
         raise error_cls(f"{split_name} dashboard segment rows must contain both target classes")
     return frame.reset_index(drop=True)

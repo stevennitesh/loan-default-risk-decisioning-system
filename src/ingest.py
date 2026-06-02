@@ -6,6 +6,9 @@ from typing import Any
 
 import duckdb
 
+from src.cli import add_config_argument
+from src.cli import exit_with_error
+from src.config import DEFAULT_CONFIG_PATH
 from src.config import SUPPORTED_SOURCE_FILES
 from src.config import load_config
 from src.mart_access import fetch_count
@@ -33,7 +36,7 @@ class IngestionError(RuntimeError):
     """Raised when ingestion cannot satisfy the Milestone 1 contract."""
 
 
-def run_ingestion(config_path: str | Path = "configs/base.yaml") -> list[dict[str, Any]]:
+def run_ingestion(config_path: str | Path = DEFAULT_CONFIG_PATH) -> list[dict[str, Any]]:
     config = load_config(config_path)
 
     raw_dir = resolve_config_path(config, "raw_dir")
@@ -129,13 +132,13 @@ def _display_path(path: Path) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Convert raw CSV files to Parquet and DuckDB staging tables.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    add_config_argument(parser)
     args = parser.parse_args()
 
     try:
         run_ingestion(args.config)
     except IngestionError as error:
-        raise SystemExit(str(error)) from error
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

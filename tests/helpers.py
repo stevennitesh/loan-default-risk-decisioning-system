@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import pandas as pd
@@ -11,6 +12,7 @@ from src.mart_access import table_columns
 from src.runtime import ensure_directories
 from src.runtime import read_csv
 from src.runtime import replace_duckdb_table_from_frame
+from src.runtime import sql_identifier
 from src.runtime import write_csv
 
 
@@ -32,6 +34,23 @@ def assert_table_missing(connection: duckdb.DuckDBPyConnection, table_name: str)
 
 def read_table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -> list[str]:
     return list(table_columns(connection, table_name))
+
+
+def query_value(
+    connection: duckdb.DuckDBPyConnection,
+    sql: str,
+    parameters: list[Any] | None = None,
+) -> Any:
+    if parameters:
+        result = connection.execute(sql, parameters).fetchone()
+    else:
+        result = connection.execute(sql).fetchone()
+    assert result is not None
+    return result[0]
+
+
+def table_row_count(connection: duckdb.DuckDBPyConnection, table_name: str) -> int:
+    return int(query_value(connection, f"SELECT COUNT(*) FROM {sql_identifier(table_name)}"))
 
 
 def create_training_database(database_path: Path, train_rows: int = 40, test_rows: int = 6) -> None:

@@ -15,6 +15,7 @@ from src.report_contracts import MODEL_CALIBRATION_COMPARISON_COLUMNS
 from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
+from tests.helpers import table_row_count
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
@@ -83,12 +84,8 @@ def test_calibration_experiment_fits_on_validation_and_exports_comparison_artifa
             assert all(0 <= float(row["observed_default_rate"]) <= 1 for row in rows)
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM model_calibration_comparison").fetchone()[0] == len(
-            comparison_rows
-        )
-        assert connection.execute(
-            "SELECT COUNT(*) FROM model_calibration_bins_comparison"
-        ).fetchone()[0] == len(bin_rows)
+        assert table_row_count(connection, "model_calibration_comparison") == len(comparison_rows)
+        assert table_row_count(connection, "model_calibration_bins_comparison") == len(bin_rows)
 
 
 def test_calibration_selection_prefers_sigmoid_when_isotonic_brier_gain_is_tiny() -> None:

@@ -12,6 +12,7 @@ from sklearn.metrics import roc_curve
 
 from src.model_contracts import REPORTING_SPLITS
 from src.runtime import read_csv
+from src.thresholding import BALANCED_SCENARIO
 
 
 matplotlib.use("Agg")
@@ -52,7 +53,7 @@ def write_validation_report(
     balanced_rows = [
         row
         for row in threshold_rows
-        if row["scenario_name"] == "balanced" and row["split"] in REPORTING_SPLITS
+        if row["scenario_name"] == BALANCED_SCENARIO and row["split"] in REPORTING_SPLITS
     ]
     balanced_lines = "\n".join(
         f"- {row['split']}: approval_rate={row['approval_rate']:.4f}, "

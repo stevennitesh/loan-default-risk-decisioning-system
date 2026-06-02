@@ -8,6 +8,9 @@ from typing import Any
 import duckdb
 import pandas as pd
 
+from src.cli import add_config_argument
+from src.cli import exit_with_error
+from src.config import DEFAULT_CONFIG_PATH
 from src.config import business_assumptions
 from src.config import load_config
 from src.config import manual_review_capacity_rate
@@ -62,7 +65,7 @@ warnings.filterwarnings(
 )
 
 
-def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
+def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -322,7 +325,7 @@ def _verify_saved_model_selection(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate model metrics and export reporting tables.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    add_config_argument(parser)
     parser.add_argument("--export-dashboard-data", action="store_true", help="Export Power BI-ready dashboard data.")
     parser.add_argument(
         "--dashboard-export-dir",
@@ -348,13 +351,13 @@ def main() -> None:
                 use_calibrated_probability_quality=args.use_calibrated_dashboard_metrics,
             )
         except DashboardExportError as error:
-            raise SystemExit(str(error)) from error
+            exit_with_error(error)
         return
 
     try:
         run_evaluation(args.config)
     except EvaluationError as error:
-        raise SystemExit(str(error)) from error
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

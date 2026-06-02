@@ -96,6 +96,13 @@ def nullable_mean(series: pd.Series) -> float | None:
     return float(series.mean())
 
 
+def target_class_values(targets: pd.Series | np.ndarray, *, dropna: bool = False) -> set[int]:
+    target_series = pd.Series(targets)
+    if dropna:
+        target_series = target_series.dropna()
+    return set(target_series.astype(int).unique())
+
+
 def roc_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
     if not _has_binary_targets(targets):
         return None
@@ -109,7 +116,7 @@ def pr_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | Non
 
 
 def _has_binary_targets(targets: pd.Series) -> bool:
-    return set(targets.astype(int).unique()) == {0, 1}
+    return target_class_values(targets) == {0, 1}
 
 
 def probability_metrics(

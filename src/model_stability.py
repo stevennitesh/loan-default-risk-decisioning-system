@@ -8,6 +8,11 @@ import duckdb
 import numpy as np
 import pandas as pd
 
+from src.cli import add_config_argument
+from src.cli import exit_with_error
+from src.cli import format_int_csv
+from src.cli import parse_int_csv
+from src.config import DEFAULT_CONFIG_PATH
 from src.config import load_config
 from src.config import manual_review_capacity_rate
 from src.feature_experiments import DEFAULT_FEATURE_LIMITS
@@ -55,7 +60,7 @@ class ModelStabilityError(FeatureExperimentError):
 
 
 def run_model_stability_experiment(
-    config_path: str | Path = "configs/base.yaml",
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
     seeds: tuple[int, ...] = DEFAULT_STABILITY_SEEDS,
     feature_limits: tuple[int, ...] = DEFAULT_FEATURE_LIMITS,
     include_full: bool = True,
@@ -304,15 +309,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compare model-generation stability across repeated seeds.",
     )
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    add_config_argument(parser)
     parser.add_argument(
         "--seeds",
-        default="17,29,43",
+        default=format_int_csv(DEFAULT_STABILITY_SEEDS),
         help="Comma-separated random seeds for split/training repeats.",
     )
     parser.add_argument(
         "--feature-limits",
-        default="40,60,80,100",
+        default=format_int_csv(DEFAULT_FEATURE_LIMITS),
         help="Comma-separated top-N feature limits to compare.",
     )
     parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
@@ -333,8 +338,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    seeds = tuple(int(value.strip()) for value in args.seeds.split(",") if value.strip())
-    feature_limits = tuple(int(value.strip()) for value in args.feature_limits.split(",") if value.strip())
+    seeds = parse_int_csv(args.seeds)
+    feature_limits = parse_int_csv(args.feature_limits)
     try:
         run_model_stability_experiment(
             args.config,
@@ -346,7 +351,7 @@ def main() -> None:
             report_name=args.report_name,
         )
     except ModelStabilityError as error:
-        raise SystemExit(str(error)) from error
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

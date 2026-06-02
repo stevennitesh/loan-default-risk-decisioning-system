@@ -32,6 +32,7 @@ from src.thresholding import SCENARIO_NAMES
 from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
+from tests.helpers import table_row_count
 from tests.helpers import table_exists
 
 
@@ -109,10 +110,7 @@ def test_run_dashboard_export_creates_power_bi_csv_bundle_and_segment_table(
     with duckdb.connect(str(database_path), read_only=True) as connection:
         assert table_exists(connection, "segment_performance_summary")
         for table_name in DASHBOARD_EXPORT_TABLES:
-            duckdb_count = connection.execute(
-                f'SELECT COUNT(*) FROM "{table_name}"'
-            ).fetchone()[0]
-            assert duckdb_count == result["row_counts"][table_name]
+            assert table_row_count(connection, table_name) == result["row_counts"][table_name]
 
         segment_rows = connection.execute(
             """

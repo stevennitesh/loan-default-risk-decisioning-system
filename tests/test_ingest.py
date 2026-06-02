@@ -8,6 +8,7 @@ from src.report_contracts import INGESTION_SUMMARY_COLUMNS
 from src.runtime import ensure_directories
 from tests.helpers import read_csv_rows
 from tests.helpers import read_table_columns
+from tests.helpers import table_row_count
 from tests.helpers import table_names
 
 
@@ -85,10 +86,7 @@ def test_ingestion_converts_required_csvs_and_loads_duckdb_staging_without_optio
         for row in summary_rows:
             assert row["staging_table"] == EXPECTED_STAGING_TABLES[row["source_name"]]
             assert row["csv_rows"] == row["parquet_rows"] == row["duckdb_rows"]
-            duckdb_rows = connection.execute(
-                f"SELECT COUNT(*) FROM {row['staging_table']}"
-            ).fetchone()[0]
-            assert duckdb_rows == int(row["duckdb_rows"])
+            assert table_row_count(connection, row["staging_table"]) == int(row["duckdb_rows"])
 
         assert "TARGET" in read_table_columns(connection, "stg_application_train")
         assert "TARGET" not in read_table_columns(connection, "stg_application_test")

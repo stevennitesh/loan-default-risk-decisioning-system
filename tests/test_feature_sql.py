@@ -6,6 +6,7 @@ import yaml
 
 from src.build_features import FeatureBuildError, run_feature_build
 from src.report_contracts import FEATURE_PROFILE_COLUMNS
+from tests.helpers import query_value
 from tests.helpers import read_csv_rows
 from tests.helpers import read_table_columns
 from tests.helpers import table_names
@@ -304,7 +305,8 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
         ).fetchone()
         assert target_counts == (2, 1)
 
-        duplicate_count = connection.execute(
+        duplicate_count = query_value(
+            connection,
             """
             SELECT COUNT(*)
             FROM (
@@ -314,7 +316,7 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
                 HAVING COUNT(*) > 1
             )
             """
-        ).fetchone()[0]
+        )
         assert duplicate_count == 0
 
     saved_profile = read_csv_rows(

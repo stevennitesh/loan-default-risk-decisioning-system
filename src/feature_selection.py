@@ -6,6 +6,11 @@ from typing import Any
 
 import duckdb
 
+from src.cli import add_config_argument
+from src.cli import exit_with_error
+from src.cli import format_int_csv
+from src.cli import parse_int_csv
+from src.config import DEFAULT_CONFIG_PATH
 from src.config import load_config
 from src.config import manual_review_capacity_rate
 from src.feature_experiments import DEFAULT_FEATURE_LIMITS
@@ -35,7 +40,7 @@ class FeatureSelectionError(FeatureExperimentError):
 
 
 def run_feature_selection_experiment(
-    config_path: str | Path = "configs/base.yaml",
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
     feature_limits: tuple[int, ...] = DEFAULT_FEATURE_LIMITS,
     include_full: bool = True,
     comparison_name: str = "feature_selection_comparison.csv",
@@ -223,10 +228,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compare top-N feature-selection variants for the LightGBM risk model.",
     )
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    add_config_argument(parser)
     parser.add_argument(
         "--feature-limits",
-        default="40,60,80,100",
+        default=format_int_csv(DEFAULT_FEATURE_LIMITS),
         help="Comma-separated top-N feature limits to compare.",
     )
     parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
@@ -246,7 +251,7 @@ def main() -> None:
         help="Markdown report filename under reports/experiments.",
     )
     args = parser.parse_args()
-    feature_limits = tuple(int(value.strip()) for value in args.feature_limits.split(",") if value.strip())
+    feature_limits = parse_int_csv(args.feature_limits)
 
     try:
         run_feature_selection_experiment(
@@ -258,7 +263,7 @@ def main() -> None:
             report_name=args.report_name,
         )
     except FeatureSelectionError as error:
-        raise SystemExit(str(error)) from error
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

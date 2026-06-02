@@ -6,6 +6,8 @@ from typing import Any
 import yaml
 
 
+DEFAULT_CONFIG_PATH = "configs/base.yaml"
+
 REQUIRED_SECTIONS = {
     "project",
     "paths",
@@ -45,7 +47,7 @@ class ConfigError(ValueError):
     """Raised when the project config violates the documented contract."""
 
 
-def load_config(path: str | Path = "configs/base.yaml") -> dict[str, Any]:
+def load_config(path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     config_path = Path(path)
     if not config_path.exists():
         raise ConfigError(f"Config file not found: {config_path}")

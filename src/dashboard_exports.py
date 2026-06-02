@@ -7,6 +7,7 @@ import duckdb
 import pandas as pd
 
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
+from src.config import DEFAULT_CONFIG_PATH
 from src.config import load_config
 from src.dashboard_probability_quality import build_probability_quality_overrides
 from src.dashboard_segments import build_segment_performance_rows
@@ -77,7 +78,7 @@ class DashboardExportError(RuntimeError):
 
 
 def run_dashboard_export(
-    config_path: str | Path = "configs/base.yaml",
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
     export_dir: str | Path | None = None,
     use_calibrated_probability_quality: bool = False,
 ) -> dict[str, Any]:

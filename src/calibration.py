@@ -7,6 +7,7 @@ import pandas as pd
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 
+from src.metrics import target_class_values
 from src.metrics import validate_probabilities
 
 CALIBRATION_METHODS = ("uncalibrated", "sigmoid", "isotonic")
@@ -22,7 +23,7 @@ def fit_calibrators(
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, Any]:
     validate_probabilities(validation_probabilities, "validation calibration input", error_cls=error_cls)
-    target_values = {int(value) for value in validation_targets}
+    target_values = target_class_values(validation_targets)
     if target_values != {0, 1}:
         raise error_cls("Calibration fit split must contain both target classes")
 

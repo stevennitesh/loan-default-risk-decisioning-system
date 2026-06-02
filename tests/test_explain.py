@@ -15,6 +15,7 @@ from src.train import run_training
 from tests.helpers import assert_table_missing
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
+from tests.helpers import table_row_count
 
 
 FORBIDDEN_EXPLANATION_TERMS = {
@@ -105,10 +106,7 @@ def test_run_explain_creates_importance_outputs_and_updates_reason_fields(
         _assert_no_forbidden_terms(row["feature_name"])
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
-        table_rows = connection.execute(
-            "SELECT COUNT(*) FROM model_feature_importance"
-        ).fetchone()[0]
-        assert table_rows == len(importance_rows)
+        assert table_row_count(connection, "model_feature_importance") == len(importance_rows)
         reason_rows = connection.execute(
             """
             SELECT top_reason_1, top_reason_2, top_reason_3

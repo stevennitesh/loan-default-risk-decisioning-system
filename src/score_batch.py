@@ -10,6 +10,9 @@ import pandas as pd
 
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
 from src.calibration import apply_saved_calibration_artifact
+from src.cli import add_config_argument
+from src.cli import exit_with_error
+from src.config import DEFAULT_CONFIG_PATH
 from src.config import load_config
 from src.metrics import validate_probabilities
 from src.metrics import with_probability_rank_bin
@@ -29,6 +32,7 @@ from src.runtime import replace_duckdb_table
 from src.runtime import require_existing_path
 from src.runtime import resolve_config_path
 from src.thresholding import assign_risk_bands
+from src.thresholding import BALANCED_SCENARIO
 
 
 ACTION_LABELS = {
@@ -42,7 +46,7 @@ class ScoringError(RuntimeError):
     """Raised when batch scoring cannot satisfy the Milestone 8 contract."""
 
 
-def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
+def run_scoring(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -126,10 +130,10 @@ def _load_balanced_threshold_policy(
         SELECT threshold_version, threshold_low, threshold_high
         FROM model_threshold_metrics
         WHERE split = 'validation'
-          AND scenario_name = 'balanced'
+          AND scenario_name = ?
           AND model_version = ?
         """,
-        [model_version],
+        [BALANCED_SCENARIO, model_version],
     ).fetchall()
     if len(rows) != 1:
         raise ScoringError(
@@ -244,13 +248,13 @@ def _validate_output_rows(rows: list[dict[str, Any]]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score applicants in batch and write DuckDB score outputs.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    add_config_argument(parser)
     args = parser.parse_args()
 
     try:
         run_scoring(args.config)
     except ScoringError as error:
-        raise SystemExit(str(error)) from error
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

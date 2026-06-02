@@ -14,6 +14,7 @@ from src.train import TrainingError
 from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
+from tests.helpers import table_row_count
 
 
 REQUIRED_METRICS = {
@@ -141,11 +142,11 @@ def test_run_training_creates_model_artifacts_reports_and_duckdb_tables(
             assert probabilities.min() >= 0
             assert probabilities.max() <= 1
 
-        assert connection.execute("SELECT COUNT(*) FROM model_run_summary").fetchone()[0] == 2
-        assert connection.execute("SELECT COUNT(*) FROM split_summary").fetchone()[0] == 3
-        assert connection.execute("SELECT COUNT(*) FROM model_metrics_summary").fetchone()[0] == 48
-        assert connection.execute("SELECT COUNT(*) FROM model_comparison_summary").fetchone()[0] == 8
-        assert connection.execute("SELECT COUNT(*) FROM lightgbm_tuning_summary").fetchone()[0] == 4
+        assert table_row_count(connection, "model_run_summary") == 2
+        assert table_row_count(connection, "split_summary") == 3
+        assert table_row_count(connection, "model_metrics_summary") == 48
+        assert table_row_count(connection, "model_comparison_summary") == 8
+        assert table_row_count(connection, "lightgbm_tuning_summary") == 4
 
     run_rows = read_csv_rows(scratch_path / "reports" / "model_run_summary.csv", MODEL_RUN_SUMMARY_COLUMNS)
     metrics_rows = read_csv_rows(

@@ -10,6 +10,9 @@ import matplotlib
 import numpy as np
 import pandas as pd
 
+from src.cli import add_config_argument
+from src.cli import exit_with_error
+from src.config import DEFAULT_CONFIG_PATH
 from src.config import load_config
 from src.config import project_random_seed
 from src.feature_labels import readable_feature_label
@@ -54,7 +57,7 @@ warnings.filterwarnings(
 )
 
 
-def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
+def run_explain(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -524,13 +527,13 @@ def _normalize_output_text(text: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate SHAP feature importance and reason-code-style outputs.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    add_config_argument(parser)
     args = parser.parse_args()
 
     try:
         run_explain(args.config)
     except ExplainabilityError as error:
-        raise SystemExit(str(error)) from error
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

@@ -5,10 +5,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-SCENARIO_NAMES = ("growth_oriented", "balanced", "risk_averse")
+BALANCED_SCENARIO = "balanced"
+SCENARIO_NAMES = ("growth_oriented", BALANCED_SCENARIO, "risk_averse")
 SCENARIO_QUANTILES = {
     "growth_oriented": (0.85, 0.95),
-    "balanced": (0.80, 0.90),
+    BALANCED_SCENARIO: (0.80, 0.90),
     "risk_averse": (0.70, 0.80),
 }
 

@@ -9,6 +9,9 @@ import duckdb
 import joblib
 import pandas as pd
 
+from src.cli import add_config_argument
+from src.cli import exit_with_error
+from src.config import DEFAULT_CONFIG_PATH
 from src.config import load_config
 from src.config import data_scope_version
 from src.config import manual_review_capacity_rate
@@ -58,7 +61,7 @@ warnings.filterwarnings(
 )
 
 
-def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
+def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -386,13 +389,13 @@ def _build_run_summary_row(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train baseline and primary credit-risk models.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
+    add_config_argument(parser)
     args = parser.parse_args()
 
     try:
         run_training(args.config)
     except TrainingError as error:
-        raise SystemExit(str(error)) from error
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

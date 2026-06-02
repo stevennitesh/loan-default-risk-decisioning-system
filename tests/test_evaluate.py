@@ -17,6 +17,7 @@ from src.thresholding import SCENARIO_NAMES
 from src.train import run_training
 from tests.helpers import create_training_database
 from tests.helpers import read_csv_rows
+from tests.helpers import table_row_count
 from tests.helpers import table_exists
 
 
@@ -228,19 +229,9 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
     assert "Kaggle application_test rows are not used for evaluation metrics" in validation_report
 
     with duckdb.connect(str(scratch_path / "db" / "credit_risk.duckdb"), read_only=True) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM model_metrics_summary").fetchone()[0] == len(
-            metrics_rows
-        )
-        assert connection.execute("SELECT COUNT(*) FROM model_lift_by_decile").fetchone()[0] == len(
-            lift_rows
-        )
-        assert connection.execute("SELECT COUNT(*) FROM model_calibration_bins").fetchone()[0] == len(
-            calibration_rows
-        )
-        assert connection.execute("SELECT COUNT(*) FROM model_confusion_matrix").fetchone()[0] == len(
-            confusion_rows
-        )
-        assert connection.execute("SELECT COUNT(*) FROM model_threshold_metrics").fetchone()[0] == len(
-            threshold_rows
-        )
+        assert table_row_count(connection, "model_metrics_summary") == len(metrics_rows)
+        assert table_row_count(connection, "model_lift_by_decile") == len(lift_rows)
+        assert table_row_count(connection, "model_calibration_bins") == len(calibration_rows)
+        assert table_row_count(connection, "model_confusion_matrix") == len(confusion_rows)
+        assert table_row_count(connection, "model_threshold_metrics") == len(threshold_rows)
         assert table_exists(connection, "model_threshold_metrics")

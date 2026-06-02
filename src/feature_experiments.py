@@ -31,6 +31,7 @@ from src.metrics import probability_metrics
 from src.metrics import with_probability_rank_bin
 from src.runtime import read_csv
 from src.thresholding import build_threshold_metric_rows
+from src.thresholding import BALANCED_SCENARIO
 from src.thresholding import resolve_scenario_thresholds
 
 
@@ -111,7 +112,7 @@ def run_single_feature_set(
     balanced_ev = {
         row["split"]: float(row["expected_value_per_applicant"])
         for row in threshold_rows
-        if row["scenario_name"] == "balanced"
+        if row["scenario_name"] == BALANCED_SCENARIO
     }
     selected_candidate = build_lightgbm_tuning_artifact(tuning)["selected_candidate"]
     return {
