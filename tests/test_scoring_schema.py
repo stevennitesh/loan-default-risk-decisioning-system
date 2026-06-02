@@ -9,18 +9,23 @@ import pytest
 from src.calibrate import run_calibration_experiment
 from src.evaluate import run_evaluation
 from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
-from src.score_batch import ScoringError
-from src.score_batch import run_scoring
+from src.score_batch import ScoringError, run_scoring
+from src.thresholding import BALANCED_SCENARIO
 from src.train import run_training
-from tests.helpers import assert_table_missing
-from tests.helpers import create_training_database
-from tests.helpers import read_table_columns
-
+from tests.helpers import (
+    assert_table_missing,
+    create_training_database,
+    query_value,
+    read_table_columns,
+    table_row_count,
+)
 
 VALID_RISK_BANDS = {"low_risk", "medium_risk", "high_risk"}
 VALID_ACTIONS = {"approve", "manual_review", "high_priority_review"}
 
-pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:X does not have valid feature names.*:UserWarning"
+)
 
 
 def test_scoring_fails_clearly_without_model_selection(
@@ -61,9 +66,10 @@ def test_scoring_fails_clearly_without_selected_model_artifact(
     run_training(project_config_path)
     run_evaluation(project_config_path)
     with duckdb.connect(str(database_path), read_only=True) as connection:
-        selected_model_type = connection.execute(
-            "SELECT selected_model_type FROM model_comparison_summary LIMIT 1"
-        ).fetchone()[0]
+        selected_model_type = query_value(
+            connection,
+            "SELECT selected_model_type FROM model_comparison_summary LIMIT 1",
+        )
     artifact_name = (
         "lightgbm_credit_risk.joblib"
         if selected_model_type == "lightgbm"
@@ -98,9 +104,11 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
     with duckdb.connect(str(database_path), read_only=True) as connection:
         columns = read_table_columns(connection, "credit_risk_scores")
         assert columns == CREDIT_RISK_SCORE_COLUMNS
-        assert connection.execute("SELECT COUNT(*) FROM credit_risk_scores").fetchone()[0] == expected_total_rows
-        assert connection.execute(
-            """
+        assert table_row_count(connection, "credit_risk_scores") == expected_total_rows
+        assert (
+            query_value(
+                connection,
+                """
             SELECT COUNT(*)
             FROM (
                 SELECT applicant_id, scoring_population, model_version, threshold_version
@@ -108,8 +116,10 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
                 GROUP BY applicant_id, scoring_population, model_version, threshold_version
                 HAVING COUNT(*) > 1
             )
-            """
-        ).fetchone()[0] == 0
+            """,
+            )
+            == 0
+        )
 
         population_rows = dict(
             connection.execute(
@@ -124,22 +134,30 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
             "holdout_test": expected_holdout_rows,
             "kaggle_test": expected_kaggle_rows,
         }
-        assert connection.execute(
-            """
+        assert (
+            query_value(
+                connection,
+                """
             SELECT COUNT(*)
             FROM credit_risk_scores
             WHERE scoring_population = 'holdout_test'
               AND observed_target IS NOT NULL
-            """
-        ).fetchone()[0] == expected_holdout_rows
-        assert connection.execute(
-            """
+            """,
+            )
+            == expected_holdout_rows
+        )
+        assert (
+            query_value(
+                connection,
+                """
             SELECT COUNT(*)
             FROM credit_risk_scores
             WHERE scoring_population = 'kaggle_test'
               AND observed_target IS NULL
-            """
-        ).fetchone()[0] == expected_kaggle_rows
+            """,
+            )
+            == expected_kaggle_rows
+        )
 
         min_score, max_score = connection.execute(
             "SELECT MIN(score), MAX(score) FROM credit_risk_scores"
@@ -157,47 +175,69 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
         ).fetchone()
         assert 0 <= raw_min <= raw_max <= 1
         assert 0 <= calibrated_min <= calibrated_max <= 1
-        assert connection.execute(
-            "SELECT COUNT(*) FROM credit_risk_scores WHERE score < 0 OR score > 1"
-        ).fetchone()[0] == 0
-        assert connection.execute(
-            """
+        assert (
+            query_value(
+                connection,
+                "SELECT COUNT(*) FROM credit_risk_scores WHERE score < 0 OR score > 1",
+            )
+            == 0
+        )
+        assert (
+            query_value(
+                connection,
+                """
             SELECT COUNT(*)
             FROM credit_risk_scores
             WHERE raw_risk_score < 0
                OR raw_risk_score > 1
                OR calibrated_risk_score < 0
                OR calibrated_risk_score > 1
-            """
-        ).fetchone()[0] == 0
+            """,
+            )
+            == 0
+        )
         assert {
             row[0]
-            for row in connection.execute("SELECT DISTINCT calibration_method FROM credit_risk_scores").fetchall()
+            for row in connection.execute(
+                "SELECT DISTINCT calibration_method FROM credit_risk_scores"
+            ).fetchall()
         } == {calibration_result["selected_method"]}
-        assert connection.execute(
-            """
+        assert (
+            query_value(
+                connection,
+                """
             SELECT COUNT(*)
             FROM credit_risk_scores
             WHERE ABS(score - raw_risk_score) > 1e-12
-            """
-        ).fetchone()[0] == 0
+            """,
+            )
+            == 0
+        )
         assert {
             row[0]
-            for row in connection.execute("SELECT DISTINCT risk_band FROM credit_risk_scores").fetchall()
+            for row in connection.execute(
+                "SELECT DISTINCT risk_band FROM credit_risk_scores"
+            ).fetchall()
         }.issubset(VALID_RISK_BANDS)
         assert {
             row[0]
-            for row in connection.execute("SELECT DISTINCT recommended_action FROM credit_risk_scores").fetchall()
+            for row in connection.execute(
+                "SELECT DISTINCT recommended_action FROM credit_risk_scores"
+            ).fetchall()
         }.issubset(VALID_ACTIONS)
-        assert connection.execute(
-            """
+        assert (
+            query_value(
+                connection,
+                """
             SELECT COUNT(*)
             FROM credit_risk_scores
             WHERE top_reason_1 IS NOT NULL
                OR top_reason_2 IS NOT NULL
                OR top_reason_3 IS NOT NULL
-            """
-        ).fetchone()[0] == 0
+            """,
+            )
+            == 0
+        )
 
         for population in ["holdout_test", "kaggle_test"]:
             decile_min, decile_max = connection.execute(
@@ -209,7 +249,8 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
                 [population],
             ).fetchone()
             assert 1 <= decile_min <= decile_max <= 10
-            high_risk_decile_score = connection.execute(
+            high_risk_decile_score = query_value(
+                connection,
                 """
                 SELECT AVG(score)
                 FROM credit_risk_scores
@@ -217,8 +258,9 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
                   AND score_decile = 1
                 """,
                 [population],
-            ).fetchone()[0]
-            low_risk_decile_score = connection.execute(
+            )
+            low_risk_decile_score = query_value(
+                connection,
                 """
                 SELECT AVG(score)
                 FROM credit_risk_scores
@@ -226,27 +268,36 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
                   AND score_decile = 10
                 """,
                 [population],
-            ).fetchone()[0]
+            )
             assert high_risk_decile_score >= low_risk_decile_score
 
-        threshold_low, threshold_high, threshold_version, model_version = connection.execute(
-            """
+        threshold_low, threshold_high, threshold_version, model_version = (
+            connection.execute(
+                """
             SELECT threshold_low, threshold_high, threshold_version, model_version
             FROM model_threshold_metrics
             WHERE split = 'validation'
-              AND scenario_name = 'balanced'
-            """
-        ).fetchone()
+              AND scenario_name = ?
+            """,
+                [BALANCED_SCENARIO],
+            ).fetchone()
+        )
         assert {
             row[0]
-            for row in connection.execute("SELECT DISTINCT threshold_version FROM credit_risk_scores").fetchall()
+            for row in connection.execute(
+                "SELECT DISTINCT threshold_version FROM credit_risk_scores"
+            ).fetchall()
         } == {threshold_version}
         assert {
             row[0]
-            for row in connection.execute("SELECT DISTINCT model_version FROM credit_risk_scores").fetchall()
+            for row in connection.execute(
+                "SELECT DISTINCT model_version FROM credit_risk_scores"
+            ).fetchall()
         } == {model_version}
-        assert connection.execute(
-            """
+        assert (
+            query_value(
+                connection,
+                """
             SELECT COUNT(*)
             FROM credit_risk_scores
             WHERE (score < ? AND NOT (risk_band = 'low_risk' AND recommended_action = 'approve'))
@@ -257,5 +308,7 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
                     risk_band = 'high_risk' AND recommended_action = 'high_priority_review'
                ))
             """,
-            [threshold_low, threshold_low, threshold_high, threshold_high],
-        ).fetchone()[0] == 0
+                [threshold_low, threshold_low, threshold_high, threshold_high],
+            )
+            == 0
+        )

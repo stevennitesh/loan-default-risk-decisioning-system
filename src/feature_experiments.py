@@ -1,36 +1,47 @@
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 from typing import Any
 
 import duckdb
-import numpy as np
 import pandas as pd
 
-from src.calibration import CALIBRATION_METHODS
-from src.calibration import apply_calibration_method
-from src.calibration import fit_calibrators
-from src.calibration import select_calibration_method
+from src.calibration import (
+    CALIBRATION_METHODS,
+    apply_calibration_method,
+    fit_calibrators,
+    select_calibration_method,
+)
+from src.config import (
+    business_assumptions,
+    project_random_seed,
+    threshold_policy,
+    threshold_version,
+)
 from src.feature_labels import readable_feature_label
 from src.mart_access import load_labeled_split_frames
-from src.mart_access import require_table
+from src.metrics import probability_metrics, with_probability_rank_bin
 from src.model_artifacts import load_model_artifact
-from src.model_artifacts import normalize_split_ids as normalize_model_split_ids
-from src.model_contracts import EVALUATION_SPLITS
-from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
-from src.model_contracts import REPORTING_SPLITS
-from src.modeling import build_lightgbm_tuning_artifact
-from src.modeling import classify_feature_columns
-from src.modeling import fit_tuned_lightgbm
-from src.modeling import lightgbm_params
-from src.modeling import probability_metrics
-from src.runtime import feature_frame
-from src.thresholding import build_threshold_metric_rows
-from src.thresholding import resolve_scenario_thresholds
-
+from src.model_contracts import (
+    LIGHTGBM_MODEL_ARTIFACT_NAME,
+    LIGHTGBM_MODEL_TYPE,
+    LIGHTGBM_MODEL_VERSION,
+    REPORTING_SPLITS,
+)
+from src.modeling import (
+    build_lightgbm_tuning_artifact,
+    classify_feature_columns,
+    fit_tuned_lightgbm,
+    lightgbm_params,
+    predict_probabilities,
+    prediction_frame,
+)
+from src.runtime import read_csv
+from src.thresholding import (
+    BALANCED_SCENARIO,
+    build_threshold_metric_rows,
+    resolve_scenario_thresholds,
+)
 
 DEFAULT_FEATURE_LIMITS = (40, 60, 80, 100)
 
@@ -50,7 +61,9 @@ def run_single_feature_set(
     random_seed: int | None = None,
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, Any]:
-    random_seed = int(config["project"]["random_seed"] if random_seed is None else random_seed)
+    random_seed = (
+        project_random_seed(config) if random_seed is None else int(random_seed)
+    )
     numeric_features, categorical_features = classify_feature_columns(
         split_frames["train"],
         feature_columns,
@@ -67,7 +80,13 @@ def run_single_feature_set(
         error_cls=error_cls,
     )
     pipeline = tuning["pipeline"]
-    raw_predictions = prediction_frames(pipeline, split_frames, feature_columns)
+    raw_predictions = prediction_frames(
+        pipeline,
+        split_frames,
+        feature_columns,
+        feature_set_name,
+        error_cls,
+    )
     calibrators = fit_calibrators(
         raw_predictions["validation"]["probability"].to_numpy(),
         raw_predictions["validation"]["target"].to_numpy(),
@@ -83,13 +102,17 @@ def run_single_feature_set(
         )
         for method in CALIBRATION_METHODS
     }
-    metric_rows = calibration_metric_rows(predictions_by_method, manual_review_capacity_rate, error_cls)
+    metric_rows = calibration_metric_rows(
+        predictions_by_method, manual_review_capacity_rate, error_cls
+    )
     selected_calibration_method = select_calibration_method(
         metric_rows,
         error_cls=error_cls,
     )
     selected_predictions = predictions_by_method[selected_calibration_method]
-    metrics = metrics_by_split(selected_predictions, manual_review_capacity_rate, error_cls)
+    metrics = metrics_by_split(
+        selected_predictions, manual_review_capacity_rate, error_cls
+    )
     weighted_bin_errors = {
         split_name: weighted_calibration_error(selected_predictions[split_name])
         for split_name in REPORTING_SPLITS
@@ -103,7 +126,7 @@ def run_single_feature_set(
     balanced_ev = {
         row["split"]: float(row["expected_value_per_applicant"])
         for row in threshold_rows
-        if row["scenario_name"] == "balanced"
+        if row["scenario_name"] == BALANCED_SCENARIO
     }
     selected_candidate = build_lightgbm_tuning_artifact(tuning)["selected_candidate"]
     return {
@@ -117,7 +140,9 @@ def run_single_feature_set(
         "validation_roc_auc": metrics["validation"]["roc_auc"],
         "validation_brier_score": metrics["validation"]["brier_score"],
         "validation_top_decile_lift": metrics["validation"]["top_decile_lift"],
-        "validation_precision_at_top_decile": metrics["validation"]["precision_at_top_decile"],
+        "validation_precision_at_top_decile": metrics["validation"][
+            "precision_at_top_decile"
+        ],
         "validation_recall_at_review_capacity": metrics["validation"][
             "recall_at_manual_review_capacity"
         ],
@@ -127,7 +152,9 @@ def run_single_feature_set(
         "test_brier_score": metrics["test"]["brier_score"],
         "test_top_decile_lift": metrics["test"]["top_decile_lift"],
         "test_precision_at_top_decile": metrics["test"]["precision_at_top_decile"],
-        "test_recall_at_review_capacity": metrics["test"]["recall_at_manual_review_capacity"],
+        "test_recall_at_review_capacity": metrics["test"][
+            "recall_at_manual_review_capacity"
+        ],
         "test_weighted_calibration_error": weighted_bin_errors["test"],
         "validation_balanced_ev_per_applicant": balanced_ev["validation"],
         "test_balanced_ev_per_applicant": balanced_ev["test"],
@@ -157,8 +184,7 @@ def load_feature_importance_rows(
     path = report_dir / "model_feature_importance.csv"
     if not path.exists():
         raise error_cls(f"Missing feature importance report: {path}")
-    with path.open(newline="", encoding="utf-8") as csv_file:
-        return list(csv.DictReader(csv_file))
+    return read_csv(path)
 
 
 def ranked_raw_features(
@@ -195,18 +221,37 @@ def feature_sets(
         if limit <= 0:
             raise error_cls(f"Feature limits must be positive, got {limit}")
         if limit > full_count:
-            raise error_cls(f"Feature limit {limit} exceeds full feature count {full_count}")
+            raise error_cls(
+                f"Feature limit {limit} exceeds full feature count {full_count}"
+            )
         candidate_sets.append((f"top_{limit}", ranked_features[:limit], limit))
     if include_full:
         candidate_sets.append(("full", full_feature_columns, None))
     return candidate_sets
 
 
-def normalize_split_ids(
-    raw_split_ids: Any,
+def prepare_feature_set_specs(
+    report_dir: Path,
+    full_feature_columns: list[str],
+    feature_limits: tuple[int, ...],
+    include_full: bool,
     error_cls: type[Exception] = FeatureExperimentError,
-) -> dict[str, list[int]]:
-    return normalize_model_split_ids(raw_split_ids, EVALUATION_SPLITS, error_cls=error_cls)
+) -> list[tuple[str, list[str], int | None]]:
+    importance_rows = load_feature_importance_rows(report_dir, error_cls=error_cls)
+    ranked_features = ranked_raw_features(importance_rows, full_feature_columns)
+    max_limit = max(feature_limits) if feature_limits else 0
+    if len(ranked_features) < min(max_limit, len(full_feature_columns)):
+        raise error_cls(
+            "Feature importance ranking does not cover enough model features for requested limits: "
+            f"ranked={len(ranked_features)}, requested={max_limit}"
+        )
+    return feature_sets(
+        ranked_features,
+        full_feature_columns,
+        feature_limits,
+        include_full,
+        error_cls=error_cls,
+    )
 
 
 def load_split_frames(
@@ -215,7 +260,6 @@ def load_split_frames(
     feature_columns: list[str],
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, pd.DataFrame]:
-    require_table(connection, "mart_credit_risk_features", error_cls=error_cls)
     return load_labeled_split_frames(
         connection,
         split_applicant_ids,
@@ -228,18 +272,21 @@ def prediction_frames(
     pipeline: Any,
     split_frames: dict[str, pd.DataFrame],
     feature_columns: list[str],
+    label_prefix: str = "feature experiment",
+    error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, pd.DataFrame]:
     frames = {}
+    artifact = {"pipeline": pipeline, "model_version": label_prefix}
     for split_name in REPORTING_SPLITS:
         frame = split_frames[split_name]
-        probabilities = pipeline.predict_proba(feature_frame(frame, feature_columns))[:, 1]
-        frames[split_name] = pd.DataFrame(
-            {
-                "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
-                "target": frame["TARGET"].astype(int),
-                "probability": probabilities.astype(float),
-            }
+        probabilities = predict_probabilities(
+            artifact,
+            frame,
+            feature_columns,
+            f"{label_prefix}_{split_name}",
+            error_cls,
         )
+        frames[split_name] = prediction_frame(frame, probabilities)
     return frames
 
 
@@ -285,15 +332,16 @@ def metrics_by_split(
 
 
 def weighted_calibration_error(frame: pd.DataFrame) -> float:
-    ranked = frame.sort_values(["probability", "SK_ID_CURR"], ascending=[True, True]).reset_index(drop=True)
-    ranked["bin_id"] = np.ceil((np.arange(len(ranked)) + 1) * 10 / len(ranked)).astype(int).clip(1, 10)
+    ranked = with_probability_rank_bin(frame, "bin_id", descending=False)
     total_count = len(ranked)
     weighted_error = 0.0
     for bin_id in range(1, 11):
         bin_frame = ranked.loc[ranked["bin_id"] == bin_id]
         if bin_frame.empty:
             continue
-        calibration_error = float(bin_frame["target"].mean() - bin_frame["probability"].mean())
+        calibration_error = float(
+            bin_frame["target"].mean() - bin_frame["probability"].mean()
+        )
         weighted_error += abs(calibration_error) * len(bin_frame) / total_count
     return float(weighted_error)
 
@@ -305,25 +353,27 @@ def balanced_threshold_rows(
     created_at: str,
 ) -> list[dict[str, Any]]:
     scenario_thresholds = resolve_scenario_thresholds(
-        config["threshold_policy"],
+        threshold_policy(config),
         prediction_frames_by_split["validation"]["probability"].to_numpy(),
     )
     return build_threshold_metric_rows(
         model_version,
-        str(config["threshold_policy"]["threshold_version"]),
+        threshold_version(config),
         prediction_frames_by_split,
         scenario_thresholds,
-        config["business_assumptions"],
+        business_assumptions(config),
         created_at,
     )
 
 
 def select_feature_set(rows: list[dict[str, Any]]) -> str:
-    selected = sorted(rows, key=feature_set_selection_key, reverse=True)[0]
+    selected = max(rows, key=feature_set_selection_key)
     return str(selected["feature_set"])
 
 
-def feature_set_selection_key(row: dict[str, Any]) -> tuple[float, float, float, float, float, int]:
+def feature_set_selection_key(
+    row: dict[str, Any],
+) -> tuple[float, float, float, float, float, int]:
     return (
         float(row["validation_pr_auc"]),
         float(row["validation_top_decile_lift"]),

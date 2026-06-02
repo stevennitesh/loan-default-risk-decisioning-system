@@ -7,29 +7,39 @@ import duckdb
 import pandas as pd
 
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
-from src.config import load_config
+from src.config import DEFAULT_CONFIG_PATH, load_config
 from src.dashboard_probability_quality import build_probability_quality_overrides
 from src.dashboard_segments import build_segment_performance_rows
-from src.mart_access import existing_tables
-from src.mart_access import require_tables
-from src.mart_access import table_columns
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import MODEL_ARTIFACTS
-from src.model_artifacts import load_calibration_artifact
-from src.model_artifacts import load_selected_model_artifact
-from src.model_artifacts import load_selected_model_type
-from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
-from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
-from src.report_contracts import MODEL_CONFUSION_MATRIX_COLUMNS
-from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
-from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
-from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
-from src.report_contracts import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
-from src.runtime import replace_duckdb_table
-from src.runtime import resolve_project_path
-from src.runtime import sql_identifier
-
+from src.mart_access import existing_tables, require_tables, table_columns
+from src.model_artifacts import (
+    load_calibration_artifact,
+    load_selected_model_artifact,
+    load_selected_model_type,
+    uncalibrated_calibration_artifact,
+)
+from src.model_contracts import (
+    LIGHTGBM_MODEL_TYPE,
+    MODEL_ARTIFACTS,
+    SUPPORTED_MODEL_TYPES,
+)
+from src.report_contracts import (
+    CREDIT_RISK_SCORE_COLUMNS,
+    MODEL_CALIBRATION_BINS_COLUMNS,
+    MODEL_CONFUSION_MATRIX_COLUMNS,
+    MODEL_FEATURE_IMPORTANCE_COLUMNS,
+    MODEL_LIFT_BY_DECILE_COLUMNS,
+    MODEL_METRICS_SUMMARY_COLUMNS,
+    MODEL_THRESHOLD_METRICS_COLUMNS,
+    SEGMENT_PERFORMANCE_SUMMARY_COLUMNS,
+)
+from src.runtime import (
+    ensure_directories,
+    replace_duckdb_table,
+    require_existing_path,
+    resolve_config_path,
+    resolve_project_path,
+    sql_identifier,
+)
 
 DASHBOARD_EXPORT_TABLES = [
     "credit_risk_scores",
@@ -74,28 +84,29 @@ class DashboardExportError(RuntimeError):
 
 
 def run_dashboard_export(
-    config_path: str | Path = "configs/base.yaml",
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
     export_dir: str | Path | None = None,
     use_calibrated_probability_quality: bool = False,
 ) -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
     resolved_export_dir = (
         resolve_project_path(str(export_dir))
         if export_dir is not None
-        else resolve_project_path(config["paths"]["dashboard_export_dir"])
+        else resolve_config_path(config, "dashboard_export_dir")
     )
 
-    if not duckdb_path.exists():
-        raise DashboardExportError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", DashboardExportError)
 
     with duckdb.connect(str(duckdb_path)) as connection:
-        require_tables(connection, REQUIRED_SOURCE_TABLES, error_cls=DashboardExportError)
+        require_tables(
+            connection, REQUIRED_SOURCE_TABLES, error_cls=DashboardExportError
+        )
         _validate_export_source_columns(connection)
         selected_model_type = load_selected_model_type(
             connection,
-            set(MODEL_ARTIFACTS),
+            SUPPORTED_MODEL_TYPES,
             error_cls=DashboardExportError,
         )
         artifact = load_selected_model_artifact(
@@ -113,7 +124,7 @@ def run_dashboard_export(
                 error_cls=DashboardExportError,
             )
             if use_calibrated_probability_quality
-            else {"selected_method": "uncalibrated", "calibrators": {}}
+            else uncalibrated_calibration_artifact()
         )
         source_model_version = str(artifact["model_version"])
         dashboard_model_version = (
@@ -149,12 +160,14 @@ def run_dashboard_export(
         )
         _validate_export_source_columns(connection)
 
-        resolved_export_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directories(resolved_export_dir)
         row_counts = {}
         for table_name in DASHBOARD_EXPORT_TABLES:
             export_path = resolved_export_dir / f"{table_name}.csv"
             if table_name in dashboard_table_overrides:
-                row_counts[table_name] = _export_frame(dashboard_table_overrides[table_name], export_path)
+                row_counts[table_name] = _export_frame(
+                    dashboard_table_overrides[table_name], export_path
+                )
             else:
                 row_counts[table_name] = _export_table(
                     connection,
@@ -188,8 +201,7 @@ def _export_table(
         """
     ).fetch_df()
     frame = _relabel_model_version(frame, model_version_relabel)
-    frame.to_csv(export_path, index=False)
-    return len(frame)
+    return _export_frame(frame, export_path)
 
 
 def _export_frame(frame: pd.DataFrame, export_path: Path) -> int:
@@ -215,12 +227,16 @@ def _relabel_model_version(
 
 def _validate_export_source_columns(connection: duckdb.DuckDBPyConnection) -> None:
     available_tables = existing_tables(connection)
-    missing_tables = sorted(table for table in DASHBOARD_EXPORT_TABLES if table not in available_tables)
+    missing_tables = sorted(
+        table for table in DASHBOARD_EXPORT_TABLES if table not in available_tables
+    )
     missing_tables = [
         table for table in missing_tables if table != "segment_performance_summary"
     ]
     if missing_tables:
-        raise DashboardExportError(f"Missing required DuckDB tables: {', '.join(missing_tables)}")
+        raise DashboardExportError(
+            f"Missing required DuckDB tables: {', '.join(missing_tables)}"
+        )
 
     for table_name, expected_columns in EXPORT_TABLE_COLUMNS.items():
         if table_name not in available_tables:
@@ -228,4 +244,6 @@ def _validate_export_source_columns(connection: duckdb.DuckDBPyConnection) -> No
         columns = table_columns(connection, table_name)
         missing_columns = sorted(set(expected_columns).difference(columns))
         if missing_columns:
-            raise DashboardExportError(f"{table_name} is missing required columns: {missing_columns}")
+            raise DashboardExportError(
+                f"{table_name} is missing required columns: {missing_columns}"
+            )

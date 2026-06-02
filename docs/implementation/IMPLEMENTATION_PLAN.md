@@ -1,10 +1,10 @@
 # Loan Default Risk Decisioning System — Implementation Plan
 
 **Version:** 0.1  
-**Status:** Pre-build execution plan  
+**Status:** Implemented build plan with frozen v1 and post-v1 comparison
 **Owner:** Steven  
-**Last updated:** 2026-04-25  
-**Aligned spec:** `docs/spec/PROJECT_SPEC.md` / v0.3.1 final pre-build specification
+**Last updated:** 2026-06-01
+**Aligned spec:** `docs/spec/PROJECT_SPEC.md` / v0.3.1 final portfolio contract
 
 ---
 
@@ -35,7 +35,7 @@ The project should read as an applied financial decisioning system, not a notebo
 | Baseline model | Logistic regression |
 | Modeling grain | One row per `SK_ID_CURR` |
 | v1 source tables | `application_train`, `application_test`, `bureau`, `previous_application`, `installments_payments` |
-| v1.1 source tables | `bureau_balance`, `POS_CASH_balance`, `credit_card_balance` |
+| Post-v1 comparison source tables | `bureau_balance`, `POS_CASH_balance`, `credit_card_balance` |
 | Dashboard scope | One polished executive page first |
 | API | Deferred unless core project is complete |
 | Model framing | Decision-support simulation, not automated underwriting |
@@ -92,11 +92,9 @@ configs/
 data/raw/
 data/parquet/
 data/db/
-data/sample/
 sql/
 src/
 tests/
-notebooks/
 reports/figures/
 powerbi/screenshots/
 models/
@@ -214,15 +212,23 @@ Build applicant-level SQL feature tables and the final feature mart.
 ### SQL files
 
 ```text
-sql/00_create_tables.sql
-sql/01_load_staging.sql
 sql/02_feature_applicant.sql
 sql/03_feature_bureau.sql
+sql/03b_feature_bureau_balance.sql
 sql/04_feature_previous_applications.sql
+sql/04b_feature_pos_cash.sql
+sql/04c_feature_credit_card.sql
 sql/05_feature_installments.sql
+sql/05b_feature_risk_pressure.sql
+sql/05c_feature_recency_deterioration.sql
+sql/05d_feature_last_k_temporal.sql
 sql/06_build_feature_mart.sql
+sql/06_build_feature_mart_v1.sql
 sql/07_create_score_tables.sql
 ```
+
+Staging table creation and Parquet loading are owned by `src/ingest.py`; these SQL files own
+feature-table and score-table contracts.
 
 ### Feature tables
 
@@ -272,7 +278,7 @@ Prevent modeling from starting until the feature mart is structurally correct.
 
 - Add `tests/test_data_contract.py`.
 - Add `tests/test_feature_sql.py`.
-- Create small synthetic fixtures in `data/sample/` or `tests/fixtures/`.
+- Create small synthetic fixtures through pytest helpers.
 - Validate:
   - required columns exist;
   - no duplicate applicant IDs;
@@ -286,7 +292,7 @@ Prevent modeling from starting until the feature mart is structurally correct.
 ```text
 tests/test_data_contract.py
 tests/test_feature_sql.py
-data/sample/*.csv or tests/fixtures/*.csv
+tests/conftest.py
 ```
 
 ### Gate
@@ -594,6 +600,7 @@ Required visuals:
 
 ```text
 powerbi/dashboard.pbix
+powerbi/dashboard_post_v1.pbix
 powerbi/screenshots/decisioning_overview.png
 powerbi/screenshots/model_validation_appendix.png
 ```
@@ -652,7 +659,12 @@ The README answers these questions quickly:
 | `make train` | model artifacts, model run summary |
 | `make evaluate` | metrics, lift, calibration, threshold tables, validation figures |
 | `make score` | `credit_risk_scores` |
+| `make calibrate` | calibration comparison tables and selected calibration artifact |
+| `make explain` | SHAP feature importance and reason-code-style outputs |
 | `make dashboard-data` | Power BI-ready exports |
+| `make dashboard-data-post-v1` | calibrated post-v1 Power BI-ready exports |
+| `make pipeline-v1` | frozen v1 end-to-end rebuild |
+| `make pipeline-post-v1` | post-v1 calibrated comparison rebuild |
 | `make test` | passing pytest suite |
 
 ---
@@ -708,33 +720,32 @@ v1 is complete when:
 
 ## 8. Scope Controls
 
-Do not add these until v1 is complete:
+The v1 pipeline is complete and the post-v1 comparison now includes the monthly-history
+feature families listed below. Keep the following production-style extensions out of scope
+unless the project brief changes:
 
 - FastAPI endpoint;
 - Postgres support;
 - MLflow;
 - Spark;
 - deep learning;
-- all Home Credit monthly balance tables;
 - heavy hyperparameter search;
-- complex fairness tooling.
+- complex fairness tooling;
+- deployment readiness claims.
 
-v1.1 can add:
+Completed post-v1 additions:
 
 - `bureau_balance`;
 - `POS_CASH_balance`;
 - `credit_card_balance`;
 - richer segment diagnostics;
-- validation appendix dashboard page;
-- optional FastAPI scoring demo.
+- validation appendix dashboard page.
 
 ---
 
 ## 9. Immediate Next Actions
 
-1. Create repo skeleton.
-2. Add `.gitignore`, `Makefile`, `Dockerfile`, `requirements.txt`, and `configs/base.yaml`.
-3. Create placeholder SQL and Python modules.
-4. Implement `make ingest`.
-5. Implement `make features`.
-6. Stop before modeling until Milestone 2 and Milestone 3 gates pass.
+1. Keep the recruiter-facing README aligned with the current runnable pipeline and curated artifacts.
+2. Preserve the v1 and post-v1 command contracts in the Makefile as the main review interface.
+3. Use focused tests and validation reports to guard feature grain, leakage controls, scoring schema, and dashboard exports.
+4. Defer optional production extensions until the portfolio decision-support workflow remains easy to rerun and review.

@@ -1,7 +1,6 @@
 import subprocess
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -14,13 +13,11 @@ def test_required_directories_exist() -> None:
         "data/raw",
         "data/parquet",
         "data/db",
-        "data/sample",
         "models",
         "reports/figures",
         "reports/dashboard_data",
         "reports/dashboard_data_post_v1",
         "powerbi/screenshots",
-        "notebooks",
     ]
 
     for directory in required_directories:
@@ -52,8 +49,6 @@ def test_makefile_exposes_required_targets() -> None:
 
 def test_required_sql_files_exist() -> None:
     required_sql_files = [
-        "00_create_tables.sql",
-        "01_load_staging.sql",
         "02_feature_applicant.sql",
         "03_feature_bureau.sql",
         "03b_feature_bureau_balance.sql",
@@ -61,6 +56,9 @@ def test_required_sql_files_exist() -> None:
         "04b_feature_pos_cash.sql",
         "04c_feature_credit_card.sql",
         "05_feature_installments.sql",
+        "05b_feature_risk_pressure.sql",
+        "05c_feature_recency_deterioration.sql",
+        "05d_feature_last_k_temporal.sql",
         "06_build_feature_mart.sql",
         "06_build_feature_mart_v1.sql",
         "07_create_score_tables.sql",

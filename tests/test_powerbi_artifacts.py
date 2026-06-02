@@ -4,7 +4,6 @@ from pathlib import Path
 
 from PIL import Image
 
-
 ROOT = Path(__file__).resolve().parents[1]
 POWERBI_DIR = ROOT / "powerbi"
 SCREENSHOT_DIR = POWERBI_DIR / "screenshots"
@@ -15,11 +14,17 @@ MIN_SCREENSHOT_WIDTH = 1200
 MIN_SCREENSHOT_HEIGHT = 700
 
 
-def test_powerbi_dashboard_pbix_exists_and_is_non_empty() -> None:
-    dashboard_path = POWERBI_DIR / "dashboard.pbix"
+def test_powerbi_dashboard_pbix_files_exist_and_are_non_empty() -> None:
+    dashboard_paths = [
+        POWERBI_DIR / "dashboard.pbix",
+        POWERBI_DIR / "dashboard_post_v1.pbix",
+    ]
 
-    assert dashboard_path.exists(), "Expected curated Power BI report at powerbi/dashboard.pbix"
-    assert dashboard_path.stat().st_size >= MIN_PBIX_SIZE_BYTES
+    for dashboard_path in dashboard_paths:
+        assert dashboard_path.exists(), (
+            f"Expected curated Power BI report at {dashboard_path}"
+        )
+        assert dashboard_path.stat().st_size >= MIN_PBIX_SIZE_BYTES
 
 
 def test_powerbi_dashboard_screenshots_are_readable_pngs() -> None:
@@ -29,7 +34,9 @@ def test_powerbi_dashboard_screenshots_are_readable_pngs() -> None:
     ]:
         screenshot_path = SCREENSHOT_DIR / screenshot_name
 
-        assert screenshot_path.exists(), f"Missing Power BI screenshot: {screenshot_path}"
+        assert screenshot_path.exists(), (
+            f"Missing Power BI screenshot: {screenshot_path}"
+        )
         assert screenshot_path.stat().st_size >= MIN_SCREENSHOT_SIZE_BYTES
         with Image.open(screenshot_path) as image:
             assert image.format == "PNG"
@@ -40,7 +47,9 @@ def test_powerbi_dashboard_screenshots_are_readable_pngs() -> None:
 def test_powerbi_readme_documents_refresh_pages_and_limitations() -> None:
     readme_path = POWERBI_DIR / "README.md"
 
-    assert readme_path.exists(), "Expected Power BI authoring notes at powerbi/README.md"
+    assert readme_path.exists(), (
+        "Expected Power BI authoring notes at powerbi/README.md"
+    )
     readme_text = readme_path.read_text(encoding="utf-8")
 
     assert "make dashboard-data" in readme_text

@@ -2,7 +2,6 @@ from pathlib import Path
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "configs" / "base.yaml"
 V1_CONFIG_PATH = ROOT / "configs" / "v1.yaml"
@@ -24,14 +23,14 @@ POST_V1_SOURCE_FILES = {
 }
 
 
-def load_config() -> dict:
+def _load_config() -> dict:
     assert CONFIG_PATH.exists(), "configs/base.yaml must exist"
     with CONFIG_PATH.open("r", encoding="utf-8") as file:
         return yaml.safe_load(file)
 
 
 def test_base_config_has_required_sections() -> None:
-    config = load_config()
+    config = _load_config()
 
     required_sections = {
         "project",
@@ -56,7 +55,7 @@ def test_config_loader_returns_validated_config() -> None:
 
 
 def test_source_files_include_post_v1_bureau_balance_inputs() -> None:
-    config = load_config()
+    config = _load_config()
 
     assert config["source_files"] == POST_V1_SOURCE_FILES
 
@@ -76,14 +75,19 @@ def test_v1_and_post_v1_configs_are_valid_reproducible_pipeline_scopes() -> None
 
     assert post_v1_config["project"]["data_scope_version"].startswith("post_v1")
     assert post_v1_config["source_files"] == POST_V1_SOURCE_FILES
-    assert post_v1_config["paths"]["duckdb_path"] == "data/db/credit_risk_post_v1.duckdb"
+    assert (
+        post_v1_config["paths"]["duckdb_path"] == "data/db/credit_risk_post_v1.duckdb"
+    )
     assert post_v1_config["paths"]["model_dir"] == "models/post_v1"
     assert post_v1_config["paths"]["report_dir"] == "reports/post_v1"
-    assert post_v1_config["paths"]["dashboard_export_dir"] == "reports/dashboard_data_post_v1"
+    assert (
+        post_v1_config["paths"]["dashboard_export_dir"]
+        == "reports/dashboard_data_post_v1"
+    )
 
 
 def test_split_fractions_sum_to_one() -> None:
-    config = load_config()
+    config = _load_config()
     split = config["split"]
 
     total = split["train_size"] + split["validation_size"] + split["test_size"]
@@ -93,7 +97,7 @@ def test_split_fractions_sum_to_one() -> None:
 
 
 def test_excluded_feature_groups_cover_required_leakage_controls() -> None:
-    config = load_config()
+    config = _load_config()
     excluded_features = config["excluded_features"]
 
     assert "SK_ID_CURR" in excluded_features["identifiers"]
@@ -111,7 +115,7 @@ def test_excluded_feature_groups_cover_required_leakage_controls() -> None:
 
 
 def test_business_assumptions_cover_threshold_value_analysis() -> None:
-    config = load_config()
+    config = _load_config()
 
     assert config["business_assumptions"] == {
         "expected_margin_per_good_loan": 1000,

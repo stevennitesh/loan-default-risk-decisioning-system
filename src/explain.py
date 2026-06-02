@@ -10,28 +10,33 @@ import matplotlib
 import numpy as np
 import pandas as pd
 
-from src.config import load_config
+from src.cli import add_config_argument, exit_with_error
+from src.config import DEFAULT_CONFIG_PATH, load_config, project_random_seed
 from src.feature_labels import readable_feature_label
-from src.mart_access import require_table
-from src.mart_access import table_columns
-from src.model_contracts import BASELINE_MODEL_TYPE
-from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
-from src.model_artifacts import load_model_artifact
-from src.model_artifacts import load_selected_model_type
-from src.runtime import replace_duckdb_table
-from src.runtime import replace_duckdb_table_from_frame
-from src.runtime import resolve_project_path
-from src.runtime import sql_identifier
-from src.runtime import write_csv
-from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
-from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
-
+from src.mart_access import fetch_count, require_table, require_table_columns
+from src.model_artifacts import load_model_artifact, load_selected_model_type
+from src.model_contracts import (
+    LIGHTGBM_MODEL_ARTIFACT_NAME,
+    LIGHTGBM_MODEL_TYPE,
+    LIGHTGBM_MODEL_VERSION,
+    SUPPORTED_MODEL_TYPES,
+)
+from src.report_contracts import (
+    CREDIT_RISK_SCORE_COLUMNS,
+    MODEL_FEATURE_IMPORTANCE_COLUMNS,
+)
+from src.runtime import (
+    ensure_directories,
+    replace_duckdb_table,
+    replace_duckdb_table_from_frame,
+    require_existing_path,
+    resolve_config_path,
+    sql_identifier,
+    write_csv,
+)
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-
+import matplotlib.pyplot as plt
 
 MAX_SHAP_SUMMARY_ROWS = 5_000
 SHAP_BATCH_SIZE = 10_000
@@ -50,21 +55,20 @@ warnings.filterwarnings(
 )
 
 
-def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
+def run_explain(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
-    report_dir = resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
+    report_dir = resolve_config_path(config, "report_dir")
 
-    if not duckdb_path.exists():
-        raise ExplainabilityError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", ExplainabilityError)
 
     excluded_terms = _excluded_output_terms(config)
 
     with duckdb.connect(str(duckdb_path)) as connection:
         selected_model_type = load_selected_model_type(
             connection,
-            {BASELINE_MODEL_TYPE, LIGHTGBM_MODEL_TYPE},
+            SUPPORTED_MODEL_TYPES,
             error_cls=ExplainabilityError,
         )
         if selected_model_type != LIGHTGBM_MODEL_TYPE:
@@ -76,10 +80,15 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
         artifact = _load_lightgbm_artifact(model_dir)
         model_version = str(artifact["model_version"])
         feature_columns = list(artifact["feature_columns"])
-        scored_frame = _load_scored_feature_frame(connection, model_version, feature_columns)
-        transformed_features, transformed_feature_names, classifier = _transform_features(
-            artifact,
-            scored_frame[feature_columns],
+        scored_frame = _load_scored_feature_frame(
+            connection, model_version, feature_columns
+        )
+        # SHAP runs on the fitted transformed feature space, then maps labels back to raw features.
+        transformed_features, transformed_feature_names, classifier = (
+            _transform_features(
+                artifact,
+                scored_frame[feature_columns],
+            )
         )
         feature_labels = _readable_transformed_feature_labels(
             transformed_feature_names,
@@ -87,8 +96,12 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
             list(artifact.get("categorical_feature_columns", [])),
             excluded_terms,
         )
-        shap_values = _compute_shap_values(classifier, transformed_features, len(feature_labels))
-        importance_rows = _build_feature_importance_rows(model_version, feature_labels, shap_values)
+        shap_values = _compute_shap_values(
+            classifier, transformed_features, len(feature_labels)
+        )
+        importance_rows = _build_feature_importance_rows(
+            model_version, feature_labels, shap_values
+        )
         _validate_explanation_texts(
             [row["feature_name"] for row in importance_rows],
             excluded_terms,
@@ -99,16 +112,19 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
             [
                 reason
                 for row in reason_rows
-                for reason in (row["top_reason_1"], row["top_reason_2"], row["top_reason_3"])
+                for reason in (
+                    row["top_reason_1"],
+                    row["top_reason_2"],
+                    row["top_reason_3"],
+                )
                 if reason is not None
             ],
             excluded_terms,
             "credit_risk_scores reason fields",
         )
 
-        report_dir.mkdir(parents=True, exist_ok=True)
         figures_dir = report_dir / "figures"
-        figures_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directories(report_dir, figures_dir)
         write_csv(
             report_dir / "model_feature_importance.csv",
             MODEL_FEATURE_IMPORTANCE_COLUMNS,
@@ -119,7 +135,7 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
             transformed_features,
             shap_values,
             feature_labels,
-            int(config["project"]["random_seed"]),
+            project_random_seed(config),
         )
         replace_duckdb_table(connection, "model_feature_importance", importance_rows)
         _update_credit_risk_score_reasons(connection, reason_rows)
@@ -131,17 +147,6 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
         "feature_importance_path": report_dir / "model_feature_importance.csv",
         "shap_summary_path": report_dir / "figures" / "shap_summary.png",
     }
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate SHAP feature importance and reason-code-style outputs.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    args = parser.parse_args()
-
-    try:
-        run_explain(args.config)
-    except ExplainabilityError as error:
-        raise SystemExit(str(error)) from error
 
 
 def _load_lightgbm_artifact(model_dir: Path) -> dict[str, Any]:
@@ -161,7 +166,9 @@ def _load_lightgbm_artifact(model_dir: Path) -> dict[str, Any]:
     }
     missing_keys = sorted(required_keys.difference(artifact))
     if missing_keys:
-        raise ExplainabilityError(f"LightGBM model artifact is missing required keys: {missing_keys}")
+        raise ExplainabilityError(
+            f"LightGBM model artifact is missing required keys: {missing_keys}"
+        )
     return artifact
 
 
@@ -171,24 +178,30 @@ def _load_scored_feature_frame(
     feature_columns: list[str],
 ) -> pd.DataFrame:
     require_table(connection, "credit_risk_scores", error_cls=ExplainabilityError)
-    require_table(connection, "mart_credit_risk_features", error_cls=ExplainabilityError)
-    mart_columns = set(table_columns(connection, "mart_credit_risk_features"))
-    missing_feature_columns = sorted(set(feature_columns).difference(mart_columns))
-    if missing_feature_columns:
-        raise ExplainabilityError(
-            f"mart_credit_risk_features is missing selected model feature columns: {missing_feature_columns}"
-        )
+    require_table(
+        connection, "mart_credit_risk_features", error_cls=ExplainabilityError
+    )
+    require_table_columns(
+        connection,
+        "mart_credit_risk_features",
+        feature_columns,
+        error_cls=ExplainabilityError,
+    )
 
-    scored_row_count = int(
-        connection.execute(
-            "SELECT COUNT(*) FROM credit_risk_scores WHERE model_version = ?",
-            [model_version],
-        ).fetchone()[0]
+    scored_row_count = fetch_count(
+        connection,
+        "SELECT COUNT(*) FROM credit_risk_scores WHERE model_version = ?",
+        ExplainabilityError,
+        [model_version],
     )
     if scored_row_count == 0:
-        raise ExplainabilityError(f"credit_risk_scores has no rows for model_version={model_version}")
+        raise ExplainabilityError(
+            f"credit_risk_scores has no rows for model_version={model_version}"
+        )
 
-    feature_select = ", ".join(f"m.{sql_identifier(column)}" for column in feature_columns)
+    feature_select = ", ".join(
+        f"m.{sql_identifier(column)}" for column in feature_columns
+    )
     frame = connection.execute(
         f"""
         SELECT
@@ -201,6 +214,7 @@ def _load_scored_feature_frame(
         FROM credit_risk_scores AS s
         INNER JOIN mart_credit_risk_features AS m
             ON m.SK_ID_CURR = s.applicant_id
+           -- Holdout rows come from the labeled training population; Kaggle scoring rows stay unlabeled.
            AND (
                 (s.scoring_population = 'holdout_test' AND m.source_population = 'application_train')
                 OR (s.scoring_population = 'kaggle_test' AND m.source_population = 'application_test')
@@ -228,7 +242,9 @@ def _transform_features(
     preprocessor = pipeline.named_steps.get("preprocessor")
     classifier = pipeline.named_steps.get("classifier")
     if preprocessor is None or classifier is None:
-        raise ExplainabilityError("LightGBM artifact pipeline must contain preprocessor and classifier steps")
+        raise ExplainabilityError(
+            "LightGBM artifact pipeline must contain preprocessor and classifier steps"
+        )
     if not hasattr(classifier, "booster_"):
         raise ExplainabilityError("LightGBM classifier is not fitted with a booster_")
 
@@ -237,9 +253,13 @@ def _transform_features(
     try:
         transformed_feature_names = list(preprocessor.get_feature_names_out())
     except AttributeError as error:
-        raise ExplainabilityError("LightGBM preprocessor must expose transformed feature names") from error
+        raise ExplainabilityError(
+            "LightGBM preprocessor must expose transformed feature names"
+        ) from error
     if not transformed_feature_names:
-        raise ExplainabilityError("LightGBM preprocessor produced no transformed feature names")
+        raise ExplainabilityError(
+            "LightGBM preprocessor produced no transformed feature names"
+        )
     return transformed, transformed_feature_names, classifier
 
 
@@ -272,6 +292,7 @@ def _compute_shap_values(
             "LightGBM SHAP contribution shape does not match transformed features: "
             f"got {contribution_array.shape}, expected {(row_count, expected_width)}"
         )
+    # LightGBM appends the expected value as the final contribution column; outputs use feature effects only.
     shap_values = contribution_array[:, :-1]
     if not np.isfinite(shap_values).all():
         raise ExplainabilityError("LightGBM SHAP values contain non-finite values")
@@ -292,7 +313,9 @@ def _readable_transformed_feature_labels(
             categorical_feature_columns,
         )
         if _contains_excluded_term(raw_feature, excluded_terms):
-            raise ExplainabilityError(f"Excluded field appeared in SHAP feature output: {raw_feature}")
+            raise ExplainabilityError(
+                f"Excluded field appeared in SHAP feature output: {raw_feature}"
+            )
         labels.append(readable_feature_label(raw_feature, category_value))
     _validate_explanation_texts(labels, excluded_terms, "SHAP feature labels")
     return labels
@@ -303,7 +326,11 @@ def _raw_feature_for_transformed_name(
     feature_columns: list[str],
     categorical_feature_columns: list[str],
 ) -> tuple[str, str | None]:
-    name_without_transformer = transformed_name.split("__", 1)[1] if "__" in transformed_name else transformed_name
+    name_without_transformer = (
+        transformed_name.split("__", 1)[1]
+        if "__" in transformed_name
+        else transformed_name
+    )
     for category_feature in sorted(categorical_feature_columns, key=len, reverse=True):
         if name_without_transformer == category_feature:
             return category_feature, None
@@ -323,10 +350,12 @@ def _build_feature_importance_rows(
 ) -> list[dict[str, Any]]:
     mean_abs_values = np.abs(shap_values).mean(axis=0)
     importance_by_label: dict[str, float] = {}
-    for feature_label, importance_value in zip(feature_labels, mean_abs_values, strict=True):
-        importance_by_label[feature_label] = importance_by_label.get(feature_label, 0.0) + float(
-            importance_value
-        )
+    for feature_label, importance_value in zip(
+        feature_labels, mean_abs_values, strict=True
+    ):
+        importance_by_label[feature_label] = importance_by_label.get(
+            feature_label, 0.0
+        ) + float(importance_value)
 
     sorted_importance = sorted(
         (
@@ -346,7 +375,9 @@ def _build_feature_importance_rows(
             "importance_value": importance_value,
             "rank": rank,
         }
-        for rank, (feature_name, importance_value) in enumerate(sorted_importance, start=1)
+        for rank, (feature_name, importance_value) in enumerate(
+            sorted_importance, start=1
+        )
     ]
 
 
@@ -368,6 +399,7 @@ def _build_reason_rows(
             feature_label = feature_labels[feature_index]
             if feature_label in seen_labels:
                 continue
+            # Reason fields are directional debugging signals, not adverse-action notices.
             reasons.append(f"Higher risk: {feature_label}")
             seen_labels.add(feature_label)
             if len(reasons) == 3:
@@ -395,11 +427,20 @@ def _update_credit_risk_score_reasons(
     score_frame = connection.execute("SELECT * FROM credit_risk_scores").fetch_df()
     if score_frame.empty:
         raise ExplainabilityError("credit_risk_scores must not be empty")
-    missing_columns = sorted(set(CREDIT_RISK_SCORE_COLUMNS).difference(score_frame.columns))
+    missing_columns = sorted(
+        set(CREDIT_RISK_SCORE_COLUMNS).difference(score_frame.columns)
+    )
     if missing_columns:
-        raise ExplainabilityError(f"credit_risk_scores is missing required columns: {missing_columns}")
+        raise ExplainabilityError(
+            f"credit_risk_scores is missing required columns: {missing_columns}"
+        )
 
-    key_columns = ["applicant_id", "scoring_population", "model_version", "threshold_version"]
+    key_columns = [
+        "applicant_id",
+        "scoring_population",
+        "model_version",
+        "threshold_version",
+    ]
     score_frame = score_frame[CREDIT_RISK_SCORE_COLUMNS].copy()
     for column in REASON_COLUMNS:
         score_frame[column] = score_frame[column].astype("object")
@@ -407,7 +448,9 @@ def _update_credit_risk_score_reasons(
     reason_frame = pd.DataFrame(reason_rows).set_index(key_columns)
     missing_reason_keys = reason_frame.index.difference(score_indexed.index)
     if len(missing_reason_keys):
-        raise ExplainabilityError("Reason rows contain keys missing from credit_risk_scores")
+        raise ExplainabilityError(
+            "Reason rows contain keys missing from credit_risk_scores"
+        )
     for column in REASON_COLUMNS:
         score_indexed.loc[reason_frame.index, column] = reason_frame[column]
     updated_frame = score_indexed.reset_index()[CREDIT_RISK_SCORE_COLUMNS]
@@ -424,10 +467,14 @@ def _write_shap_summary(
     sample_indexes = _summary_sample_indexes(shap_values.shape[0], random_seed)
     sampled_shap_values = shap_values[sample_indexes]
     sampled_features = _to_dense(transformed_features[sample_indexes])
-    if _write_shap_package_summary(path, sampled_features, sampled_shap_values, feature_labels):
+    if _write_shap_package_summary(
+        path, sampled_features, sampled_shap_values, feature_labels
+    ):
         return
 
-    feature_order = np.argsort(-np.abs(sampled_shap_values).mean(axis=0))[: min(20, len(feature_labels))]
+    feature_order = np.argsort(-np.abs(sampled_shap_values).mean(axis=0))[
+        : min(20, len(feature_labels))
+    ]
 
     figure, axis = plt.subplots(figsize=(9, max(5, len(feature_order) * 0.35)))
     rng = np.random.default_rng(random_seed)
@@ -454,11 +501,7 @@ def _write_shap_summary(
     if len(feature_order):
         colorbar = figure.colorbar(scatter, ax=axis, pad=0.02)
         colorbar.set_label("Transformed feature value")
-    figure.tight_layout()
-    figure.savefig(path, dpi=150, bbox_inches="tight")
-    plt.close(figure)
-    if not path.exists() or path.stat().st_size == 0:
-        raise ExplainabilityError(f"Failed to write SHAP summary figure: {path}")
+    _save_shap_figure(path, figure)
 
 
 def _write_shap_package_summary(
@@ -482,21 +525,29 @@ def _write_shap_package_summary(
         show=False,
     )
     figure = plt.gcf()
+    _save_shap_figure(path, figure)
+    return True
+
+
+def _save_shap_figure(path: Path, figure: Any) -> None:
     figure.tight_layout()
     figure.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(figure)
     if not path.exists() or path.stat().st_size == 0:
         raise ExplainabilityError(f"Failed to write SHAP summary figure: {path}")
-    return True
 
 
 def _summary_sample_indexes(row_count: int, random_seed: int) -> np.ndarray:
     if row_count <= 0:
-        raise ExplainabilityError("Cannot sample SHAP summary rows from an empty explanation set")
+        raise ExplainabilityError(
+            "Cannot sample SHAP summary rows from an empty explanation set"
+        )
     if row_count <= MAX_SHAP_SUMMARY_ROWS:
         return np.arange(row_count)
     random_generator = np.random.default_rng(random_seed)
-    return np.sort(random_generator.choice(row_count, size=MAX_SHAP_SUMMARY_ROWS, replace=False))
+    return np.sort(
+        random_generator.choice(row_count, size=MAX_SHAP_SUMMARY_ROWS, replace=False)
+    )
 
 
 def _to_dense(matrix: Any) -> np.ndarray:
@@ -505,15 +556,21 @@ def _to_dense(matrix: Any) -> np.ndarray:
     return np.asarray(matrix)
 
 
-def _validate_explanation_texts(texts: list[str], excluded_terms: set[str], output_name: str) -> None:
+def _validate_explanation_texts(
+    texts: list[str], excluded_terms: set[str], output_name: str
+) -> None:
     for text in texts:
         if _contains_excluded_term(text, excluded_terms):
-            raise ExplainabilityError(f"Excluded field appeared in {output_name}: {text}")
+            raise ExplainabilityError(
+                f"Excluded field appeared in {output_name}: {text}"
+            )
 
 
 def _contains_excluded_term(text: str, excluded_terms: set[str]) -> bool:
     normalized_text = _normalize_output_text(text)
-    return any(_normalize_output_text(term) in normalized_text for term in excluded_terms)
+    return any(
+        _normalize_output_text(term) in normalized_text for term in excluded_terms
+    )
 
 
 def _excluded_output_terms(config: dict[str, Any]) -> set[str]:
@@ -525,6 +582,19 @@ def _excluded_output_terms(config: dict[str, Any]) -> set[str]:
 
 def _normalize_output_text(text: str) -> str:
     return " ".join(text.lower().replace("_", " ").split())
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Generate SHAP feature importance and reason-code-style outputs."
+    )
+    add_config_argument(parser)
+    args = parser.parse_args()
+
+    try:
+        run_explain(args.config)
+    except ExplainabilityError as error:
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

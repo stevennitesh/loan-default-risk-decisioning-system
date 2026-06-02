@@ -4,7 +4,6 @@ import pytest
 
 from src.thresholding import calculate_expected_value
 
-
 ASSUMPTIONS = {
     "expected_margin_per_good_loan": 1000,
     "expected_loss_per_bad_loan": 5000,

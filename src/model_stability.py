@@ -8,23 +8,28 @@ import duckdb
 import numpy as np
 import pandas as pd
 
-from src.config import load_config
-from src.feature_experiments import DEFAULT_FEATURE_LIMITS
-from src.feature_experiments import FeatureExperimentError
-from src.feature_experiments import feature_sets
-from src.feature_experiments import load_feature_importance_rows
-from src.feature_experiments import load_lightgbm_artifact
-from src.feature_experiments import ranked_raw_features
-from src.feature_experiments import run_single_feature_set
-from src.feature_experiments import select_feature_set
-from src.runtime import created_at_utc
-from src.runtime import resolve_project_path
-from src.runtime import write_csv
-from src.modeling import load_labeled_training_frame
-from src.modeling import split_labeled_frame
-from src.report_contracts import MODEL_STABILITY_AGGREGATE_COLUMNS
-from src.report_contracts import MODEL_STABILITY_RUN_COLUMNS
-
+from src.cli import add_config_argument, exit_with_error, format_int_csv, parse_int_csv
+from src.config import DEFAULT_CONFIG_PATH, load_config, manual_review_capacity_rate
+from src.feature_experiments import (
+    DEFAULT_FEATURE_LIMITS,
+    FeatureExperimentError,
+    load_lightgbm_artifact,
+    prepare_feature_set_specs,
+    run_single_feature_set,
+    select_feature_set,
+)
+from src.modeling import load_labeled_training_frame, split_labeled_frame
+from src.report_contracts import (
+    MODEL_STABILITY_AGGREGATE_COLUMNS,
+    MODEL_STABILITY_RUN_COLUMNS,
+)
+from src.runtime import (
+    created_at_utc,
+    ensure_directories,
+    require_existing_path,
+    resolve_config_path,
+    write_csv,
+)
 
 DEFAULT_STABILITY_SEEDS = (17, 29, 43)
 MODEL_STABILITY_REPORT_NAME = "006_model_stability.md"
@@ -54,7 +59,7 @@ class ModelStabilityError(FeatureExperimentError):
 
 
 def run_model_stability_experiment(
-    config_path: str | Path = "configs/base.yaml",
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
     seeds: tuple[int, ...] = DEFAULT_STABILITY_SEEDS,
     feature_limits: tuple[int, ...] = DEFAULT_FEATURE_LIMITS,
     include_full: bool = True,
@@ -64,28 +69,19 @@ def run_model_stability_experiment(
 ) -> dict[str, Any]:
     seeds = _normalize_seeds(seeds)
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
-    report_dir = resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
+    report_dir = resolve_config_path(config, "report_dir")
 
-    if not duckdb_path.exists():
-        raise ModelStabilityError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", ModelStabilityError)
 
     base_artifact = load_lightgbm_artifact(model_dir, error_cls=ModelStabilityError)
     full_feature_columns = list(base_artifact["feature_columns"])
-    importance_rows = load_feature_importance_rows(report_dir, error_cls=ModelStabilityError)
-    ranked_features = ranked_raw_features(importance_rows, full_feature_columns)
-    max_limit = max(feature_limits) if feature_limits else 0
-    if len(ranked_features) < min(max_limit, len(full_feature_columns)):
-        raise ModelStabilityError(
-            "Feature importance ranking does not cover enough model features for requested limits: "
-            f"ranked={len(ranked_features)}, requested={max_limit}"
-        )
 
     created_at = created_at_utc()
-    manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
-    feature_set_specs = feature_sets(
-        ranked_features,
+    review_capacity_rate = manual_review_capacity_rate(config)
+    feature_set_specs = prepare_feature_set_specs(
+        report_dir,
         full_feature_columns,
         feature_limits,
         include_full,
@@ -114,7 +110,7 @@ def run_model_stability_experiment(
                         feature_columns,
                         feature_limit,
                         split_frames,
-                        manual_review_capacity_rate,
+                        review_capacity_rate,
                         created_at,
                         random_seed=seed,
                         error_cls=ModelStabilityError,
@@ -137,9 +133,8 @@ def run_model_stability_experiment(
     for row in aggregate_rows:
         row["selected"] = row["feature_set"] == selected_feature_set
 
-    report_dir.mkdir(parents=True, exist_ok=True)
     experiments_dir = report_dir / "experiments"
-    experiments_dir.mkdir(parents=True, exist_ok=True)
+    ensure_directories(report_dir, experiments_dir)
     seed_runs_path = report_dir / seed_runs_name
     summary_path = report_dir / summary_name
     report_path = experiments_dir / report_name
@@ -155,64 +150,6 @@ def run_model_stability_experiment(
         "summary_path": summary_path,
         "report_path": report_path,
     }
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compare model-generation stability across repeated seeds.",
-    )
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    parser.add_argument(
-        "--seeds",
-        default="17,29,43",
-        help="Comma-separated random seeds for split/training repeats.",
-    )
-    parser.add_argument(
-        "--feature-limits",
-        default="40,60,80,100",
-        help="Comma-separated top-N feature limits to compare.",
-    )
-    parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
-    parser.add_argument(
-        "--seed-runs-name",
-        default="model_stability_seed_runs.csv",
-        help="CSV filename for per-seed stability rows under the report directory.",
-    )
-    parser.add_argument(
-        "--summary-name",
-        default="model_stability_summary.csv",
-        help="CSV filename for aggregate stability rows under the report directory.",
-    )
-    parser.add_argument(
-        "--report-name",
-        default=MODEL_STABILITY_REPORT_NAME,
-        help="Markdown report filename under reports/experiments.",
-    )
-    args = parser.parse_args()
-
-    seeds = tuple(int(value.strip()) for value in args.seeds.split(",") if value.strip())
-    feature_limits = tuple(int(value.strip()) for value in args.feature_limits.split(",") if value.strip())
-    try:
-        run_model_stability_experiment(
-            args.config,
-            seeds=seeds,
-            feature_limits=feature_limits,
-            include_full=not args.skip_full,
-            seed_runs_name=args.seed_runs_name,
-            summary_name=args.summary_name,
-            report_name=args.report_name,
-        )
-    except ModelStabilityError as error:
-        raise SystemExit(str(error)) from error
-
-
-def _normalize_seeds(seeds: tuple[int, ...]) -> tuple[int, ...]:
-    normalized = tuple(int(seed) for seed in seeds)
-    if not normalized:
-        raise ModelStabilityError("At least one seed is required")
-    if len(set(normalized)) != len(normalized):
-        raise ModelStabilityError("Seeds must be unique")
-    return normalized
 
 
 def aggregate_stability_rows(
@@ -247,23 +184,38 @@ def aggregate_stability_rows(
             values = group[metric].astype(float)
             row[f"{metric}_mean"] = float(values.mean())
             row[f"{metric}_std"] = _std(values)
-        row["pr_auc_generalization_gap"] = row["test_pr_auc_mean"] - row["validation_pr_auc_mean"]
+        row["pr_auc_generalization_gap"] = (
+            row["test_pr_auc_mean"] - row["validation_pr_auc_mean"]
+        )
         row["abs_pr_auc_generalization_gap"] = abs(row["pr_auc_generalization_gap"])
         row["balanced_ev_generalization_gap"] = (
             row["test_balanced_ev_per_applicant_mean"]
             - row["validation_balanced_ev_per_applicant_mean"]
         )
-        row["abs_balanced_ev_generalization_gap"] = abs(row["balanced_ev_generalization_gap"])
+        row["abs_balanced_ev_generalization_gap"] = abs(
+            row["balanced_ev_generalization_gap"]
+        )
         aggregate_rows.append(row)
     return aggregate_rows
 
 
 def select_stability_feature_set(rows: list[dict[str, Any]]) -> str:
-    selected = sorted(rows, key=_stability_selection_key, reverse=True)[0]
+    selected = max(rows, key=_stability_selection_key)
     return str(selected["feature_set"])
 
 
-def _stability_selection_key(row: dict[str, Any]) -> tuple[float, float, float, float, float, float, float, int]:
+def _normalize_seeds(seeds: tuple[int, ...]) -> tuple[int, ...]:
+    normalized = tuple(int(seed) for seed in seeds)
+    if not normalized:
+        raise ModelStabilityError("At least one seed is required")
+    if len(set(normalized)) != len(normalized):
+        raise ModelStabilityError("Seeds must be unique")
+    return normalized
+
+
+def _stability_selection_key(
+    row: dict[str, Any],
+) -> tuple[float, float, float, float, float, float, float, int]:
     return (
         float(row["validation_pr_auc_mean"]),
         float(row["validation_win_rate"]),
@@ -290,7 +242,9 @@ def _write_report(
         "{test_balanced_ev_per_applicant_mean:.2f} | {selected} |".format(**row)
         for row in aggregate_rows
     )
-    selected_row = next(row for row in aggregate_rows if row["feature_set"] == selected_feature_set)
+    selected_row = next(
+        row for row in aggregate_rows if row["feature_set"] == selected_feature_set
+    )
     interpretation_text = _interpretation_text(selected_row)
     text = f"""# Experiment 006: Model Stability
 
@@ -314,11 +268,11 @@ The selected setup is chosen with a validation-only aggregate rule: mean validat
 
 ## Selected Setup
 
-Selected feature set: `{selected_feature_set}` with {selected_row['feature_count']} features.
+Selected feature set: `{selected_feature_set}` with {selected_row["feature_count"]} features.
 
 ## Generalization Check
 
-For the selected setup, mean test PR-AUC minus mean validation PR-AUC is {selected_row['pr_auc_generalization_gap']:.6f}, and mean test balanced EV minus mean validation balanced EV is {selected_row['balanced_ev_generalization_gap']:.2f}. These held-out test values are final verification signals, not optimization inputs.
+For the selected setup, mean test PR-AUC minus mean validation PR-AUC is {selected_row["pr_auc_generalization_gap"]:.6f}, and mean test balanced EV minus mean validation balanced EV is {selected_row["balanced_ev_generalization_gap"]:.2f}. These held-out test values are final verification signals, not optimization inputs.
 
 ## Interpretation
 
@@ -356,6 +310,57 @@ def _std(values: pd.Series) -> float:
 
 def _seed_list(seeds: tuple[int, ...]) -> str:
     return ", ".join(str(seed) for seed in seeds)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Compare model-generation stability across repeated seeds.",
+    )
+    add_config_argument(parser)
+    parser.add_argument(
+        "--seeds",
+        default=format_int_csv(DEFAULT_STABILITY_SEEDS),
+        help="Comma-separated random seeds for split/training repeats.",
+    )
+    parser.add_argument(
+        "--feature-limits",
+        default=format_int_csv(DEFAULT_FEATURE_LIMITS),
+        help="Comma-separated top-N feature limits to compare.",
+    )
+    parser.add_argument(
+        "--skip-full", action="store_true", help="Do not include the full feature set."
+    )
+    parser.add_argument(
+        "--seed-runs-name",
+        default="model_stability_seed_runs.csv",
+        help="CSV filename for per-seed stability rows under the report directory.",
+    )
+    parser.add_argument(
+        "--summary-name",
+        default="model_stability_summary.csv",
+        help="CSV filename for aggregate stability rows under the report directory.",
+    )
+    parser.add_argument(
+        "--report-name",
+        default=MODEL_STABILITY_REPORT_NAME,
+        help="Markdown report filename under reports/experiments.",
+    )
+    args = parser.parse_args()
+
+    seeds = parse_int_csv(args.seeds)
+    feature_limits = parse_int_csv(args.feature_limits)
+    try:
+        run_model_stability_experiment(
+            args.config,
+            seeds=seeds,
+            feature_limits=feature_limits,
+            include_full=not args.skip_full,
+            seed_runs_name=args.seed_runs_name,
+            summary_name=args.summary_name,
+            report_name=args.report_name,
+        )
+    except ModelStabilityError as error:
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

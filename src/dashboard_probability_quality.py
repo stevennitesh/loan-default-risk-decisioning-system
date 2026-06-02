@@ -3,23 +3,24 @@ from __future__ import annotations
 from typing import Any
 
 import duckdb
-import numpy as np
 import pandas as pd
 
-from src.calibration import apply_calibration_to_probabilities
-from src.metrics import build_calibration_bin_rows
-from src.metrics import build_probability_metric_rows
-from src.metrics import validate_probabilities
-from src.mart_access import load_labeled_split_frame
-from src.mart_access import require_table_columns
+from src.calibration import UNCALIBRATED_METHOD, apply_saved_calibration_artifact
+from src.config import manual_review_capacity_rate
+from src.mart_access import load_labeled_split_frame, require_table_columns
+from src.metrics import (
+    build_calibration_bin_rows,
+    build_probability_metric_rows,
+    validate_probabilities,
+)
 from src.model_artifacts import normalize_split_ids
-from src.model_contracts import EVALUATION_SPLITS
-from src.model_contracts import REPORTING_SPLITS
-from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
-from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
-from src.runtime import created_at_utc
-from src.runtime import feature_frame
-from src.runtime import sql_identifier
+from src.model_contracts import EVALUATION_SPLITS, REPORTING_SPLITS
+from src.modeling import predict_probabilities, prediction_frame
+from src.report_contracts import (
+    MODEL_CALIBRATION_BINS_COLUMNS,
+    MODEL_METRICS_SUMMARY_COLUMNS,
+)
+from src.runtime import created_at_utc, sql_identifier
 
 
 def build_probability_quality_overrides(
@@ -30,7 +31,7 @@ def build_probability_quality_overrides(
     dashboard_model_version: str,
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, pd.DataFrame]:
-    if calibration_artifact["selected_method"] == "uncalibrated":
+    if calibration_artifact["selected_method"] == UNCALIBRATED_METHOD:
         return {}
 
     prediction_frames = _build_calibrated_prediction_frames(
@@ -49,24 +50,12 @@ def build_probability_quality_overrides(
             error_cls,
         ),
         "model_calibration_bins": pd.DataFrame(
-            build_calibration_bin_rows(dashboard_model_version, prediction_frames, REPORTING_SPLITS),
+            build_calibration_bin_rows(
+                dashboard_model_version, prediction_frames, REPORTING_SPLITS
+            ),
             columns=MODEL_CALIBRATION_BINS_COLUMNS,
         ),
     }
-
-
-def calibrated_probabilities(
-    raw_probabilities: np.ndarray,
-    calibration_artifact: dict[str, Any],
-    error_cls: type[Exception] = ValueError,
-) -> np.ndarray:
-    return apply_calibration_to_probabilities(
-        str(calibration_artifact["selected_method"]),
-        calibration_artifact["calibrators"],
-        raw_probabilities,
-        error_cls=error_cls,
-        label="dashboard calibration",
-    ).astype(float)
 
 
 def _build_calibrated_prediction_frames(
@@ -91,22 +80,26 @@ def _build_calibrated_prediction_frames(
             split_name,
             error_cls,
         )
-        raw_probabilities = artifact["pipeline"].predict_proba(
-            feature_frame(split_frame, feature_columns)
-        )[:, 1]
-        validate_probabilities(raw_probabilities, split_name, error_cls=error_cls)
-        adjusted_probabilities = calibrated_probabilities(raw_probabilities, calibration_artifact, error_cls)
+        raw_probabilities = predict_probabilities(
+            artifact,
+            split_frame,
+            feature_columns,
+            split_name,
+            error_cls,
+        )
+        adjusted_probabilities = apply_saved_calibration_artifact(
+            raw_probabilities,
+            calibration_artifact,
+            error_cls=error_cls,
+            label="dashboard calibration",
+        )
         validate_probabilities(
             adjusted_probabilities,
             f"{split_name} calibrated",
             error_cls=error_cls,
         )
-        prediction_frames[split_name] = pd.DataFrame(
-            {
-                "SK_ID_CURR": split_frame["SK_ID_CURR"].astype(int),
-                "target": split_frame["TARGET"].astype(int),
-                "probability": adjusted_probabilities.astype(float),
-            }
+        prediction_frames[split_name] = prediction_frame(
+            split_frame, adjusted_probabilities
         )
 
     return prediction_frames
@@ -127,22 +120,28 @@ def _metrics_frame_with_calibrated_selected_model(
         """
     ).fetch_df()
     model_version = str(artifact["model_version"])
-    retained_frame = existing_frame.loc[existing_frame["model_version"] != model_version].copy()
+    retained_frame = existing_frame.loc[
+        existing_frame["model_version"] != model_version
+    ].copy()
     created_at = _existing_metric_created_at(existing_frame, model_version)
     calibrated_frame = pd.DataFrame(
         build_probability_metric_rows(
             dashboard_model_version,
             prediction_frames,
             created_at,
-            float(config["business_assumptions"]["manual_review_capacity_rate"]),
+            manual_review_capacity_rate(config),
             error_cls=error_cls,
         ),
         columns=MODEL_METRICS_SUMMARY_COLUMNS,
     )
-    return pd.concat([retained_frame, calibrated_frame], ignore_index=True)[MODEL_METRICS_SUMMARY_COLUMNS]
+    return pd.concat([retained_frame, calibrated_frame], ignore_index=True)[
+        MODEL_METRICS_SUMMARY_COLUMNS
+    ]
 
 
-def _existing_metric_created_at(existing_frame: pd.DataFrame, model_version: str) -> str:
+def _existing_metric_created_at(
+    existing_frame: pd.DataFrame, model_version: str
+) -> str:
     matching_rows = existing_frame.loc[existing_frame["model_version"] == model_version]
     if matching_rows.empty:
         return created_at_utc()

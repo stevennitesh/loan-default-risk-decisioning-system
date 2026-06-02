@@ -6,23 +6,30 @@ from typing import Any
 
 import duckdb
 
-from src.config import load_config
-from src.feature_experiments import DEFAULT_FEATURE_LIMITS
-from src.feature_experiments import FeatureExperimentError
-from src.feature_experiments import feature_sets
-from src.feature_experiments import load_feature_importance_rows
-from src.feature_experiments import load_lightgbm_artifact
-from src.feature_experiments import load_split_frames
-from src.feature_experiments import normalize_split_ids
-from src.feature_experiments import ranked_raw_features as ranked_raw_features
-from src.feature_experiments import run_single_feature_set
-from src.feature_experiments import select_feature_set
-from src.runtime import created_at_utc
-from src.runtime import resolve_project_path
-from src.runtime import write_csv
-from src.report_contracts import FEATURE_SELECTION_COMPARISON_COLUMNS
-from src.report_contracts import SELECTED_FEATURE_COLUMNS
-
+from src.cli import add_config_argument, exit_with_error, format_int_csv, parse_int_csv
+from src.config import DEFAULT_CONFIG_PATH, load_config, manual_review_capacity_rate
+from src.feature_experiments import (
+    DEFAULT_FEATURE_LIMITS,
+    FeatureExperimentError,
+    load_lightgbm_artifact,
+    load_split_frames,
+    prepare_feature_set_specs,
+    run_single_feature_set,
+    select_feature_set,
+)
+from src.model_artifacts import normalize_split_ids
+from src.model_contracts import EVALUATION_SPLITS
+from src.report_contracts import (
+    FEATURE_SELECTION_COMPARISON_COLUMNS,
+    SELECTED_FEATURE_COLUMNS,
+)
+from src.runtime import (
+    created_at_utc,
+    ensure_directories,
+    require_existing_path,
+    resolve_config_path,
+    write_csv,
+)
 
 FEATURE_SELECTION_REPORT_NAME = "005_feature_selection.md"
 SELECTED_FEATURES_NAME = "005_selected_features.csv"
@@ -33,7 +40,7 @@ class FeatureSelectionError(FeatureExperimentError):
 
 
 def run_feature_selection_experiment(
-    config_path: str | Path = "configs/base.yaml",
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
     feature_limits: tuple[int, ...] = DEFAULT_FEATURE_LIMITS,
     include_full: bool = True,
     comparison_name: str = "feature_selection_comparison.csv",
@@ -41,33 +48,25 @@ def run_feature_selection_experiment(
     report_name: str = FEATURE_SELECTION_REPORT_NAME,
 ) -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
-    report_dir = resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
+    report_dir = resolve_config_path(config, "report_dir")
 
-    if not duckdb_path.exists():
-        raise FeatureSelectionError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", FeatureSelectionError)
 
     base_artifact = load_lightgbm_artifact(model_dir, error_cls=FeatureSelectionError)
     full_feature_columns = list(base_artifact["feature_columns"])
     split_applicant_ids = normalize_split_ids(
         base_artifact["split_applicant_ids"],
+        EVALUATION_SPLITS,
         error_cls=FeatureSelectionError,
     )
-    importance_rows = load_feature_importance_rows(report_dir, error_cls=FeatureSelectionError)
-    ranked_features = ranked_raw_features(importance_rows, full_feature_columns)
-    max_limit = max(feature_limits) if feature_limits else 0
-    if len(ranked_features) < min(max_limit, len(full_feature_columns)):
-        raise FeatureSelectionError(
-            "Feature importance ranking does not cover enough model features for requested limits: "
-            f"ranked={len(ranked_features)}, requested={max_limit}"
-        )
 
     created_at = created_at_utc()
-    manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
+    review_capacity_rate = manual_review_capacity_rate(config)
     rows: list[dict[str, Any]] = []
-    feature_set_specs = feature_sets(
-        ranked_features,
+    feature_set_specs = prepare_feature_set_specs(
+        report_dir,
         full_feature_columns,
         feature_limits,
         include_full,
@@ -92,7 +91,7 @@ def run_feature_selection_experiment(
                     feature_columns,
                     feature_limit,
                     split_frames,
-                    manual_review_capacity_rate,
+                    review_capacity_rate,
                     created_at,
                     error_cls=FeatureSelectionError,
                 )
@@ -102,9 +101,8 @@ def run_feature_selection_experiment(
     for row in rows:
         row["selected"] = row["feature_set"] == selected_feature_set
 
-    report_dir.mkdir(parents=True, exist_ok=True)
     experiments_dir = report_dir / "experiments"
-    experiments_dir.mkdir(parents=True, exist_ok=True)
+    ensure_directories(report_dir, experiments_dir)
     comparison_path = report_dir / comparison_name
     report_path = experiments_dir / report_name
     selected_features_path = experiments_dir / selected_features_name
@@ -112,7 +110,9 @@ def run_feature_selection_experiment(
     write_csv(
         selected_features_path,
         SELECTED_FEATURE_COLUMNS,
-        _selected_feature_rows(selected_feature_set, features_by_set[selected_feature_set]),
+        _selected_feature_rows(
+            selected_feature_set, features_by_set[selected_feature_set]
+        ),
     )
     _write_report(report_path, rows, selected_feature_set, selected_features_name)
 
@@ -125,49 +125,9 @@ def run_feature_selection_experiment(
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compare top-N feature-selection variants for the LightGBM risk model.",
-    )
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    parser.add_argument(
-        "--feature-limits",
-        default="40,60,80,100",
-        help="Comma-separated top-N feature limits to compare.",
-    )
-    parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
-    parser.add_argument(
-        "--comparison-name",
-        default="feature_selection_comparison.csv",
-        help="CSV filename for feature-selection comparison rows under the report directory.",
-    )
-    parser.add_argument(
-        "--selected-features-name",
-        default=SELECTED_FEATURES_NAME,
-        help="CSV filename for selected feature rows under reports/experiments.",
-    )
-    parser.add_argument(
-        "--report-name",
-        default=FEATURE_SELECTION_REPORT_NAME,
-        help="Markdown report filename under reports/experiments.",
-    )
-    args = parser.parse_args()
-    feature_limits = tuple(int(value.strip()) for value in args.feature_limits.split(",") if value.strip())
-
-    try:
-        run_feature_selection_experiment(
-            args.config,
-            feature_limits=feature_limits,
-            include_full=not args.skip_full,
-            comparison_name=args.comparison_name,
-            selected_features_name=args.selected_features_name,
-            report_name=args.report_name,
-        )
-    except FeatureSelectionError as error:
-        raise SystemExit(str(error)) from error
-
-
-def _selected_feature_rows(feature_set_name: str, feature_columns: list[str]) -> list[dict[str, Any]]:
+def _selected_feature_rows(
+    feature_set_name: str, feature_columns: list[str]
+) -> list[dict[str, Any]]:
     return [
         {
             "feature_set": feature_set_name,
@@ -189,10 +149,14 @@ def _write_report(
         "{validation_pr_auc:.6f} | {validation_brier_score:.6f} | "
         "{validation_top_decile_lift:.6f} | {validation_balanced_ev_per_applicant:.2f} | "
         "{test_pr_auc:.6f} | {test_brier_score:.6f} | "
-        "{test_top_decile_lift:.6f} | {test_balanced_ev_per_applicant:.2f} | {selected} |".format(**row)
+        "{test_top_decile_lift:.6f} | {test_balanced_ev_per_applicant:.2f} | {selected} |".format(
+            **row
+        )
         for row in rows
     )
-    selected_row = next(row for row in rows if row["feature_set"] == selected_feature_set)
+    selected_row = next(
+        row for row in rows if row["feature_set"] == selected_feature_set
+    )
     interpretation_text = _interpretation_text(rows, selected_row)
     text = f"""# Experiment 005: Feature Selection
 
@@ -212,7 +176,7 @@ Feature subsets are selected from `reports/model_feature_importance.csv`, mappin
 
 ## Selected Setup
 
-Selected feature set: `{selected_feature_set}` with {selected_row['feature_count']} features and `{selected_row['selected_calibration_method']}` calibration.
+Selected feature set: `{selected_feature_set}` with {selected_row["feature_count"]} features and `{selected_row["selected_calibration_method"]}` calibration.
 
 Selected raw feature columns are written to `reports/experiments/{selected_features_name}`.
 
@@ -227,7 +191,9 @@ This experiment changes the model feature surface only. It does not add new sour
     path.write_text(text, encoding="utf-8")
 
 
-def _interpretation_text(rows: list[dict[str, Any]], selected_row: dict[str, Any]) -> str:
+def _interpretation_text(
+    rows: list[dict[str, Any]], selected_row: dict[str, Any]
+) -> str:
     selected_name = str(selected_row["feature_set"])
     full_row = next((row for row in rows if row["feature_set"] == "full"), None)
     first_paragraph = (
@@ -238,7 +204,9 @@ def _interpretation_text(rows: list[dict[str, Any]], selected_row: dict[str, Any
     if full_row is None or selected_name == "full":
         return first_paragraph
 
-    removed_features = int(full_row["feature_count"]) - int(selected_row["feature_count"])
+    removed_features = int(full_row["feature_count"]) - int(
+        selected_row["feature_count"]
+    )
     full_test_pr_auc = float(full_row["test_pr_auc"])
     selected_test_pr_auc = float(selected_row["test_pr_auc"])
     full_test_ev = float(full_row["test_balanced_ev_per_applicant"])
@@ -266,6 +234,50 @@ def _interpretation_text(rows: list[dict[str, Any]], selected_row: dict[str, Any
         f"{first_paragraph} It removes {removed_features} features compared with the full setup.\n\n"
         f"{test_caveat}"
     )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Compare top-N feature-selection variants for the LightGBM risk model.",
+    )
+    add_config_argument(parser)
+    parser.add_argument(
+        "--feature-limits",
+        default=format_int_csv(DEFAULT_FEATURE_LIMITS),
+        help="Comma-separated top-N feature limits to compare.",
+    )
+    parser.add_argument(
+        "--skip-full", action="store_true", help="Do not include the full feature set."
+    )
+    parser.add_argument(
+        "--comparison-name",
+        default="feature_selection_comparison.csv",
+        help="CSV filename for feature-selection comparison rows under the report directory.",
+    )
+    parser.add_argument(
+        "--selected-features-name",
+        default=SELECTED_FEATURES_NAME,
+        help="CSV filename for selected feature rows under reports/experiments.",
+    )
+    parser.add_argument(
+        "--report-name",
+        default=FEATURE_SELECTION_REPORT_NAME,
+        help="Markdown report filename under reports/experiments.",
+    )
+    args = parser.parse_args()
+    feature_limits = parse_int_csv(args.feature_limits)
+
+    try:
+        run_feature_selection_experiment(
+            args.config,
+            feature_limits=feature_limits,
+            include_full=not args.skip_full,
+            comparison_name=args.comparison_name,
+            selected_features_name=args.selected_features_name,
+            report_name=args.report_name,
+        )
+    except FeatureSelectionError as error:
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

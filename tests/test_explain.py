@@ -6,16 +6,17 @@ import duckdb
 import joblib
 import pytest
 
-from src.explain import ExplainabilityError
-from src.explain import run_explain
+from src.explain import ExplainabilityError, run_explain
+from src.model_contracts import LIGHTGBM_MODEL_VERSION
 from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
 from src.score_batch import run_scoring
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
 from src.train import run_training
-from tests.helpers import assert_table_missing
-from tests.helpers import create_training_database
-from tests.helpers import read_csv_rows
-
+from tests.helpers import (
+    assert_table_missing,
+    create_training_database,
+    read_csv_rows,
+    table_row_count,
+)
 
 FORBIDDEN_EXPLANATION_TERMS = {
     "SK_ID_CURR",
@@ -33,7 +34,9 @@ FORBIDDEN_EXPLANATION_TERMS = {
     "CNT_FAM_MEMBERS",
 }
 
-pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:X does not have valid feature names.*:UserWarning"
+)
 
 
 def test_explain_fails_clearly_without_credit_risk_scores(
@@ -58,7 +61,9 @@ def test_explain_fails_when_selected_model_is_not_lightgbm(
     create_training_database(database_path, train_rows=80, test_rows=12)
     run_training(project_config_path)
     with duckdb.connect(str(database_path)) as connection:
-        connection.execute("UPDATE model_comparison_summary SET selected_model_type = 'logistic_regression'")
+        connection.execute(
+            "UPDATE model_comparison_summary SET selected_model_type = 'logistic_regression'"
+        )
 
     with pytest.raises(ExplainabilityError, match="LightGBM-only"):
         run_explain(project_config_path)
@@ -96,7 +101,9 @@ def test_run_explain_creates_importance_outputs_and_updates_reason_fields(
     assert (report_dir / "figures" / "shap_summary.png").stat().st_size > 0
 
     assert importance_rows
-    assert [int(row["rank"]) for row in importance_rows] == list(range(1, len(importance_rows) + 1))
+    assert [int(row["rank"]) for row in importance_rows] == list(
+        range(1, len(importance_rows) + 1)
+    )
     for row in importance_rows:
         assert row["model_version"] == LIGHTGBM_MODEL_VERSION
         assert row["feature_name"]
@@ -105,10 +112,9 @@ def test_run_explain_creates_importance_outputs_and_updates_reason_fields(
         _assert_no_forbidden_terms(row["feature_name"])
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
-        table_rows = connection.execute(
-            "SELECT COUNT(*) FROM model_feature_importance"
-        ).fetchone()[0]
-        assert table_rows == len(importance_rows)
+        assert table_row_count(connection, "model_feature_importance") == len(
+            importance_rows
+        )
         reason_rows = connection.execute(
             """
             SELECT top_reason_1, top_reason_2, top_reason_3
@@ -119,7 +125,9 @@ def test_run_explain_creates_importance_outputs_and_updates_reason_fields(
             [LIGHTGBM_MODEL_VERSION],
         ).fetchall()
 
-    flattened_reasons = [reason for row in reason_rows for reason in row if reason is not None]
+    flattened_reasons = [
+        reason for row in reason_rows for reason in row if reason is not None
+    ]
     assert flattened_reasons
     for reason in flattened_reasons:
         assert isinstance(reason, str)
@@ -165,7 +173,9 @@ def _create_lightgbm_training_state(database_path: Path, config_path: Path) -> N
         )
     run_training(config_path)
     with duckdb.connect(str(database_path)) as connection:
-        connection.execute("UPDATE model_comparison_summary SET selected_model_type = 'lightgbm'")
+        connection.execute(
+            "UPDATE model_comparison_summary SET selected_model_type = 'lightgbm'"
+        )
         connection.execute(
             """
             CREATE OR REPLACE TABLE model_threshold_metrics AS
@@ -184,7 +194,9 @@ def _create_lightgbm_training_state(database_path: Path, config_path: Path) -> N
 def _create_scored_lightgbm_state(database_path: Path, config_path: Path) -> None:
     _create_lightgbm_training_state(database_path, config_path)
     run_scoring(config_path)
-    artifact = joblib.load(database_path.parents[1] / "models" / "lightgbm_credit_risk.joblib")
+    artifact = joblib.load(
+        database_path.parents[1] / "models" / "lightgbm_credit_risk.joblib"
+    )
     assert artifact["model_version"] == LIGHTGBM_MODEL_VERSION
 
 

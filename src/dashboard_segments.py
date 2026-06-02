@@ -3,19 +3,15 @@ from __future__ import annotations
 from typing import Any
 
 import duckdb
-import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score
 from sklearn.metrics import brier_score_loss
-from sklearn.metrics import roc_auc_score
 
-from src.dashboard_probability_quality import calibrated_probabilities
-from src.metrics import validate_probabilities
+from src.calibration import apply_saved_calibration_artifact
 from src.mart_access import load_labeled_segment_split_frame
+from src.metrics import pr_auc_or_none, roc_auc_or_none, validate_probabilities
 from src.model_artifacts import normalize_split_ids
 from src.model_contracts import REPORTING_SPLITS
-from src.runtime import feature_frame
-
+from src.modeling import predict_probabilities
 
 SEGMENT_DIMENSIONS = [
     "CODE_GENDER",
@@ -42,27 +38,41 @@ def build_segment_performance_rows(
     rows: list[dict[str, Any]] = []
 
     for split_name in REPORTING_SPLITS:
-        split_frame = _load_split_segment_frame(
+        split_frame = load_labeled_segment_split_frame(
             connection,
             split_applicant_ids[split_name],
+            feature_columns,
+            SEGMENT_DIMENSIONS,
+            split_name,
+            error_cls=error_cls,
+        )
+        probabilities = predict_probabilities(
+            artifact,
+            split_frame,
             feature_columns,
             split_name,
             error_cls,
         )
-        probabilities = artifact["pipeline"].predict_proba(
-            feature_frame(split_frame, feature_columns)
-        )[:, 1]
-        validate_probabilities(probabilities, split_name, error_cls=error_cls)
-        probabilities = calibrated_probabilities(probabilities, calibration_artifact, error_cls)
-        validate_probabilities(probabilities, f"{split_name} calibrated", error_cls=error_cls)
+        probabilities = apply_saved_calibration_artifact(
+            probabilities,
+            calibration_artifact,
+            error_cls=error_cls,
+            label="dashboard calibration",
+        )
+        validate_probabilities(
+            probabilities, f"{split_name} calibrated", error_cls=error_cls
+        )
         split_frame = split_frame.copy()
         split_frame["probability"] = probabilities.astype(float)
-        target_values = split_frame["TARGET"].astype(int)
 
         for segment_name in SEGMENT_DIMENSIONS:
-            for segment_value, segment_frame in split_frame.groupby(segment_name, dropna=False, sort=True):
+            for segment_value, segment_frame in split_frame.groupby(
+                segment_name, dropna=False, sort=True
+            ):
                 segment_targets = segment_frame["TARGET"].astype(int)
-                segment_probabilities = segment_frame["probability"].to_numpy(dtype=float)
+                segment_probabilities = segment_frame["probability"].to_numpy(
+                    dtype=float
+                )
                 rows.append(
                     {
                         "model_version": dashboard_model_version,
@@ -72,47 +82,21 @@ def build_segment_performance_rows(
                         "applicant_count": len(segment_frame),
                         "observed_default_rate": float(segment_targets.mean()),
                         "average_score": float(segment_probabilities.mean()),
-                        "roc_auc": _roc_auc_or_none(segment_targets, segment_probabilities),
-                        "pr_auc": _pr_auc_or_none(segment_targets, segment_probabilities),
-                        "brier_score": float(brier_score_loss(segment_targets, segment_probabilities)),
+                        "roc_auc": roc_auc_or_none(
+                            segment_targets, segment_probabilities
+                        ),
+                        "pr_auc": pr_auc_or_none(
+                            segment_targets, segment_probabilities
+                        ),
+                        "brier_score": float(
+                            brier_score_loss(segment_targets, segment_probabilities)
+                        ),
                     }
                 )
-
-        if len(split_frame) != len(target_values):
-            raise error_cls(f"{split_name} segment frame changed size while building summaries")
 
     if not rows:
         raise error_cls("segment_performance_summary must not be empty")
     return rows
-
-
-def _load_split_segment_frame(
-    connection: duckdb.DuckDBPyConnection,
-    applicant_ids: list[int],
-    feature_columns: list[str],
-    split_name: str,
-    error_cls: type[Exception],
-) -> pd.DataFrame:
-    return load_labeled_segment_split_frame(
-        connection,
-        applicant_ids,
-        feature_columns,
-        SEGMENT_DIMENSIONS,
-        split_name,
-        error_cls=error_cls,
-    )
-
-
-def _roc_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
-    if set(targets.astype(int).unique()) != {0, 1}:
-        return None
-    return float(roc_auc_score(targets, probabilities))
-
-
-def _pr_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
-    if set(targets.astype(int).unique()) != {0, 1}:
-        return None
-    return float(average_precision_score(targets, probabilities))
 
 
 def _segment_value(value: Any) -> str:

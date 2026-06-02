@@ -3,11 +3,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from src.thresholding import SCENARIO_NAMES
-from src.thresholding import ThresholdingError
-from src.thresholding import assign_risk_bands
-from src.thresholding import resolve_scenario_thresholds
-from src.thresholding import validate_threshold_pair
+from src.thresholding import (
+    SCENARIO_NAMES,
+    ThresholdingError,
+    assign_risk_bands,
+    resolve_scenario_thresholds,
+    validate_threshold_pair,
+)
 
 
 def test_assign_risk_bands_uses_documented_boundaries() -> None:
@@ -46,7 +48,9 @@ def test_validate_threshold_pair_requires_ordered_unit_interval_thresholds() -> 
         validate_threshold_pair(-0.01, 0.20, "balanced")
 
 
-def test_resolve_scenario_thresholds_uses_config_overrides_and_default_quantiles() -> None:
+def test_resolve_scenario_thresholds_uses_config_overrides_and_default_quantiles() -> (
+    None
+):
     config = {
         "threshold_version": "threshold_v1",
         "scenarios": {

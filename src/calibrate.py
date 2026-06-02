@@ -8,39 +8,44 @@ import duckdb
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import brier_score_loss
-from sklearn.metrics import roc_auc_score
 
-from src.calibration import CALIBRATION_FIT_SPLIT
-from src.calibration import CALIBRATION_METHODS
-from src.calibration import apply_calibration_method
-from src.calibration import fit_calibrators
-from src.calibration import select_calibration_method
-from src.config import load_config
-from src.model_contracts import EVALUATION_SPLITS
-from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
-from src.model_contracts import REPORTING_SPLITS
-from src.metrics import nullable_mean
-from src.metrics import precision_at_rate
-from src.metrics import recall_at_rate
-from src.metrics import top_decile_lift
-from src.metrics import validate_probabilities
-from src.metrics import with_probability_rank_bin
+from src.calibration import (
+    CALIBRATION_FIT_SPLIT,
+    CALIBRATION_METHODS,
+    apply_calibration_method,
+    fit_calibrators,
+    select_calibration_method,
+)
+from src.cli import add_config_argument, exit_with_error
+from src.config import (
+    DEFAULT_CONFIG_PATH,
+    load_config,
+    manual_review_capacity_rate,
+    project_random_seed,
+)
 from src.mart_access import load_labeled_split_frames
-from src.mart_access import require_table
-from src.model_artifacts import load_model_artifact
-from src.model_artifacts import normalize_split_ids
-from src.report_contracts import MODEL_CALIBRATION_BINS_COMPARISON_COLUMNS
-from src.report_contracts import MODEL_CALIBRATION_COMPARISON_COLUMNS
-from src.runtime import created_at_utc
-from src.runtime import feature_frame
-from src.runtime import replace_duckdb_table
-from src.runtime import resolve_project_path
-from src.runtime import write_csv
-
+from src.metrics import build_calibration_bin_rows, probability_metrics
+from src.model_artifacts import load_model_artifact, normalize_split_ids
+from src.model_contracts import (
+    EVALUATION_SPLITS,
+    LIGHTGBM_MODEL_ARTIFACT_NAME,
+    LIGHTGBM_MODEL_TYPE,
+    LIGHTGBM_MODEL_VERSION,
+    REPORTING_SPLITS,
+)
+from src.modeling import predict_probabilities, prediction_frame
+from src.report_contracts import (
+    MODEL_CALIBRATION_BINS_COMPARISON_COLUMNS,
+    MODEL_CALIBRATION_COMPARISON_COLUMNS,
+)
+from src.runtime import (
+    created_at_utc,
+    ensure_directories,
+    replace_duckdb_table,
+    require_existing_path,
+    resolve_config_path,
+    write_csv,
+)
 
 CALIBRATION_ARTIFACT_NAME = "lightgbm_credit_risk_calibration.joblib"
 
@@ -49,35 +54,42 @@ class CalibrationError(RuntimeError):
     """Raised when the post-v1 calibration experiment cannot run safely."""
 
 
-def run_calibration_experiment(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
+def run_calibration_experiment(
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
+) -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
-    report_dir = resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
+    report_dir = resolve_config_path(config, "report_dir")
 
-    if not duckdb_path.exists():
-        raise CalibrationError(f"DuckDB database not found: {duckdb_path}")
-
-    artifact_path = model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME
-    if not artifact_path.exists():
-        raise CalibrationError(f"Missing LightGBM model artifact: {artifact_path}")
+    require_existing_path(duckdb_path, "DuckDB database", CalibrationError)
 
     artifact = load_model_artifact(
-        artifact_path,
+        model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME,
         expected_model_type=LIGHTGBM_MODEL_TYPE,
         expected_model_version=LIGHTGBM_MODEL_VERSION,
         error_cls=CalibrationError,
         artifact_label="LightGBM artifact",
+        missing_label="LightGBM model artifact",
         require_predict_proba=True,
     )
 
     feature_columns = list(artifact["feature_columns"])
-    split_applicant_ids = _normalize_split_ids(artifact["split_applicant_ids"])
+    split_applicant_ids = normalize_split_ids(
+        artifact["split_applicant_ids"],
+        EVALUATION_SPLITS,
+        error_cls=CalibrationError,
+    )
     created_at = created_at_utc()
-    manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
+    review_capacity_rate = manual_review_capacity_rate(config)
 
     with duckdb.connect(str(duckdb_path)) as connection:
-        split_frames = _load_split_frames(connection, split_applicant_ids, feature_columns)
+        split_frames = load_labeled_split_frames(
+            connection,
+            split_applicant_ids,
+            feature_columns,
+            error_cls=CalibrationError,
+        )
         uncalibrated_predictions = _build_uncalibrated_predictions(
             artifact,
             split_frames,
@@ -86,7 +98,7 @@ def run_calibration_experiment(config_path: str | Path = "configs/base.yaml") ->
         calibrators = fit_calibrators(
             uncalibrated_predictions[CALIBRATION_FIT_SPLIT]["probability"].to_numpy(),
             uncalibrated_predictions[CALIBRATION_FIT_SPLIT]["target"].to_numpy(),
-            int(config["project"]["random_seed"]),
+            project_random_seed(config),
             error_cls=CalibrationError,
         )
         calibrated_predictions = {
@@ -100,13 +112,14 @@ def run_calibration_experiment(config_path: str | Path = "configs/base.yaml") ->
         }
         comparison_rows, bin_rows = _build_comparison_outputs(
             calibrated_predictions,
-            manual_review_capacity_rate,
+            review_capacity_rate,
             created_at,
         )
-        selected_method = select_calibration_method(comparison_rows, error_cls=CalibrationError)
+        selected_method = select_calibration_method(
+            comparison_rows, error_cls=CalibrationError
+        )
 
-        report_dir.mkdir(parents=True, exist_ok=True)
-        model_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directories(report_dir, model_dir)
         write_csv(
             report_dir / "model_calibration_comparison.csv",
             MODEL_CALIBRATION_COMPARISON_COLUMNS,
@@ -117,7 +130,9 @@ def run_calibration_experiment(config_path: str | Path = "configs/base.yaml") ->
             MODEL_CALIBRATION_BINS_COMPARISON_COLUMNS,
             bin_rows,
         )
-        replace_duckdb_table(connection, "model_calibration_comparison", comparison_rows)
+        replace_duckdb_table(
+            connection, "model_calibration_comparison", comparison_rows
+        )
         replace_duckdb_table(connection, "model_calibration_bins_comparison", bin_rows)
 
     calibration_artifact = {
@@ -147,54 +162,21 @@ def run_calibration_experiment(config_path: str | Path = "configs/base.yaml") ->
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Run post-v1 probability calibration comparison for the LightGBM model.",
-    )
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    args = parser.parse_args()
-
-    try:
-        run_calibration_experiment(args.config)
-    except CalibrationError as error:
-        raise SystemExit(str(error)) from error
-
-
-def _normalize_split_ids(raw_split_ids: Any) -> dict[str, list[int]]:
-    return normalize_split_ids(raw_split_ids, EVALUATION_SPLITS, error_cls=CalibrationError)
-
-
-def _load_split_frames(
-    connection: duckdb.DuckDBPyConnection,
-    split_applicant_ids: dict[str, list[int]],
-    feature_columns: list[str],
-) -> dict[str, pd.DataFrame]:
-    require_table(connection, "mart_credit_risk_features", error_cls=CalibrationError)
-    return load_labeled_split_frames(
-        connection,
-        split_applicant_ids,
-        feature_columns,
-        error_cls=CalibrationError,
-    )
-
-
 def _build_uncalibrated_predictions(
     artifact: dict[str, Any],
     split_frames: dict[str, pd.DataFrame],
     feature_columns: list[str],
 ) -> dict[str, pd.DataFrame]:
-    pipeline = artifact["pipeline"]
     prediction_frames = {}
     for split_name, frame in split_frames.items():
-        probabilities = pipeline.predict_proba(feature_frame(frame, feature_columns))[:, 1]
-        validate_probabilities(probabilities, f"{LIGHTGBM_MODEL_VERSION}_{split_name}", error_cls=CalibrationError)
-        prediction_frames[split_name] = pd.DataFrame(
-            {
-                "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
-                "target": frame["TARGET"].astype(int),
-                "probability": probabilities.astype(float),
-            }
+        probabilities = predict_probabilities(
+            artifact,
+            frame,
+            feature_columns,
+            f"{LIGHTGBM_MODEL_VERSION}_{split_name}",
+            CalibrationError,
         )
+        prediction_frames[split_name] = prediction_frame(frame, probabilities)
     return prediction_frames
 
 
@@ -214,6 +196,12 @@ def _build_comparison_outputs(
             frame = split_predictions[split_name]
             probabilities = frame["probability"].to_numpy()
             y_true = frame["target"]
+            metrics = probability_metrics(
+                y_true,
+                probabilities,
+                manual_review_capacity_rate,
+                CalibrationError,
+            )
             split_bin_errors = bin_errors[split_name]
             comparison_rows.append(
                 {
@@ -221,27 +209,25 @@ def _build_comparison_outputs(
                     "base_model_version": LIGHTGBM_MODEL_VERSION,
                     "calibration_method": method,
                     "split": split_name,
-                    "roc_auc": roc_auc_score(y_true, probabilities),
-                    "pr_auc": average_precision_score(y_true, probabilities),
-                    "brier_score": brier_score_loss(y_true, probabilities),
-                    "min_predicted_probability": float(np.min(probabilities)),
-                    "max_predicted_probability": float(np.max(probabilities)),
-                    "top_decile_lift": top_decile_lift(y_true, probabilities, error_cls=CalibrationError),
-                    "precision_at_top_decile": precision_at_rate(
-                        y_true,
-                        probabilities,
-                        0.10,
-                        error_cls=CalibrationError,
-                    ),
-                    "recall_at_manual_review_capacity": recall_at_rate(
-                        y_true,
-                        probabilities,
-                        manual_review_capacity_rate,
-                        error_cls=CalibrationError,
-                    ),
-                    "mean_absolute_bin_error": split_bin_errors["mean_absolute_bin_error"],
-                    "weighted_calibration_error": split_bin_errors["weighted_calibration_error"],
-                    "max_absolute_bin_error": split_bin_errors["max_absolute_bin_error"],
+                    "roc_auc": metrics["roc_auc"],
+                    "pr_auc": metrics["pr_auc"],
+                    "brier_score": metrics["brier_score"],
+                    "min_predicted_probability": metrics["min_predicted_probability"],
+                    "max_predicted_probability": metrics["max_predicted_probability"],
+                    "top_decile_lift": metrics["top_decile_lift"],
+                    "precision_at_top_decile": metrics["precision_at_top_decile"],
+                    "recall_at_manual_review_capacity": metrics[
+                        "recall_at_manual_review_capacity"
+                    ],
+                    "mean_absolute_bin_error": split_bin_errors[
+                        "mean_absolute_bin_error"
+                    ],
+                    "weighted_calibration_error": split_bin_errors[
+                        "weighted_calibration_error"
+                    ],
+                    "max_absolute_bin_error": split_bin_errors[
+                        "max_absolute_bin_error"
+                    ],
                     "created_at": created_at,
                 }
             )
@@ -254,30 +240,17 @@ def _build_bin_rows(
     prediction_frames: dict[str, pd.DataFrame],
     created_at: str,
 ) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for split_name in REPORTING_SPLITS:
-        frame = with_probability_rank_bin(prediction_frames[split_name], "bin_id", descending=False)
-        for bin_id in range(1, 11):
-            bin_frame = frame.loc[frame["bin_id"] == bin_id]
-            average_predicted_score = nullable_mean(bin_frame["probability"])
-            observed_default_rate = nullable_mean(bin_frame["target"])
-            rows.append(
-                {
-                    "model_version": model_version,
-                    "base_model_version": LIGHTGBM_MODEL_VERSION,
-                    "calibration_method": method,
-                    "split": split_name,
-                    "bin_id": bin_id,
-                    "applicant_count": len(bin_frame),
-                    "average_predicted_score": average_predicted_score,
-                    "observed_default_rate": observed_default_rate,
-                    "calibration_error": observed_default_rate - average_predicted_score
-                    if observed_default_rate is not None and average_predicted_score is not None
-                    else None,
-                    "created_at": created_at,
-                }
-            )
-    return rows
+    return [
+        {
+            **row,
+            "base_model_version": LIGHTGBM_MODEL_VERSION,
+            "calibration_method": method,
+            "created_at": created_at,
+        }
+        for row in build_calibration_bin_rows(
+            model_version, prediction_frames, REPORTING_SPLITS
+        )
+    ]
 
 
 def _bin_error_summary(bin_rows: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
@@ -291,17 +264,37 @@ def _bin_error_summary(bin_rows: list[dict[str, Any]]) -> dict[str, dict[str, fl
         total_count = sum(int(row["applicant_count"]) for row in split_rows)
         absolute_errors = [abs(float(row["calibration_error"])) for row in split_rows]
         weighted_error = (
-            sum(abs(float(row["calibration_error"])) * int(row["applicant_count"]) for row in split_rows)
+            sum(
+                abs(float(row["calibration_error"])) * int(row["applicant_count"])
+                for row in split_rows
+            )
             / total_count
             if total_count
             else 0.0
         )
         summaries[split_name] = {
-            "mean_absolute_bin_error": float(np.mean(absolute_errors)) if absolute_errors else 0.0,
+            "mean_absolute_bin_error": float(np.mean(absolute_errors))
+            if absolute_errors
+            else 0.0,
             "weighted_calibration_error": float(weighted_error),
-            "max_absolute_bin_error": float(np.max(absolute_errors)) if absolute_errors else 0.0,
+            "max_absolute_bin_error": float(np.max(absolute_errors))
+            if absolute_errors
+            else 0.0,
         }
     return summaries
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Run post-v1 probability calibration comparison for the LightGBM model.",
+    )
+    add_config_argument(parser)
+    args = parser.parse_args()
+
+    try:
+        run_calibration_experiment(args.config)
+    except CalibrationError as error:
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

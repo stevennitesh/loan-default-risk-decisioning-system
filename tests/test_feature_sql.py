@@ -1,4 +1,3 @@
-import csv
 from pathlib import Path
 
 import duckdb
@@ -7,9 +6,7 @@ import yaml
 
 from src.build_features import FeatureBuildError, run_feature_build
 from src.report_contracts import FEATURE_PROFILE_COLUMNS
-from tests.helpers import read_table_columns
-from tests.helpers import table_names
-
+from tests.helpers import query_value, read_csv_rows, read_table_columns, table_names
 
 FORBIDDEN_MART_COLUMNS = {
     "CODE_GENDER",
@@ -46,13 +43,6 @@ POST_V1_TABLES = {
 }
 
 
-def read_profile(profile_path: Path) -> list[dict[str, str]]:
-    with profile_path.open(newline="", encoding="utf-8") as profile_file:
-        reader = csv.DictReader(profile_file)
-        assert reader.fieldnames == FEATURE_PROFILE_COLUMNS
-        return list(reader)
-
-
 def test_feature_build_fails_clearly_when_staging_tables_are_missing(
     scratch_path: Path,
     project_config_path: Path,
@@ -86,7 +76,9 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
         "mart_credit_risk_features",
     }
 
-    with duckdb.connect(str(staged_feature_fixture.database_path), read_only=True) as connection:
+    with duckdb.connect(
+        str(staged_feature_fixture.database_path), read_only=True
+    ) as connection:
         mart_columns = read_table_columns(connection, "mart_credit_risk_features")
         pressure_columns = read_table_columns(connection, "f_risk_pressure_features")
         diagnostic_columns = read_table_columns(connection, "segment_diagnostics")
@@ -311,7 +303,8 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
         ).fetchone()
         assert target_counts == (2, 1)
 
-        duplicate_count = connection.execute(
+        duplicate_count = query_value(
+            connection,
             """
             SELECT COUNT(*)
             FROM (
@@ -320,12 +313,17 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
                 GROUP BY SK_ID_CURR, source_population
                 HAVING COUNT(*) > 1
             )
-            """
-        ).fetchone()[0]
+            """,
+        )
         assert duplicate_count == 0
 
-    saved_profile = read_profile(staged_feature_fixture.scratch_path / "reports" / "feature_mart_profile.csv")
-    mart_profile = next(row for row in saved_profile if row["table_name"] == "mart_credit_risk_features")
+    saved_profile = read_csv_rows(
+        staged_feature_fixture.scratch_path / "reports" / "feature_mart_profile.csv",
+        FEATURE_PROFILE_COLUMNS,
+    )
+    mart_profile = next(
+        row for row in saved_profile if row["table_name"] == "mart_credit_risk_features"
+    )
     assert mart_profile["row_count"] == "3"
     assert mart_profile["distinct_applicant_count"] == "3"
     assert mart_profile["duplicate_key_count"] == "0"
@@ -334,7 +332,9 @@ def test_feature_build_creates_feature_tables_mart_diagnostics_and_profile(
 def test_feature_build_supports_v1_scope_without_post_v1_staging_tables(
     staged_feature_fixture,
 ) -> None:
-    config = yaml.safe_load(staged_feature_fixture.config_path.read_text(encoding="utf-8"))
+    config = yaml.safe_load(
+        staged_feature_fixture.config_path.read_text(encoding="utf-8")
+    )
     config["project"]["data_scope_version"] = "v1"
     config["source_files"] = V1_SOURCE_FILES
     v1_config_path = staged_feature_fixture.scratch_path / "v1.yaml"
@@ -352,7 +352,9 @@ def test_feature_build_supports_v1_scope_without_post_v1_staging_tables(
 
     assert {row["table_name"] for row in profile_rows} == V1_PROFILE_TABLES
 
-    with duckdb.connect(str(staged_feature_fixture.database_path), read_only=True) as connection:
+    with duckdb.connect(
+        str(staged_feature_fixture.database_path), read_only=True
+    ) as connection:
         tables = table_names(connection)
         mart_columns = read_table_columns(connection, "mart_credit_risk_features")
 

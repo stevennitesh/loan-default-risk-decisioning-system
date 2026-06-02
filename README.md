@@ -4,6 +4,18 @@ End-to-end credit-risk decision-support project using public Home Credit data, S
 
 This is a portfolio project, not a production underwriting system. The goal is to show how I would turn messy relational credit data into a reproducible analytics and ML workflow that supports risk ranking, business tradeoff analysis, and dashboard-ready reporting.
 
+## Outcome At A Glance
+
+Built a complete credit-risk decision-support workflow: raw public Kaggle CSVs become a DuckDB feature mart, trained LightGBM models, validation-driven threshold scenarios, scored applicant tables, SHAP interpretation outputs, and Power BI dashboard exports.
+
+The frozen v1 pipeline is complete and reproducible. Post-v1 experiments promoted a calibrated 168-feature LightGBM candidate that improves held-out test PR-AUC from `0.258236` to `0.269925`, Brier score from `0.171245` to `0.066460`, and balanced expected value per applicant from `572.03` to `581.58`.
+
+## Two-Minute Review Path
+
+1. Review the dashboard screenshots below for the business-facing output.
+2. Scan the Key Results section for model and decisioning outcomes.
+3. Read [V1 to Best Post-v1 Model Diff](reports/experiments/v1_to_post_v1_model_diff.md) for the experiment story and final tradeoffs.
+
 ## Project Snapshot
 
 | Area | Summary |
@@ -22,7 +34,11 @@ The Power BI report turns model outputs into an executive decisioning view: port
 
 ![Decisioning overview](powerbi/screenshots/decisioning_overview.png)
 
+The overview page shows portfolio mix, risk-band recommendations, threshold scenario tradeoffs, and top model drivers for a non-technical decisioning audience.
+
 ![Model validation appendix](powerbi/screenshots/model_validation_appendix.png)
+
+The validation appendix surfaces model-quality checks such as PR-AUC, ROC-AUC, lift, calibration, and segment diagnostics so the dashboard does not hide model-risk context.
 
 ## What This Demonstrates
 
@@ -48,7 +64,7 @@ Frozen v1 selected model: `lightgbm_credit_risk_v1`.
 | Held-out test recall at 10% review capacity | 0.348281 |
 | Validation PR-AUC improvement over logistic regression | +0.015556 |
 
-Post-v1, the best experimental candidate is a 168-feature last-k temporal LightGBM model with sigmoid calibration. The biggest gain is probability quality: held-out test Brier score improves from `0.173301` to `0.066460` without changing rank metrics.
+Post-v1, the best experimental candidate is a 168-feature last-k temporal LightGBM model with sigmoid calibration. The combined feature and calibration candidate improves held-out test PR-AUC from `0.258236` to `0.269925`; sigmoid calibration is the main probability-quality gain, reducing the post-v1 candidate's uncalibrated held-out test Brier score from `0.173301` to `0.066460` while preserving its rank metrics.
 
 | Post-v1 improvement | Frozen v1 | Best post-v1 | Difference |
 |---|---:|---:|---:|
@@ -61,6 +77,8 @@ Post-v1, the best experimental candidate is a 168-feature last-k temporal LightG
 | Validation balanced EV / applicant | 571.52 | 577.24 | +5.72 |
 
 The experiment trail did not support a simple "more features always win" story. Calibration gave the cleanest probability-quality gain, recent repayment behavior was the strongest feature-engineering direction, and feature cleanup experiments did not justify dropping the final 16 promoted features.
+
+For the concise validation trail, see [V1 to Best Post-v1 Model Diff](reports/experiments/v1_to_post_v1_model_diff.md).
 
 ## Architecture
 
@@ -155,14 +173,14 @@ For a quick review:
 1. Start with the dashboard screenshots above.
 2. Read the business and result summaries in this README.
 3. Inspect the feature and modeling pipeline:
-   - `sql/06_build_feature_mart.sql`
-   - `src/train.py`
-   - `src/evaluate.py`
-   - `src/score_batch.py`
-   - `src/dashboard_exports.py`
+   - [sql/06_build_feature_mart.sql](sql/06_build_feature_mart.sql)
+   - [src/train.py](src/train.py)
+   - [src/evaluate.py](src/evaluate.py)
+   - [src/score_batch.py](src/score_batch.py)
+   - [src/dashboard_exports.py](src/dashboard_exports.py)
 4. Review tests under `tests/`, especially data contracts, scoring schema, threshold policy, expected value, and dashboard artifacts.
-5. Read `reports/model_card.md` for intended use, limitations, and validation framing.
-6. Read `reports/experiments/v1_to_post_v1_model_diff.md` for the concise post-v1 improvement trail.
+5. Read [reports/model_card.md](reports/model_card.md) for intended use, limitations, and validation framing.
+6. Read [reports/experiments/v1_to_post_v1_model_diff.md](reports/experiments/v1_to_post_v1_model_diff.md) for the concise post-v1 improvement trail.
 
 ## How To Run
 
@@ -199,8 +217,7 @@ loan-default-risk-decisioning-system/
 |-- configs/              # v1 and post-v1 reproducibility configs
 |-- data/                 # local raw/parquet/db directories; data files ignored
 |-- docs/                 # project spec, implementation, testing, and validation plans
-|-- models/               # generated model artifacts ignored except placeholders
-|-- notebooks/            # optional exploratory workspace
+|-- models/               # generated model artifacts ignored; directory retained with .gitkeep
 |-- powerbi/              # Power BI files and screenshots
 |-- reports/              # model card, experiment reports, curated comparison artifacts
 |-- sql/                  # staging and feature-mart SQL
@@ -212,18 +229,18 @@ loan-default-risk-decisioning-system/
 
 | Artifact | Purpose |
 |---|---|
-| `docs/spec/PROJECT_SPEC.md` | Scope, contracts, non-goals, model-risk posture, and acceptance criteria. |
-| `docs/implementation/IMPLEMENTATION_PLAN.md` | Build order and command-to-artifact expectations. |
-| `docs/testing/TESTING_PLAN.md` | Test scope, fixture strategy, and verification expectations. |
-| `docs/validation/VALIDATION_PLAN.md` | Model and reporting gates. |
-| `reports/model_card.md` | Intended use, limitations, validation summary, and model-risk framing. |
-| `reports/README.md` | Explains committed experiment evidence versus regenerated local outputs. |
-| `reports/experiments/` | Post-v1 experiment reports and comparison log. |
-| `reports/experiments/v1_to_post_v1_model_diff.md` | Recruiter-friendly v1 to best post-v1 improvement summary. |
-| `configs/v1.yaml` | Reproducible frozen-v1 pipeline scope. |
-| `configs/post_v1.yaml` | Reproducible best post-v1 pipeline scope. |
-| `powerbi/dashboard.pbix` | v1 Power BI dashboard file. |
-| `powerbi/dashboard_post_v1.pbix` | Post-v1 comparison Power BI dashboard file. |
+| [docs/spec/PROJECT_SPEC.md](docs/spec/PROJECT_SPEC.md) | Scope, contracts, non-goals, model-risk posture, and acceptance criteria. |
+| [docs/implementation/IMPLEMENTATION_PLAN.md](docs/implementation/IMPLEMENTATION_PLAN.md) | Build order and command-to-artifact expectations. |
+| [docs/testing/TESTING_PLAN.md](docs/testing/TESTING_PLAN.md) | Test scope, fixture strategy, and verification expectations. |
+| [docs/validation/VALIDATION_PLAN.md](docs/validation/VALIDATION_PLAN.md) | Model and reporting gates. |
+| [reports/model_card.md](reports/model_card.md) | Intended use, limitations, validation summary, and model-risk framing. |
+| [reports/README.md](reports/README.md) | Explains committed experiment evidence versus regenerated local outputs. |
+| [reports/experiments/](reports/experiments/) | Post-v1 experiment reports and comparison log. |
+| [reports/experiments/v1_to_post_v1_model_diff.md](reports/experiments/v1_to_post_v1_model_diff.md) | Recruiter-friendly v1 to best post-v1 improvement summary. |
+| [configs/v1.yaml](configs/v1.yaml) | Reproducible frozen-v1 pipeline scope. |
+| [configs/post_v1.yaml](configs/post_v1.yaml) | Reproducible best post-v1 pipeline scope. |
+| [powerbi/dashboard.pbix](powerbi/dashboard.pbix) | v1 Power BI dashboard file. |
+| [powerbi/dashboard_post_v1.pbix](powerbi/dashboard_post_v1.pbix) | Post-v1 comparison Power BI dashboard file. |
 
 ## Limitations
 

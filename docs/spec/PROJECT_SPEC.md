@@ -1,9 +1,9 @@
 # Loan Default Risk Decisioning System
 
-**Version:** 0.3.1 final pre-build specification
-**Status:** Build contract
+**Version:** 0.3.1 final portfolio contract
+**Status:** Implemented v1 contract with post-v1 comparison
 **Owner:** Steven  
-**Last updated:** 2026-04-25
+**Last updated:** 2026-06-01
 
 ---
 
@@ -25,7 +25,7 @@ The goal is **not** to build a production underwriting system. The goal is to de
 
 ## 2. Locked v1 Scope
 
-These decisions are fixed for v1. Additional work belongs in v1.1 or stretch goals.
+These decisions are fixed for v1. Post-v1 work is limited to the comparison scope documented below; production extensions remain stretch goals.
 
 | Area | v1 decision | Build implication |
 |---|---|---|
@@ -35,7 +35,7 @@ These decisions are fixed for v1. Additional work belongs in v1.1 or stretch goa
 | Primary model | LightGBM | Strong tabular model, fast training, good missing-value handling, SHAP-compatible |
 | Baseline model | Logistic regression | Simple benchmark, preprocessing validation, calibration reference |
 | v1 data scope | `application_train`, `application_test`, `bureau`, `previous_application`, `installments_payments` | Enough relational depth without overwhelming the first build |
-| v1.1 data scope | `bureau_balance`, `POS_CASH_balance`, `credit_card_balance` | Adds richer monthly history after v1 works end-to-end |
+| Post-v1 comparison data scope | `bureau_balance`, `POS_CASH_balance`, `credit_card_balance` | Adds richer monthly history for comparison against frozen v1 |
 | Split strategy | Stratified train/validation/test split from `application_train` | Metrics come only from labeled data |
 | Scoring demo population | `application_test` plus labeled holdout test split | Separates model evaluation from production-like scoring |
 | Primary metrics | PR-AUC, ROC-AUC, Brier score, top-decile lift, expected value | Better than accuracy for imbalanced financial outcomes |
@@ -101,7 +101,7 @@ This project will not:
 - optimize for Kaggle leaderboard rank;
 - use deep learning;
 - use Spark;
-- add MLflow before the core pipeline is complete;
+- add MLflow to this portfolio scope;
 - build a real-time API in v1;
 - commit raw Kaggle data to GitHub.
 
@@ -127,9 +127,9 @@ This project will not:
 | `installments_payments.csv` | Prior repayment behavior and payment-delay features |
 | `HomeCredit_columns_description.csv` | Documentation reference only |
 
-### v1.1 source files
+### Post-v1 comparison source files
 
-| File | Deferred role |
+| File | Role |
 |---|---|
 | `bureau_balance.csv` | Monthly bureau delinquency/status history |
 | `POS_CASH_balance.csv` | Monthly POS/cash loan status history |
@@ -225,8 +225,7 @@ v1 uses **DuckDB only**. Postgres can be added later as an optional extension if
 data/
 ├── raw/                  # original Kaggle CSVs; ignored by git
 ├── parquet/              # converted Parquet files; ignored by git
-├── db/                   # DuckDB database file; ignored by git
-└── sample/               # tiny synthetic/sample data for tests or docs
+└── db/                   # DuckDB database file; ignored by git
 ```
 
 ### 8.2 Staging tables
@@ -241,7 +240,7 @@ stg_previous_application
 stg_installments_payments
 ```
 
-v1.1 adds:
+Post-v1 comparison adds:
 
 ```text
 stg_bureau_balance
@@ -259,7 +258,7 @@ stg_credit_card_balance
 | `f_installments_agg` | Payment timing, late-payment behavior, payment ratios |
 | `mart_credit_risk_features` | Final one-row-per-applicant modeling table |
 
-v1.1 adds:
+Post-v1 comparison adds:
 
 | Feature table | Description |
 |---|---|
@@ -524,7 +523,7 @@ Minimum configuration shape:
 project:
   name: loan-default-decisioning
   random_seed: 42
-  data_scope_version: v1
+  data_scope_version: post_v1_011_last_k_temporal
 
 paths:
   raw_dir: data/raw
@@ -532,12 +531,15 @@ paths:
   duckdb_path: data/db/credit_risk.duckdb
   model_dir: models
   report_dir: reports
-  dashboard_export_dir: reports/dashboard_exports
+  dashboard_export_dir: reports/dashboard_data
 
 source_files:
   application_train: application_train.csv
   application_test: application_test.csv
   bureau: bureau.csv
+  bureau_balance: bureau_balance.csv
+  pos_cash_balance: POS_CASH_balance.csv
+  credit_card_balance: credit_card_balance.csv
   previous_application: previous_application.csv
   installments_payments: installments_payments.csv
 
@@ -552,10 +554,15 @@ model:
   baseline_model: logistic_regression
   use_class_weighting: true
   calibrate_probabilities: false
+  lightgbm_tuning:
+    enabled: true
+    max_candidates: 8
 
 excluded_features:
   identifiers:
     - SK_ID_CURR
+    - SK_ID_PREV
+    - SK_ID_BUREAU
   target:
     - TARGET
   sensitive_or_protected_status_like:
@@ -565,6 +572,8 @@ excluded_features:
     - applicant_age_years
     - applicant_age_band
     - employment_to_age_ratio
+    - CNT_CHILDREN
+    - CNT_FAM_MEMBERS
 
 business_assumptions:
   expected_margin_per_good_loan: 1000
@@ -644,7 +653,7 @@ Notes:
 
 ## 16. Dashboard Output Table Contracts
 
-Power BI should read from DuckDB exports or CSV/Parquet files generated by `make dashboard-data`.
+Power BI should read from the CSV export directories generated by `make dashboard-data` and `make dashboard-data-post-v1`.
 
 ### 16.1 `model_run_summary`
 
@@ -653,7 +662,7 @@ Power BI should read from DuckDB exports or CSV/Parquet files generated by `make
 | `model_version` | Model artifact/version identifier |
 | `run_id` | Unique run identifier |
 | `model_type` | `logistic_regression` or `lightgbm` |
-| `data_scope_version` | `v1`, `v1.1`, etc. |
+| `data_scope_version` | `v1` or a `post_v1...` comparison version |
 | `train_rows` | Training row count |
 | `validation_rows` | Validation row count |
 | `test_rows` | Test row count |
@@ -840,11 +849,19 @@ Sensitive or legally risky fields should not be used casually as model drivers. 
 
 | Test file | Purpose |
 |---|---|
+| `test_config.py` | Validate config shape and reproducibility profiles |
+| `test_ingest.py` | Validate raw-to-staging ingestion contracts |
 | `test_data_contract.py` | Validate expected columns, primary keys, and no duplicate applicant IDs |
-| `test_feature_sql.py` | Validate representative feature calculations on small sample data |
+| `test_feature_sql.py` | Validate representative feature calculations on synthetic fixtures |
+| `test_train.py` | Validate model training artifacts, split summaries, and metrics |
+| `test_evaluate.py` | Validate evaluation tables, lift, calibration, and selected model checks |
 | `test_threshold_policy.py` | Validate approve/review/high-risk action assignment |
 | `test_expected_value.py` | Validate expected-value math |
 | `test_scoring_schema.py` | Validate prediction table columns, score ranges, and risk bands |
+| `test_calibrate.py` | Validate calibration comparison outputs and artifact selection |
+| `test_explain.py` | Validate SHAP/reason-code outputs exclude diagnostic-only fields |
+| `test_dashboard_exports.py` | Validate Power BI export schemas and dashboard-ready summaries |
+| `test_powerbi_artifacts.py` | Validate committed Power BI report artifacts |
 
 Required test expectations:
 
@@ -889,13 +906,18 @@ loan-default-decisioning/
 │   └── sample/
 │
 ├── sql/
-│   ├── 00_create_tables.sql
-│   ├── 01_load_staging.sql
 │   ├── 02_feature_applicant.sql
 │   ├── 03_feature_bureau.sql
+│   ├── 03b_feature_bureau_balance.sql
 │   ├── 04_feature_previous_applications.sql
+│   ├── 04b_feature_pos_cash.sql
+│   ├── 04c_feature_credit_card.sql
 │   ├── 05_feature_installments.sql
+│   ├── 05b_feature_risk_pressure.sql
+│   ├── 05c_feature_recency_deterioration.sql
+│   ├── 05d_feature_last_k_temporal.sql
 │   ├── 06_build_feature_mart.sql
+│   ├── 06_build_feature_mart_v1.sql
 │   └── 07_create_score_tables.sql
 │
 ├── src/
@@ -912,12 +934,11 @@ loan-default-decisioning/
 ├── tests/
 │   ├── test_data_contract.py
 │   ├── test_feature_sql.py
-│   ├── test_threshold_policy.py
-│   ├── test_expected_value.py
-│   └── test_scoring_schema.py
-│
-├── notebooks/
-│   └── 01_eda.ipynb
+│   ├── test_train.py
+│   ├── test_evaluate.py
+│   ├── test_scoring_schema.py
+│   ├── test_dashboard_exports.py
+│   └── test_powerbi_artifacts.py
 │
 ├── reports/
 │   ├── figures/
@@ -927,6 +948,7 @@ loan-default-decisioning/
 │
 ├── powerbi/
 │   ├── dashboard.pbix
+│   ├── dashboard_post_v1.pbix
 │   └── screenshots/
 │
 └── models/
@@ -946,7 +968,12 @@ make features
 make train
 make evaluate
 make score
+make calibrate
+make explain
 make dashboard-data
+make dashboard-data-post-v1
+make pipeline-v1
+make pipeline-post-v1
 make test
 ```
 
@@ -959,7 +986,12 @@ Expected behavior:
 | `make train` | model artifact, feature list, and training metadata |
 | `make evaluate` | metrics, lift, calibration, threshold tables |
 | `make score` | `credit_risk_scores` table |
-| `make dashboard-data` | exported Power BI-ready CSV/Parquet tables |
+| `make calibrate` | calibration comparison tables and selected calibration artifact |
+| `make explain` | SHAP feature importance and applicant reason-code-style outputs |
+| `make dashboard-data` | exported v1 Power BI-ready CSV tables |
+| `make dashboard-data-post-v1` | exported calibrated post-v1 Power BI-ready CSV tables |
+| `make pipeline-v1` | frozen v1 end-to-end rebuild |
+| `make pipeline-post-v1` | post-v1 calibrated comparison rebuild |
 | `make test` | passing pytest suite |
 
 ---
@@ -1056,28 +1088,28 @@ Required README artifacts:
 
 ---
 
-## 26. Acceptance Criteria
+## 26. Implemented Acceptance Criteria
 
-v1 is complete when:
+The frozen v1 portfolio contract is complete when these remain true:
 
-- [ ] `make ingest` converts raw Kaggle CSV files to Parquet and creates DuckDB staging tables.
-- [ ] `make features` builds a one-row-per-applicant `mart_credit_risk_features` table.
-- [ ] Feature mart includes application, bureau, previous-application, and installment features.
-- [ ] Feature mart and model feature list exclude target, identifiers, and v1 demographic/protected-status-like exclusions.
-- [ ] `make train` trains a logistic regression baseline and a LightGBM model.
-- [ ] Model artifact includes feature list, preprocessing details, model version, and run metadata.
-- [ ] `make evaluate` exports ROC-AUC, PR-AUC, Brier score, lift by decile, calibration bins, and confusion matrix by threshold.
-- [ ] Threshold analysis compares growth-oriented, balanced, and risk-averse scenarios.
-- [ ] Expected-value simulation uses explicit configurable assumptions from `configs/base.yaml`.
-- [ ] `make score` writes predictions to `credit_risk_scores`.
-- [ ] Scoring distinguishes labeled holdout scoring from unlabeled Kaggle test scoring.
-- [ ] SHAP outputs identify global drivers and applicant-level reason-code-style explanations.
-- [ ] `make dashboard-data` exports Power BI-ready tables.
-- [ ] Power BI page 1 reads scored/evaluation outputs and has a saved screenshot in `powerbi/screenshots/`.
-- [ ] `make test` passes tests for data contracts, scoring, thresholding, and expected-value logic.
-- [ ] README includes final metrics, architecture diagram, dashboard screenshot, limitations, and run instructions.
-- [ ] `reports/model_card.md` exists and clearly states intended use, non-use, metrics, thresholds, and limitations.
-- [ ] The repo can be run from a clean environment using documented commands.
+- [x] `make ingest` converts raw Kaggle CSV files to Parquet and creates DuckDB staging tables.
+- [x] `make features` builds a one-row-per-applicant `mart_credit_risk_features` table.
+- [x] Feature mart includes application, bureau, previous-application, and installment features.
+- [x] Feature mart and model feature list exclude target, identifiers, and v1 demographic/protected-status-like exclusions.
+- [x] `make train` trains a logistic regression baseline and a LightGBM model.
+- [x] Model artifact includes feature list, preprocessing details, model version, and run metadata.
+- [x] `make evaluate` exports ROC-AUC, PR-AUC, Brier score, lift by decile, calibration bins, and confusion matrix by threshold.
+- [x] Threshold analysis compares growth-oriented, balanced, and risk-averse scenarios.
+- [x] Expected-value simulation uses explicit configurable assumptions from `configs/base.yaml`.
+- [x] `make score` writes predictions to `credit_risk_scores`.
+- [x] Scoring distinguishes labeled holdout scoring from unlabeled Kaggle test scoring.
+- [x] SHAP outputs identify global drivers and applicant-level reason-code-style explanations.
+- [x] `make dashboard-data` exports Power BI-ready tables.
+- [x] Power BI page 1 reads scored/evaluation outputs and has a saved screenshot in `powerbi/screenshots/`.
+- [x] `make test` passes tests for data contracts, scoring, thresholding, and expected-value logic.
+- [x] README includes final metrics, architecture diagram, dashboard screenshot, limitations, and run instructions.
+- [x] `reports/model_card.md` exists and clearly states intended use, non-use, metrics, thresholds, and limitations.
+- [x] The repo can be run from a clean environment using documented commands.
 
 ---
 
@@ -1098,7 +1130,9 @@ Required limitations section:
 
 ---
 
-## 28. v1 Build Sequence
+## 28. Build Sequence
+
+Completed build sequence:
 
 1. Create repo skeleton, config, Makefile, Dockerfile, `.gitignore`, and baseline docs.
 2. Add data ingestion and CSV-to-Parquet conversion.
@@ -1118,7 +1152,7 @@ Required limitations section:
 16. Build dashboard page 1.
 17. Add model card.
 18. Add README screenshots and final results.
-19. Add validation appendix if time allows.
+19. Add validation appendix.
 
 ### First build milestone
 

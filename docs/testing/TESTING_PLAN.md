@@ -1,10 +1,10 @@
 # Loan Default Risk Decisioning System — Testing Plan
 
 **Version:** 0.1  
-**Status:** Pre-build testing plan  
+**Status:** Implemented testing plan for frozen v1 and post-v1 comparison
 **Owner:** Steven  
 **Aligned spec:** `docs/spec/PROJECT_SPEC.md` v0.3.1
-**Last updated:** 2026-04-25
+**Last updated:** 2026-06-01
 
 ---
 
@@ -51,7 +51,7 @@ High volume
 ┌──────────────────────────────────────────┐
 │ Pipeline smoke tests                     │
 │ - make ingest/features/train/evaluate    │
-│ - synthetic or tiny sample data          │
+│ - synthetic fixture data                 │
 └──────────────────────────────────────────┘
 Low volume
 ```
@@ -63,17 +63,23 @@ Low volume
 | Test file | Primary purpose |
 |---|---|
 | `tests/test_config.py` | Config can be parsed; required sections exist |
+| `tests/test_ingest.py` | Raw CSVs are converted to Parquet and DuckDB staging tables |
 | `tests/test_data_contract.py` | Required tables, columns, keys, row grain, excluded fields |
-| `tests/test_feature_sql.py` | Representative SQL feature calculations on sample data |
-| `tests/test_split_preprocessing.py` | Split integrity and preprocessing leakage checks |
+| `tests/test_feature_sql.py` | Representative SQL feature calculations on synthetic fixtures |
+| `tests/test_train.py` | Training artifacts, split summaries, and model comparison outputs |
+| `tests/test_evaluate.py` | Evaluation metrics, lift, calibration, and selected-model checks |
 | `tests/test_threshold_policy.py` | Risk-band and action assignment logic |
 | `tests/test_expected_value.py` | Business-value formula and scenario calculations |
 | `tests/test_scoring_schema.py` | Score output schema, ranges, uniqueness, scoring population labels |
-| `tests/test_explainability.py` | Reason-code outputs exclude diagnostic-only fields |
-| `tests/test_dashboard_exports.py` | Dashboard files exist and match required schema |
-| `tests/test_cli_smoke.py` | Make/module commands run on tiny sample data where feasible |
+| `tests/test_calibrate.py` | Calibration experiment outputs and selected-method artifact |
+| `tests/test_explain.py` | Reason-code outputs exclude diagnostic-only fields |
+| `tests/test_feature_selection.py` | Feature selection experiment reporting and named outputs |
+| `tests/test_model_stability.py` | Seed-stability experiment outputs and selection logic |
+| `tests/test_dashboard_exports.py` | Dashboard export files and schemas |
+| `tests/test_powerbi_artifacts.py` | Committed Power BI report artifacts |
+| `tests/test_repo_contract.py` | Repository command, path, SQL, and ignore contracts |
 
-The initial version can start with the five core files already defined in the spec, then add the remaining tests as implementation matures.
+The current suite uses pytest fixtures and small in-memory/staged datasets so it can run without the full Kaggle dataset.
 
 ---
 
@@ -81,11 +87,11 @@ The initial version can start with the five core files already defined in the sp
 
 ### 5.1 Fixture strategy
 
-Use small synthetic dataframes or tiny CSV/Parquet files under:
+Use small synthetic dataframes and staging tables built by pytest fixtures:
 
 ```text
-tests/fixtures/
-data/sample/
+tests/conftest.py
+tests/helpers.py
 ```
 
 The fixture data should mimic the key columns and relationships of the Home Credit tables without including the full dataset.
@@ -126,7 +132,7 @@ Test expectations:
 
 - required v1 files are configured;
 - script reports missing files clearly;
-- optional v1.1 files are not required for v1.
+- post-v1 comparison files are not required for the frozen v1 config.
 
 ### 6.2 CSV-to-Parquet conversion
 
@@ -433,7 +439,7 @@ Test expectations:
 
 ### 15.1 Local smoke commands
 
-At minimum, these commands should run without uncaught errors once implemented:
+At minimum, these repo commands are the documented local smoke path:
 
 ```bash
 make test
@@ -445,24 +451,16 @@ make score
 make dashboard-data
 ```
 
-For CI, use synthetic or tiny sample data instead of the full Kaggle dataset.
+For CI, use synthetic fixture data instead of the full Kaggle dataset.
 
 ### 15.2 Suggested CI behavior
 
-A lightweight GitHub Actions workflow can run:
+A lightweight GitHub Actions workflow should run the checked-in test suite:
 
 ```bash
-python -m pip install -r requirements.txt
-pytest -q
+make setup
+make test
 ```
-
-Optional later:
-
-```bash
-make sample-pipeline
-```
-
-Where `sample-pipeline` runs ingestion, features, train, evaluate, and score on tiny fixture data.
 
 ---
 
@@ -486,18 +484,18 @@ Recommended order during development:
 
 ## 17. Minimum Test Suite for v1 Release
 
-v1 should not be considered complete unless these tests pass:
+Implemented v1 test coverage tracks these release gates:
 
-- [ ] config parses and required sections exist;
-- [ ] feature mart has one row per applicant;
-- [ ] no duplicate applicant IDs in scoring output;
-- [ ] required feature and scoring columns exist;
-- [ ] model feature list excludes forbidden fields;
-- [ ] threshold policy assigns exactly one band to each score;
-- [ ] expected-value calculations match fixture examples;
-- [ ] scores are bounded between 0 and 1;
-- [ ] dashboard export files exist and are readable;
-- [ ] SHAP/reason-code outputs exclude diagnostic-only fields.
+- [x] config parses and required sections exist;
+- [x] feature mart has one row per applicant;
+- [x] no duplicate applicant IDs in scoring output;
+- [x] required feature and scoring columns exist;
+- [x] model feature list excludes forbidden fields;
+- [x] threshold policy assigns exactly one band to each score;
+- [x] expected-value calculations match fixture examples;
+- [x] scores are bounded between 0 and 1;
+- [x] dashboard export files exist and are readable;
+- [x] SHAP/reason-code outputs exclude diagnostic-only fields.
 
 ---
 

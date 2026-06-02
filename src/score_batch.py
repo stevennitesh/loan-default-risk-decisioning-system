@@ -6,28 +6,38 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
-import numpy as np
 import pandas as pd
 
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
-from src.calibration import apply_calibration_to_probabilities
-from src.config import load_config
-from src.mart_access import load_application_test_frame
-from src.mart_access import load_labeled_split_frame
-from src.mart_access import require_table
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import MODEL_ARTIFACTS
-from src.model_artifacts import load_calibration_artifact
-from src.model_artifacts import load_selected_model_artifact
-from src.model_artifacts import load_selected_model_type
-from src.model_artifacts import normalize_split_ids
+from src.calibration import apply_saved_calibration_artifact
+from src.cli import add_config_argument, exit_with_error
+from src.config import DEFAULT_CONFIG_PATH, load_config
+from src.mart_access import (
+    load_application_test_frame,
+    load_labeled_split_frame,
+    require_table,
+)
+from src.metrics import validate_probabilities, with_probability_rank_bin
+from src.model_artifacts import (
+    load_calibration_artifact,
+    load_selected_model_artifact,
+    load_selected_model_type,
+    normalize_split_ids,
+)
+from src.model_contracts import (
+    LIGHTGBM_MODEL_TYPE,
+    MODEL_ARTIFACTS,
+    SUPPORTED_MODEL_TYPES,
+)
+from src.modeling import predict_probabilities
 from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
-from src.runtime import current_utc_datetime
-from src.runtime import feature_frame
-from src.runtime import replace_duckdb_table
-from src.runtime import resolve_project_path
-from src.thresholding import assign_risk_bands
-
+from src.runtime import (
+    current_utc_datetime,
+    replace_duckdb_table,
+    require_existing_path,
+    resolve_config_path,
+)
+from src.thresholding import BALANCED_SCENARIO, assign_risk_bands
 
 ACTION_LABELS = {
     "approve": ("low_risk", "approve"),
@@ -40,19 +50,18 @@ class ScoringError(RuntimeError):
     """Raised when batch scoring cannot satisfy the Milestone 8 contract."""
 
 
-def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
+def run_scoring(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
 
-    if not duckdb_path.exists():
-        raise ScoringError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", ScoringError)
 
     scored_at = current_utc_datetime()
     with duckdb.connect(str(duckdb_path)) as connection:
         selected_model_type = load_selected_model_type(
             connection,
-            set(MODEL_ARTIFACTS),
+            SUPPORTED_MODEL_TYPES,
             error_cls=ScoringError,
         )
         artifact = load_selected_model_artifact(
@@ -69,15 +78,24 @@ def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
             error_cls=ScoringError,
         )
         feature_columns = list(artifact["feature_columns"])
-        split_applicant_ids = _normalize_split_ids(artifact)
-        threshold_policy = _load_balanced_threshold_policy(connection, str(artifact["model_version"]))
+        split_applicant_ids = normalize_split_ids(
+            artifact["split_applicant_ids"],
+            ("test",),
+            error_cls=ScoringError,
+            label="Selected model artifact split_applicant_ids",
+        )
+        threshold_policy = _load_balanced_threshold_policy(
+            connection, str(artifact["model_version"])
+        )
 
         holdout_frame = _load_holdout_test_frame(
             connection,
             split_applicant_ids["test"],
             feature_columns,
         )
-        kaggle_frame = _load_kaggle_test_frame(connection, feature_columns)
+        kaggle_frame = load_application_test_frame(
+            connection, feature_columns, error_cls=ScoringError
+        )
         score_rows = [
             *_score_population(
                 artifact,
@@ -99,38 +117,19 @@ def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
             ),
         ]
         _validate_output_rows(score_rows)
-        replace_duckdb_table(connection, "credit_risk_scores", score_rows, CREDIT_RISK_SCORE_COLUMNS)
+        replace_duckdb_table(
+            connection, "credit_risk_scores", score_rows, CREDIT_RISK_SCORE_COLUMNS
+        )
 
     return {
         "row_count": len(score_rows),
-        "scoring_populations": sorted({row["scoring_population"] for row in score_rows}),
+        "scoring_populations": sorted(
+            {row["scoring_population"] for row in score_rows}
+        ),
         "model_version": artifact["model_version"],
         "threshold_version": threshold_policy["threshold_version"],
         "calibration_method": calibration_artifact["selected_method"],
     }
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Score applicants in batch and write DuckDB score outputs.")
-    parser.add_argument("--config", default="configs/base.yaml", help="Path to the project config file.")
-    args = parser.parse_args()
-
-    try:
-        run_scoring(args.config)
-    except ScoringError as error:
-        raise SystemExit(str(error)) from error
-
-
-def _normalize_split_ids(artifact: dict[str, Any]) -> dict[str, list[int]]:
-    try:
-        return normalize_split_ids(
-            artifact["split_applicant_ids"],
-            ("test",),
-            error_cls=ScoringError,
-            label="Selected model artifact split_applicant_ids",
-        )
-    except KeyError as error:
-        raise ScoringError("Selected model artifact must contain split_applicant_ids['test']") from error
 
 
 def _load_balanced_threshold_policy(
@@ -143,10 +142,10 @@ def _load_balanced_threshold_policy(
         SELECT threshold_version, threshold_low, threshold_high
         FROM model_threshold_metrics
         WHERE split = 'validation'
-          AND scenario_name = 'balanced'
+          AND scenario_name = ?
           AND model_version = ?
         """,
-        [model_version],
+        [BALANCED_SCENARIO, model_version],
     ).fetchall()
     if len(rows) != 1:
         raise ScoringError(
@@ -166,7 +165,6 @@ def _load_holdout_test_frame(
     applicant_ids: list[int],
     feature_columns: list[str],
 ) -> pd.DataFrame:
-    require_table(connection, "mart_credit_risk_features", error_cls=ScoringError)
     return load_labeled_split_frame(
         connection,
         applicant_ids,
@@ -175,14 +173,6 @@ def _load_holdout_test_frame(
         error_cls=ScoringError,
         missing_context="holdout test split",
     )
-
-
-def _load_kaggle_test_frame(
-    connection: duckdb.DuckDBPyConnection,
-    feature_columns: list[str],
-) -> pd.DataFrame:
-    require_table(connection, "mart_credit_risk_features", error_cls=ScoringError)
-    return load_application_test_frame(connection, feature_columns, error_cls=ScoringError)
 
 
 def _score_population(
@@ -194,22 +184,38 @@ def _score_population(
     calibration_artifact: dict[str, Any],
     scored_at: datetime,
 ) -> list[dict[str, Any]]:
-    raw_probabilities = artifact["pipeline"].predict_proba(feature_frame(frame, feature_columns))[:, 1]
-    _validate_scores(raw_probabilities, scoring_population)
-    calibrated_probabilities = _calibrated_probabilities(raw_probabilities, calibration_artifact)
-    _validate_scores(calibrated_probabilities, f"{scoring_population} calibrated")
+    raw_probabilities = predict_probabilities(
+        artifact,
+        frame,
+        feature_columns,
+        scoring_population,
+        ScoringError,
+    )
+    calibrated_probabilities = apply_saved_calibration_artifact(
+        raw_probabilities,
+        calibration_artifact,
+        error_cls=ScoringError,
+        label="score calibration",
+    )
+    validate_probabilities(
+        calibrated_probabilities,
+        f"{scoring_population} calibrated",
+        error_cls=ScoringError,
+    )
     risk_actions = assign_risk_bands(raw_probabilities, threshold_policy)
     ranked_frame = pd.DataFrame(
         {
-            "applicant_id": frame["SK_ID_CURR"].astype(int),
+            "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
             "observed_target": frame["TARGET"],
-            "score": raw_probabilities.astype(float),
+            "probability": raw_probabilities.astype(float),
             "raw_risk_score": raw_probabilities.astype(float),
             "calibrated_risk_score": calibrated_probabilities.astype(float),
             "risk_action": risk_actions,
         }
     )
-    ranked_frame["score_decile"] = _score_deciles(ranked_frame)
+    ranked_frame = with_probability_rank_bin(
+        ranked_frame, "score_decile", descending=True
+    )
 
     rows = []
     for record in ranked_frame.to_dict("records"):
@@ -217,12 +223,12 @@ def _score_population(
         observed_target = record["observed_target"]
         rows.append(
             {
-                "applicant_id": int(record["applicant_id"]),
+                "applicant_id": int(record["SK_ID_CURR"]),
                 "scoring_population": scoring_population,
                 "observed_target": None
                 if pd.isna(observed_target)
                 else int(observed_target),
-                "score": float(record["score"]),
+                "score": float(record["probability"]),
                 "raw_risk_score": float(record["raw_risk_score"]),
                 "calibrated_risk_score": float(record["calibrated_risk_score"]),
                 "calibration_method": calibration_artifact["selected_method"],
@@ -240,54 +246,44 @@ def _score_population(
     return rows
 
 
-def _calibrated_probabilities(
-    raw_probabilities: np.ndarray,
-    calibration_artifact: dict[str, Any],
-) -> np.ndarray:
-    return apply_calibration_to_probabilities(
-        str(calibration_artifact["selected_method"]),
-        calibration_artifact["calibrators"],
-        raw_probabilities,
-        error_cls=ScoringError,
-        label="score calibration",
-    ).astype(float)
-
-
-def _score_deciles(frame: pd.DataFrame) -> pd.Series:
-    ranked = frame.sort_values(
-        ["score", "applicant_id"],
-        ascending=[False, True],
-    ).reset_index()
-    ranked["score_decile"] = np.ceil((np.arange(len(ranked)) + 1) * 10 / len(ranked)).astype(int)
-    ranked["score_decile"] = ranked["score_decile"].clip(1, 10)
-    return ranked.set_index("index").sort_index()["score_decile"]
-
-
 def _validate_output_rows(rows: list[dict[str, Any]]) -> None:
     if not rows:
         raise ScoringError("credit_risk_scores output must not be empty")
     frame = pd.DataFrame(rows, columns=CREDIT_RISK_SCORE_COLUMNS)
     duplicate_count = int(
         frame.duplicated(
-            subset=["applicant_id", "scoring_population", "model_version", "threshold_version"]
+            subset=[
+                "applicant_id",
+                "scoring_population",
+                "model_version",
+                "threshold_version",
+            ]
         ).sum()
     )
     if duplicate_count:
-        raise ScoringError(f"Duplicate credit_risk_scores output keys: {duplicate_count}")
+        raise ScoringError(
+            f"Duplicate credit_risk_scores output keys: {duplicate_count}"
+        )
     if frame["risk_band"].isna().any() or frame["recommended_action"].isna().any():
-        raise ScoringError("Every scored row must have risk_band and recommended_action")
+        raise ScoringError(
+            "Every scored row must have risk_band and recommended_action"
+        )
     score_columns = ["score", "raw_risk_score", "calibrated_risk_score"]
     if frame[score_columns].isna().any().any():
         raise ScoringError("Every scored row must have raw and calibrated score values")
 
 
-def _validate_scores(probabilities: np.ndarray, scoring_population: str) -> None:
-    if probabilities.ndim != 1:
-        raise ScoringError(f"{scoring_population} probabilities must be one-dimensional")
-    if not np.isfinite(probabilities).all():
-        raise ScoringError(f"{scoring_population} probabilities contain non-finite values")
-    if ((probabilities < 0) | (probabilities > 1)).any():
-        raise ScoringError(f"{scoring_population} probabilities must be in [0, 1]")
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Score applicants in batch and write DuckDB score outputs."
+    )
+    add_config_argument(parser)
+    args = parser.parse_args()
+
+    try:
+        run_scoring(args.config)
+    except ScoringError as error:
+        exit_with_error(error)
 
 
 if __name__ == "__main__":

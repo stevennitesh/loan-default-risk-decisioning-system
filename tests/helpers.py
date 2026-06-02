@@ -1,22 +1,24 @@
 from __future__ import annotations
 
-import csv
 from pathlib import Path
+from typing import Any
 
 import duckdb
 import pandas as pd
 
 from src.feature_labels import readable_feature_label
-from src.mart_access import existing_tables
-from src.mart_access import table_columns
-from src.runtime import sql_identifier
+from src.mart_access import existing_tables, table_columns
+from src.runtime import (
+    ensure_directories,
+    read_csv,
+    replace_duckdb_table_from_frame,
+    sql_identifier,
+    write_csv,
+)
 
 
 def read_csv_rows(path: Path, expected_columns: list[str]) -> list[dict[str, str]]:
-    with path.open(newline="", encoding="utf-8") as csv_file:
-        reader = csv.DictReader(csv_file)
-        assert reader.fieldnames == expected_columns
-        return list(reader)
+    return read_csv(path, expected_columns)
 
 
 def table_names(connection: duckdb.DuckDBPyConnection) -> set[str]:
@@ -27,16 +29,41 @@ def table_exists(connection: duckdb.DuckDBPyConnection, table_name: str) -> bool
     return table_name in table_names(connection)
 
 
-def assert_table_missing(connection: duckdb.DuckDBPyConnection, table_name: str) -> None:
+def assert_table_missing(
+    connection: duckdb.DuckDBPyConnection, table_name: str
+) -> None:
     assert not table_exists(connection, table_name)
 
 
-def read_table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -> list[str]:
+def read_table_columns(
+    connection: duckdb.DuckDBPyConnection, table_name: str
+) -> list[str]:
     return list(table_columns(connection, table_name))
 
 
-def create_training_database(database_path: Path, train_rows: int = 40, test_rows: int = 6) -> None:
-    database_path.parent.mkdir(parents=True, exist_ok=True)
+def query_value(
+    connection: duckdb.DuckDBPyConnection,
+    sql: str,
+    parameters: list[Any] | None = None,
+) -> Any:
+    if parameters:
+        result = connection.execute(sql, parameters).fetchone()
+    else:
+        result = connection.execute(sql).fetchone()
+    assert result is not None
+    return result[0]
+
+
+def table_row_count(connection: duckdb.DuckDBPyConnection, table_name: str) -> int:
+    return int(
+        query_value(connection, f"SELECT COUNT(*) FROM {sql_identifier(table_name)}")
+    )
+
+
+def create_training_database(
+    database_path: Path, train_rows: int = 40, test_rows: int = 6
+) -> None:
+    ensure_directories(database_path.parent)
     train_records = [
         _mart_record(
             applicant_id=100000 + index,
@@ -56,10 +83,16 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
         for index in range(test_rows)
     ]
     mart = pd.DataFrame(train_records + test_records)
-    staging_train = mart.loc[mart["source_population"] == "application_train", ["SK_ID_CURR", "TARGET"]]
-    staging_test = mart.loc[mart["source_population"] == "application_test", ["SK_ID_CURR"]]
+    staging_train = mart.loc[
+        mart["source_population"] == "application_train", ["SK_ID_CURR", "TARGET"]
+    ]
+    staging_test = mart.loc[
+        mart["source_population"] == "application_test", ["SK_ID_CURR"]
+    ]
     diagnostics = mart[["SK_ID_CURR", "source_population", "TARGET"]].copy()
-    diagnostics["CODE_GENDER"] = ["F" if row % 2 == 0 else "M" for row in range(len(diagnostics))]
+    diagnostics["CODE_GENDER"] = [
+        "F" if row % 2 == 0 else "M" for row in range(len(diagnostics))
+    ]
     diagnostics["NAME_FAMILY_STATUS"] = "Married"
     diagnostics["applicant_age_years"] = 35
     diagnostics["applicant_age_band"] = "30_to_44"
@@ -86,7 +119,9 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
                 {
                     "SK_ID_BUREAU": range(1, len(mart) + 1),
                     "MONTHS_BALANCE": [0 for _ in range(len(mart))],
-                    "STATUS": ["1" if row % 4 == 0 else "0" for row in range(len(mart))],
+                    "STATUS": [
+                        "1" if row % 4 == 0 else "0" for row in range(len(mart))
+                    ],
                 }
             ),
         )
@@ -111,10 +146,13 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
                     "CNT_INSTALMENT": [12.0 for _ in range(len(mart))],
                     "CNT_INSTALMENT_FUTURE": [6.0 for _ in range(len(mart))],
                     "NAME_CONTRACT_STATUS": [
-                        "Active" if row % 2 == 0 else "Completed" for row in range(len(mart))
+                        "Active" if row % 2 == 0 else "Completed"
+                        for row in range(len(mart))
                     ],
                     "SK_DPD": [1 if row % 5 == 0 else 0 for row in range(len(mart))],
-                    "SK_DPD_DEF": [1 if row % 7 == 0 else 0 for row in range(len(mart))],
+                    "SK_DPD_DEF": [
+                        1 if row % 7 == 0 else 0 for row in range(len(mart))
+                    ],
                 }
             ),
         )
@@ -128,17 +166,24 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
                     "MONTHS_BALANCE": [0 for _ in range(len(mart))],
                     "AMT_BALANCE": [100.0 + row for row in range(len(mart))],
                     "AMT_CREDIT_LIMIT_ACTUAL": [1000.0 for _ in range(len(mart))],
-                    "AMT_DRAWINGS_CURRENT": [10.0 if row % 3 == 0 else 0.0 for row in range(len(mart))],
+                    "AMT_DRAWINGS_CURRENT": [
+                        10.0 if row % 3 == 0 else 0.0 for row in range(len(mart))
+                    ],
                     "AMT_INST_MIN_REGULARITY": [20.0 for _ in range(len(mart))],
                     "AMT_PAYMENT_CURRENT": [20.0 for _ in range(len(mart))],
                     "AMT_PAYMENT_TOTAL_CURRENT": [20.0 for _ in range(len(mart))],
                     "AMT_TOTAL_RECEIVABLE": [100.0 + row for row in range(len(mart))],
-                    "CNT_DRAWINGS_CURRENT": [1.0 if row % 3 == 0 else 0.0 for row in range(len(mart))],
+                    "CNT_DRAWINGS_CURRENT": [
+                        1.0 if row % 3 == 0 else 0.0 for row in range(len(mart))
+                    ],
                     "NAME_CONTRACT_STATUS": [
-                        "Active" if row % 2 == 0 else "Completed" for row in range(len(mart))
+                        "Active" if row % 2 == 0 else "Completed"
+                        for row in range(len(mart))
                     ],
                     "SK_DPD": [1 if row % 6 == 0 else 0 for row in range(len(mart))],
-                    "SK_DPD_DEF": [1 if row % 8 == 0 else 0 for row in range(len(mart))],
+                    "SK_DPD_DEF": [
+                        1 if row % 8 == 0 else 0 for row in range(len(mart))
+                    ],
                 }
             ),
         )
@@ -216,22 +261,27 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
 
 
 def write_feature_importance(path: Path, feature_columns: list[str]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(
-            csv_file,
-            fieldnames=["model_version", "feature_name", "importance_type", "importance_value", "rank"],
-        )
-        writer.writeheader()
-        for rank, feature_name in enumerate(feature_columns, start=1):
-            writer.writerow(
-                {
-                    "model_version": "lightgbm_credit_risk_v1",
-                    "feature_name": readable_feature_label(feature_name),
-                    "importance_type": "mean_abs_shap",
-                    "importance_value": 1 / rank,
-                    "rank": rank,
-                }
-            )
+    fieldnames = [
+        "model_version",
+        "feature_name",
+        "importance_type",
+        "importance_value",
+        "rank",
+    ]
+    write_csv(
+        path,
+        fieldnames,
+        [
+            {
+                "model_version": "lightgbm_credit_risk_v1",
+                "feature_name": readable_feature_label(feature_name),
+                "importance_type": "mean_abs_shap",
+                "importance_value": 1 / rank,
+                "rank": rank,
+            }
+            for rank, feature_name in enumerate(feature_columns, start=1)
+        ],
+    )
 
 
 def _mart_record(
@@ -267,8 +317,4 @@ def _create_table_from_frame(
     table_name: str,
     frame: pd.DataFrame,
 ) -> None:
-    connection.register("table_frame", frame)
-    try:
-        connection.execute(f"CREATE OR REPLACE TABLE {sql_identifier(table_name)} AS SELECT * FROM table_frame")
-    finally:
-        connection.unregister("table_frame")
+    replace_duckdb_table_from_frame(connection, table_name, frame)

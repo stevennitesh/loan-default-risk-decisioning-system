@@ -4,33 +4,46 @@ from pathlib import Path
 
 import pytest
 
-from src.model_stability import aggregate_stability_rows
-from src.model_stability import run_model_stability_experiment
-from src.model_stability import select_stability_feature_set
-from src.report_contracts import MODEL_STABILITY_AGGREGATE_COLUMNS
-from src.report_contracts import MODEL_STABILITY_RUN_COLUMNS
+from src.model_stability import (
+    aggregate_stability_rows,
+    run_model_stability_experiment,
+    select_stability_feature_set,
+)
+from src.report_contracts import (
+    MODEL_STABILITY_AGGREGATE_COLUMNS,
+    MODEL_STABILITY_RUN_COLUMNS,
+)
 from src.train import run_training
-from tests.helpers import create_training_database
-from tests.helpers import read_csv_rows
-from tests.helpers import write_feature_importance
+from tests.helpers import (
+    create_training_database,
+    read_csv_rows,
+    write_feature_importance,
+)
 
-
-pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:X does not have valid feature names.*:UserWarning"
+)
 
 
 def test_stability_selection_uses_validation_aggregate_not_test_edge() -> None:
     rows = [
         _stability_run("top_100", 17, validation_pr_auc=0.270, test_pr_auc=0.266),
         _stability_run("top_100", 29, validation_pr_auc=0.272, test_pr_auc=0.267),
-        _stability_run("full", 17, validation_pr_auc=0.268, test_pr_auc=0.270, feature_count=140),
-        _stability_run("full", 29, validation_pr_auc=0.269, test_pr_auc=0.271, feature_count=140),
+        _stability_run(
+            "full", 17, validation_pr_auc=0.268, test_pr_auc=0.270, feature_count=140
+        ),
+        _stability_run(
+            "full", 29, validation_pr_auc=0.269, test_pr_auc=0.271, feature_count=140
+        ),
     ]
 
     aggregate_rows = aggregate_stability_rows(rows, created_at="2026-04-30T00:00:00Z")
     selected_feature_set = select_stability_feature_set(aggregate_rows)
 
     assert selected_feature_set == "top_100"
-    selected_row = next(row for row in aggregate_rows if row["feature_set"] == selected_feature_set)
+    selected_row = next(
+        row for row in aggregate_rows if row["feature_set"] == selected_feature_set
+    )
     full_row = next(row for row in aggregate_rows if row["feature_set"] == "full")
     assert selected_row["validation_win_count"] == 2
     assert selected_row["validation_win_rate"] == pytest.approx(1.0)
@@ -66,7 +79,9 @@ def test_model_stability_experiment_writes_seed_and_aggregate_reports(
         MODEL_STABILITY_AGGREGATE_COLUMNS,
     )
     assert (report_dir / "experiments" / "006_model_stability.md").exists()
-    report_text = (report_dir / "experiments" / "006_model_stability.md").read_text(encoding="utf-8")
+    report_text = (report_dir / "experiments" / "006_model_stability.md").read_text(
+        encoding="utf-8"
+    )
     assert "validation-only aggregate rule" in report_text
     assert "Held-out test is reported after selection" in report_text
     assert "## Interpretation" in report_text
@@ -109,7 +124,10 @@ def test_model_stability_experiment_can_write_named_outputs(
 
     assert result["seed_runs_path"] == report_dir / "010_model_stability_seed_runs.csv"
     assert result["summary_path"] == report_dir / "010_model_stability_summary.csv"
-    assert result["report_path"] == report_dir / "experiments" / "010_recency_model_stability.md"
+    assert (
+        result["report_path"]
+        == report_dir / "experiments" / "010_recency_model_stability.md"
+    )
     assert result["seed_runs_path"].exists()
     assert result["summary_path"].exists()
     assert result["report_path"].exists()

@@ -46,9 +46,6 @@ htmlcov/
 .agents/
 .codex/
 
-# Jupyter
-.ipynb_checkpoints/
-
 # Data: keep directories via .gitkeep, not Kaggle/source/intermediate files
 data/raw/*
 data/parquet/*

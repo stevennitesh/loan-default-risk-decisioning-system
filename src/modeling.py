@@ -9,19 +9,12 @@ from lightgbm import LGBMClassifier
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import brier_score_loss
-from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from src.metrics import precision_at_rate
-from src.metrics import recall_at_rate
-from src.metrics import top_decile_lift
-from src.runtime import feature_frame
-from src.runtime import sql_identifier
+from src.metrics import probability_metrics, target_class_values, validate_probabilities
+from src.runtime import feature_frame, sql_identifier
 
 LIGHTGBM_SELECTION_METRIC_ORDER = [
     "nonconstant_score_distribution",
@@ -51,9 +44,11 @@ def load_labeled_training_frame(
     frame = connection.execute(query).fetch_df()
     if frame.empty:
         raise error_cls("No labeled application_train rows are available for training")
-    target_values = set(frame["TARGET"].dropna().astype(int).unique())
+    target_values = target_class_values(frame["TARGET"], dropna=True)
     if target_values != {0, 1}:
-        raise error_cls(f"Training TARGET must contain both binary classes, got {sorted(target_values)}")
+        raise error_cls(
+            f"Training TARGET must contain both binary classes, got {sorted(target_values)}"
+        )
     return frame
 
 
@@ -70,6 +65,7 @@ def split_labeled_frame(
     if holdout_size <= 0:
         raise error_cls("Validation and test split sizes must be positive")
 
+    # Split in two stratified stages so validation and test keep the configured proportions.
     train_frame, holdout_frame = train_test_split(
         frame,
         test_size=holdout_size,
@@ -89,7 +85,7 @@ def split_labeled_frame(
         "test": test_frame.sort_values("SK_ID_CURR").reset_index(drop=True),
     }
     for split_name, split_frame in split_frames.items():
-        split_targets = set(split_frame["TARGET"].astype(int).unique())
+        split_targets = target_class_values(split_frame["TARGET"])
         if split_targets != {0, 1}:
             raise error_cls(f"{split_name} split must contain both target classes")
     return split_frames
@@ -100,9 +96,13 @@ def classify_feature_columns(
     feature_columns: list[str],
 ) -> tuple[list[str], list[str]]:
     numeric_features = [
-        column for column in feature_columns if pd.api.types.is_numeric_dtype(train_frame[column])
+        column
+        for column in feature_columns
+        if pd.api.types.is_numeric_dtype(train_frame[column])
     ]
-    categorical_features = [column for column in feature_columns if column not in numeric_features]
+    categorical_features = [
+        column for column in feature_columns if column not in numeric_features
+    ]
     return numeric_features, categorical_features
 
 
@@ -118,7 +118,10 @@ def build_baseline_pipeline(
                 "numeric",
                 Pipeline(
                     steps=[
-                        ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
+                        (
+                            "imputer",
+                            SimpleImputer(strategy="median", keep_empty_features=True),
+                        ),
                         ("scaler", StandardScaler()),
                     ]
                 ),
@@ -130,7 +133,9 @@ def build_baseline_pipeline(
                     steps=[
                         (
                             "imputer",
-                            SimpleImputer(strategy="most_frequent", keep_empty_features=True),
+                            SimpleImputer(
+                                strategy="most_frequent", keep_empty_features=True
+                            ),
                         ),
                         (
                             "encoder",
@@ -168,7 +173,10 @@ def build_lightgbm_pipeline(
                 "numeric",
                 Pipeline(
                     steps=[
-                        ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
+                        (
+                            "imputer",
+                            SimpleImputer(strategy="median", keep_empty_features=True),
+                        ),
                     ]
                 ),
                 numeric_features,
@@ -179,7 +187,9 @@ def build_lightgbm_pipeline(
                     steps=[
                         (
                             "imputer",
-                            SimpleImputer(strategy="most_frequent", keep_empty_features=True),
+                            SimpleImputer(
+                                strategy="most_frequent", keep_empty_features=True
+                            ),
                         ),
                         (
                             "encoder",
@@ -239,7 +249,9 @@ def fit_tuned_lightgbm(
     if max_candidates < 1:
         raise error_cls("model.lightgbm_tuning.max_candidates must be at least 1")
 
-    candidate_specs = _lightgbm_candidate_specs(base_params, max_candidates, tuning_enabled)
+    candidate_specs = _lightgbm_candidate_specs(
+        base_params, max_candidates, tuning_enabled
+    )
     x_train = feature_frame(split_frames["train"], feature_columns)
     y_train = split_frames["train"]["TARGET"].astype(int)
     validation_frame = split_frames["validation"]
@@ -267,7 +279,9 @@ def fit_tuned_lightgbm(
                 "pipeline": pipeline,
                 "validation_metrics": validation_metrics,
                 "selection_key": _lightgbm_selection_key(validation_metrics),
-                "validation_selection_score": _lightgbm_selection_score(validation_metrics),
+                "validation_selection_score": _lightgbm_selection_score(
+                    validation_metrics
+                ),
             }
         )
 
@@ -289,27 +303,31 @@ def fit_tuned_lightgbm(
     }
 
 
-def probability_metrics(
-    y_true: pd.Series,
-    probabilities: np.ndarray,
-    manual_review_capacity_rate: float,
+def predict_probabilities(
+    artifact: dict[str, Any],
+    frame: pd.DataFrame,
+    feature_columns: list[str],
+    label: str,
     error_cls: type[Exception] = ValueError,
-) -> dict[str, float]:
-    return {
-        "roc_auc": roc_auc_score(y_true, probabilities),
-        "pr_auc": average_precision_score(y_true, probabilities),
-        "brier_score": brier_score_loss(y_true, probabilities),
-        "min_predicted_probability": float(np.min(probabilities)),
-        "max_predicted_probability": float(np.max(probabilities)),
-        "top_decile_lift": top_decile_lift(y_true, probabilities, error_cls=error_cls),
-        "precision_at_top_decile": precision_at_rate(y_true, probabilities, 0.10, error_cls=error_cls),
-        "recall_at_manual_review_capacity": recall_at_rate(
-            y_true,
-            probabilities,
-            manual_review_capacity_rate,
-            error_cls=error_cls,
-        ),
-    }
+) -> np.ndarray:
+    pipeline = artifact["pipeline"]
+    if not hasattr(pipeline, "predict_proba"):
+        raise error_cls(
+            f"Model {artifact['model_version']} does not expose predict_proba"
+        )
+    probabilities = pipeline.predict_proba(feature_frame(frame, feature_columns))[:, 1]
+    validate_probabilities(probabilities, label, error_cls=error_cls)
+    return probabilities.astype(float)
+
+
+def prediction_frame(frame: pd.DataFrame, probabilities: np.ndarray) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
+            "target": frame["TARGET"].astype(int),
+            "probability": probabilities.astype(float),
+        }
+    )
 
 
 def build_lightgbm_tuning_artifact(tuning_result: dict[str, Any]) -> dict[str, Any]:
@@ -341,6 +359,7 @@ def _lightgbm_candidate_specs(
     tuning_enabled: bool,
 ) -> list[dict[str, Any]]:
     base_scale_pos_weight = float(base_params.get("scale_pos_weight", 1.0))
+    # Preset order is part of the bounded tuning contract; max_candidates selects a prefix.
     presets = [
         (
             "baseline_current",
@@ -470,7 +489,9 @@ def _lightgbm_candidate_specs(
     return specs
 
 
-def _lightgbm_selection_key(metrics: dict[str, float]) -> tuple[float, float, float, float, float, float]:
+def _lightgbm_selection_key(
+    metrics: dict[str, float],
+) -> tuple[float, float, float, float, float, float]:
     return (
         1.0 if _has_nonconstant_score_distribution(metrics) else 0.0,
         metrics["pr_auc"],

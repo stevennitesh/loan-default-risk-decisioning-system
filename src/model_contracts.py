@@ -12,6 +12,18 @@ MODEL_ARTIFACTS = {
     BASELINE_MODEL_TYPE: (BASELINE_MODEL_VERSION, BASELINE_MODEL_ARTIFACT_NAME),
     LIGHTGBM_MODEL_TYPE: (LIGHTGBM_MODEL_VERSION, LIGHTGBM_MODEL_ARTIFACT_NAME),
 }
+SUPPORTED_MODEL_TYPES = frozenset(MODEL_ARTIFACTS)
 
 EVALUATION_SPLITS = ("train", "validation", "test")
 REPORTING_SPLITS = ("validation", "test")
+
+
+def select_model_type_by_validation_pr_auc(
+    baseline_pr_auc: float,
+    lightgbm_pr_auc: float,
+) -> str:
+    return (
+        LIGHTGBM_MODEL_TYPE
+        if lightgbm_pr_auc >= baseline_pr_auc
+        else BASELINE_MODEL_TYPE
+    )

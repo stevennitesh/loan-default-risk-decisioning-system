@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any
 
 import joblib
 
-from src.calibration import CALIBRATION_METHODS
+from src.calibration import CALIBRATION_METHODS, UNCALIBRATED_METHOD
 from src.mart_access import existing_tables
-
 
 REQUIRED_MODEL_ARTIFACT_KEYS = {
     "pipeline",
@@ -85,21 +85,27 @@ def normalize_split_ids(
     return split_ids
 
 
+def selected_model_types(connection: Any) -> set[str]:
+    if "model_comparison_summary" not in existing_tables(connection):
+        return set()
+    return {
+        str(row[0])
+        for row in connection.execute(
+            "SELECT DISTINCT selected_model_type FROM model_comparison_summary"
+        ).fetchall()
+    }
+
+
 def load_selected_model_type(
     connection: Any,
-    supported_model_types: set[str],
+    supported_model_types: Collection[str],
     *,
     error_cls: type[Exception],
 ) -> str:
     if "model_comparison_summary" not in existing_tables(connection):
         raise error_cls("Missing required DuckDB table: model_comparison_summary")
 
-    selected_values = {
-        row[0]
-        for row in connection.execute(
-            "SELECT DISTINCT selected_model_type FROM model_comparison_summary"
-        ).fetchall()
-    }
+    selected_values = selected_model_types(connection)
     if len(selected_values) != 1:
         raise error_cls(
             f"model_comparison_summary must contain exactly one selected_model_type, got {sorted(selected_values)}"
@@ -139,16 +145,23 @@ def load_calibration_artifact(
     error_cls: type[Exception],
 ) -> dict[str, Any]:
     artifact_path = model_dir / calibration_artifact_name
-    if selected_artifact["model_type"] != calibrated_model_type or not artifact_path.exists():
-        return {"selected_method": "uncalibrated", "calibrators": {}}
+    if (
+        selected_artifact["model_type"] != calibrated_model_type
+        or not artifact_path.exists()
+    ):
+        return uncalibrated_calibration_artifact()
 
     calibration_artifact = joblib.load(artifact_path)
     if not isinstance(calibration_artifact, dict):
         raise error_cls(f"Calibration artifact must be a dict: {artifact_path}")
 
-    missing_keys = sorted(REQUIRED_CALIBRATION_ARTIFACT_KEYS.difference(calibration_artifact))
+    missing_keys = sorted(
+        REQUIRED_CALIBRATION_ARTIFACT_KEYS.difference(calibration_artifact)
+    )
     if missing_keys:
-        raise error_cls(f"Calibration artifact is missing required keys: {missing_keys}")
+        raise error_cls(
+            f"Calibration artifact is missing required keys: {missing_keys}"
+        )
     if calibration_artifact["base_model_version"] != selected_artifact["model_version"]:
         raise error_cls(
             "Calibration artifact base_model_version does not match selected model_version: "
@@ -159,6 +172,12 @@ def load_calibration_artifact(
     if selected_method not in CALIBRATION_METHODS:
         raise error_cls(f"Unsupported calibration method: {selected_method}")
     calibrators = calibration_artifact["calibrators"]
-    if selected_method != "uncalibrated" and selected_method not in calibrators:
-        raise error_cls(f"Calibration artifact does not contain selected calibrator: {selected_method}")
+    if selected_method != UNCALIBRATED_METHOD and selected_method not in calibrators:
+        raise error_cls(
+            f"Calibration artifact does not contain selected calibrator: {selected_method}"
+        )
     return calibration_artifact
+
+
+def uncalibrated_calibration_artifact() -> dict[str, Any]:
+    return {"selected_method": UNCALIBRATED_METHOD, "calibrators": {}}
