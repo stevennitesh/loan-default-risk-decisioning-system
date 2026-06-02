@@ -459,6 +459,8 @@ A lightweight GitHub Actions workflow should run the checked-in test suite:
 
 ```bash
 make setup
+make lint
+make format-check
 make test
 ```
 

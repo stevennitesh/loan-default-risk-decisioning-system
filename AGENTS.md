@@ -1,76 +1,123 @@
 # AGENTS.md
 
-## Purpose
+Repo-specific guidance for coding agents working in this project. Global agent
+instructions cover general workflow, safety, verification, reporting, and skill
+selection; this file only adds project context and repo contracts.
 
-Build this as an applied financial ML decision-support project, not a notebook-only Kaggle exercise and not a production underwriting system. Be a lean, evidence-governed partner: infer the real job, choose the smallest useful path, validate the result, and keep uncertainty visible.
+## Project Identity
 
-North star: make the right path cheaper than the sloppy path.
+This is an applied financial ML decision-support portfolio project built around
+the public Home Credit dataset. Treat it as a reproducible analytics and ML
+pipeline, not a Kaggle notebook exercise and not a production underwriting
+system.
 
-## Grounding
+The intended story is:
 
-Before changing code or docs, read the relevant source-of-truth document:
+- raw Kaggle CSVs become Parquet files;
+- Parquet files load into DuckDB staging tables;
+- SQL builds applicant-level feature tables and a one-row-per-applicant mart;
+- Python trains, evaluates, calibrates, scores, explains, and exports reports;
+- Power BI consumes explicit dashboard export tables.
 
-- `docs/spec/PROJECT_SPEC.md` defines scope, contracts, non-goals, model-risk posture, and acceptance criteria.
-- `docs/implementation/IMPLEMENTATION_PLAN.md` defines build order and command-to-artifact expectations.
-- `docs/testing/TESTING_PLAN.md` defines what must be tested and how to use fixtures.
-- `docs/validation/VALIDATION_PLAN.md` defines model and reporting gates.
-- `README.md` defines the recruiter-facing story and run interface.
+Do not claim production credit-decision, compliance, fair-lending, or adverse
+action readiness.
 
-Keep `AGENTS.md` subordinate to those docs. If docs conflict, prefer the more specific contract for the task and call out the conflict instead of silently inventing a rule.
+## First Files To Read
 
-## Operating Loop
+Before changing code or docs, read the file that owns the task's contract:
 
-For nontrivial work, use this loop:
+- `README.md`: recruiter-facing story, run interface, dashboard narrative.
+- `docs/spec/PROJECT_SPEC.md`: scope, non-goals, public contracts, acceptance
+  criteria, model-risk posture.
+- `docs/implementation/IMPLEMENTATION_PLAN.md`: command-to-artifact
+  expectations and build sequence.
+- `docs/testing/TESTING_PLAN.md`: fixture strategy, required checks, CI
+  expectations.
+- `docs/validation/VALIDATION_PLAN.md`: model and reporting validation gates.
+- `reports/README.md`: which report artifacts are intentionally committed
+  versus regenerated locally.
 
-1. Goal: state the user-facing outcome.
-2. Assumptions: name what is known, inferred, or uncertain.
-3. Smallest useful approach: avoid broad rewrites and optional subsystems.
-4. Output: make the narrow change.
-5. Checks: run the relevant tests, command, diff, or artifact inspection.
-6. Risks: say what remains unproven.
-7. Next action: recommend the next high-ROI step.
+If docs disagree with source or tests, identify the stale side before editing.
+The more specific contract for the touched behavior should win.
 
-For bugs or failed validation, use:
+## Pipeline Invariants
 
-1. Baseline the exact failure.
-2. Form one concrete hypothesis.
-3. Make the smallest change that addresses the mechanism.
-4. Retest the same path.
-5. Keep, retest, or discard based on evidence.
+- SQL owns feature extraction. Python owns orchestration, training, evaluation,
+  calibration, scoring, explainability, and exports.
+- Preserve one row per `SK_ID_CURR` and `source_population` in
+  `mart_credit_risk_features`; join expansion is a build failure.
+- Keep evaluation and scoring populations separate. Metrics come only from
+  labeled `application_train` splits. Kaggle `application_test` is for
+  production-like batch scoring demonstration, not validation metrics.
+- Do not let identifiers, `TARGET`, or direct demographic/protected-status-like
+  fields into model features. Diagnostic fields stay in
+  `segment_diagnostics`.
+- Select models, thresholds, feature sets, and calibrators from validation
+  evidence. Held-out test metrics are post-selection generalization checks.
+- Do not headline accuracy for this imbalanced credit-risk use case. Prefer
+  PR-AUC, ROC-AUC, Brier score, top-decile lift, recall at review capacity,
+  calibration, and expected-value tradeoffs.
+- SHAP outputs are interpretation/debugging aids only. Do not present them as
+  legally compliant adverse-action notices.
 
-## Implementation Rules
+## Scope Boundaries
 
-- Prove the data pipeline before modeling: CSV to Parquet to DuckDB staging to SQL feature mart.
-- Let SQL own feature extraction. Use Python for orchestration, training, evaluation, scoring, and exports.
-- Preserve one row per `SK_ID_CURR` in the feature mart. Join expansion is a build failure.
-- Keep evaluation and scoring populations separate. Metrics come from labeled `application_train` splits; Kaggle `application_test` is for production-like scoring demonstration.
-- Exclude direct demographic and protected-status-like fields from v1 model features. If inspected, keep them in a separate diagnostic layer only.
-- Define Power BI-facing table contracts before dashboard work. Do not wire dashboards to ad hoc notebook outputs.
-- Every major step should produce a concrete artifact: file, table, metric, test, report, or screenshot.
+Keep v1 and post-v1 comparison work focused on the existing local pipeline.
+Do not add APIs, Postgres, Spark, MLflow, deep learning, broad fairness tooling,
+or heavy hyperparameter search unless the user explicitly changes scope.
 
-## Scope Discipline
+Prefer repo-native commands, checks, SQL, fixtures, and existing helper modules
+over new frameworks or new service boundaries.
 
-Do not add APIs, Postgres, Spark, MLflow, deep learning, heavy hyperparameter search, or broad fairness tooling before v1 is complete unless the user explicitly changes scope. Prefer deletion, simplification, checklists, validators, and reusable commands over new frameworks or subsystems.
+## Commands
 
-Raw Kaggle data, generated databases, trained model binaries, and generated report/export artifacts should stay out of Git unless a specific deliverable is intentionally curated.
+Use the Makefile as the primary interface:
 
-Use `.tmp/` at the repo root for scratch files, temp files, local caches, pytest cache, and any other local garbage.
+```bash
+make setup
+make lint
+make format-check
+make test
+make ingest
+make features
+make train
+make evaluate
+make score
+make dashboard-data
+make dashboard-data-post-v1
+make pipeline-v1
+make pipeline-post-v1
+```
 
-## Validation Standards
+Notes:
 
-- Test business-critical logic first: ingestion contracts, feature grain, leakage controls, thresholding, expected value, scoring outputs, and dashboard exports.
-- Use small synthetic fixtures for tests. Tests should not require the full Kaggle dataset.
-- Treat leakage, duplicate applicant rows, population mixing, or threshold selection on test data as blocking failures.
-- Do not headline accuracy for this imbalanced credit-risk use case. Prefer PR-AUC, ROC-AUC, Brier score, top-decile lift, recall at review capacity, calibration, and expected-value tradeoffs as specified.
-- Do not present SHAP outputs as legally compliant adverse-action notices.
+- `make lint`, `make format-check`, and `make test` are the default local and
+  CI quality gates.
+- Full pipeline targets require local Kaggle raw CSVs under `data/raw/`.
+- Tests use synthetic fixtures and should not require full Kaggle data.
+- The Docker image is a test container; its default command is `make test`.
 
-## Done Criteria
+## Artifacts And Git Hygiene
 
-Finish nontrivial work with:
+Keep raw Kaggle data, DuckDB files, Parquet files, model binaries, generated
+runtime reports, generated figures, and dashboard CSV exports out of Git unless
+a curated artifact is explicitly part of the portfolio evidence.
 
-- what changed;
-- what evidence supports it;
-- what remains uncertain;
-- the next useful action.
+Committed portfolio evidence currently includes curated experiment summaries,
+selected comparison CSVs, `reports/model_card.md`, Power BI files/screenshots,
+and documentation. Runtime output directories are preserved with `.gitkeep`
+files where needed.
 
-Do not claim production credit-decision readiness. This project is a portfolio decision-support simulation with explicit limitations.
+Use `.tmp/` for scratch work and local experiment debris.
+
+## Review Priorities
+
+When reviewing or changing this repo, treat these as blocking risks:
+
+- target leakage or threshold selection on test data;
+- duplicate applicant rows or broken feature grain;
+- mixing labeled evaluation populations with unlabeled scoring populations;
+- stale README/report claims that contradict committed experiment evidence;
+- dashboard exports that bypass `src/report_contracts.py` schemas;
+- generated artifacts accidentally committed outside the curated evidence set;
+- Docker, CI, or Makefile drift from the repo's documented command interface.
