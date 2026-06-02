@@ -1,3 +1,4 @@
+-- Installment payment rows are collapsed to applicant-level repayment behavior.
 CREATE OR REPLACE TABLE f_installments_agg AS
 SELECT
     SK_ID_CURR,

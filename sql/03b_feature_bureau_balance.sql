@@ -1,3 +1,5 @@
+-- Bureau balance is monthly per bureau record; joining through stg_bureau maps
+-- it back to applicant grain before aggregation.
 CREATE OR REPLACE TABLE f_bureau_balance_agg AS
 WITH balance_status AS (
     SELECT
@@ -16,6 +18,8 @@ WITH balance_status AS (
 )
 SELECT
     SK_ID_CURR,
+    -- STATUS values 0-5 represent increasing days-past-due severity; C and X
+    -- remain categorical counts and do not enter numeric status averages.
     COUNT(*) AS bureau_balance_month_count,
     COUNT(DISTINCT SK_ID_BUREAU) AS bureau_balance_bureau_count,
     SUM(CASE WHEN status_code = 'C' THEN 1 ELSE 0 END) AS bureau_balance_closed_month_count,

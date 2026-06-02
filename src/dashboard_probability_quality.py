@@ -31,6 +31,7 @@ def build_probability_quality_overrides(
     dashboard_model_version: str,
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, pd.DataFrame]:
+    """Build dashboard-only calibrated metric and calibration-bin table overrides."""
     if calibration_artifact["selected_method"] == UNCALIBRATED_METHOD:
         return {}
 
@@ -64,6 +65,7 @@ def _build_calibrated_prediction_frames(
     calibration_artifact: dict[str, Any],
     error_cls: type[Exception],
 ) -> dict[str, pd.DataFrame]:
+    """Build calibrated prediction frames for all evaluation splits."""
     feature_columns = list(artifact["feature_columns"])
     split_applicant_ids = normalize_split_ids(
         artifact["split_applicant_ids"],
@@ -113,6 +115,7 @@ def _metrics_frame_with_calibrated_selected_model(
     dashboard_model_version: str,
     error_cls: type[Exception],
 ) -> pd.DataFrame:
+    """Replace the selected model's metric rows with calibrated dashboard rows."""
     existing_frame = connection.execute(
         f"""
         SELECT {", ".join(sql_identifier(column) for column in MODEL_METRICS_SUMMARY_COLUMNS)}
@@ -142,6 +145,7 @@ def _metrics_frame_with_calibrated_selected_model(
 def _existing_metric_created_at(
     existing_frame: pd.DataFrame, model_version: str
 ) -> str:
+    """Reuse the saved metric timestamp when calibrated dashboard rows replace it."""
     matching_rows = existing_frame.loc[existing_frame["model_version"] == model_version]
     if matching_rows.empty:
         return created_at_utc()
@@ -155,6 +159,7 @@ def _load_split_feature_frame(
     split_name: str,
     error_cls: type[Exception],
 ) -> pd.DataFrame:
+    """Load one split frame after verifying selected features still exist."""
     require_table_columns(
         connection,
         "mart_credit_risk_features",

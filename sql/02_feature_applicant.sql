@@ -1,3 +1,6 @@
+-- Applicant static features are the base modeling surface at
+-- (SK_ID_CURR, source_population) grain. application_test keeps TARGET null so
+-- scoring rows cannot accidentally enter labeled evaluation.
 CREATE OR REPLACE TABLE f_applicant_static AS
 WITH application_rows AS (
     SELECT
@@ -118,6 +121,8 @@ SELECT
     DAYS_LAST_PHONE_CHANGE
 FROM application_rows;
 
+-- Diagnostic segment fields are intentionally kept outside f_applicant_static
+-- and the model mart. They support dashboard slicing, not model training.
 CREATE OR REPLACE TABLE segment_diagnostics AS
 WITH diagnostic_rows AS (
     SELECT

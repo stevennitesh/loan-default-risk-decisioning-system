@@ -26,7 +26,7 @@ The frozen v1 pipeline is complete and reproducible. Post-v1 experiments promote
 | Modeling | Logistic regression baseline and LightGBM primary model. |
 | Evaluation focus | PR-AUC, ROC-AUC, Brier score, top-decile lift, recall at review capacity, calibration, and expected-value tradeoffs. |
 | Reporting | Power BI dashboard backed by explicit exported table contracts. |
-| Status | Frozen v1 pipeline plus post-v1 calibrated 168-feature LightGBM experiment. |
+| Status | Frozen v1 pipeline plus post-v1 calibrated 168-feature LightGBM comparison. |
 
 ## Dashboard Preview
 
@@ -75,6 +75,12 @@ Post-v1, the best experimental candidate is a 168-feature last-k temporal LightG
 | Validation top-decile lift | 3.490643 | 3.659805 | +0.169162 |
 | Validation recall at 10% review capacity | 0.349087 | 0.366004 | +0.016917 |
 | Validation balanced EV / applicant | 571.52 | 577.24 | +5.72 |
+| Held-out test PR-AUC | 0.258236 | 0.269925 | +0.011689 |
+| Held-out test ROC-AUC | 0.770385 | 0.780208 | +0.009823 |
+| Held-out test Brier score | 0.171245 | 0.066460 | -0.104786 |
+| Held-out test top-decile lift | 3.482588 | 3.600733 | +0.118145 |
+| Held-out test recall at 10% review capacity | 0.348281 | 0.360097 | +0.011815 |
+| Held-out test balanced EV / applicant | 572.03 | 581.58 | +9.55 |
 
 The experiment trail did not support a simple "more features always win" story. Calibration gave the cleanest probability-quality gain, recent repayment behavior was the strongest feature-engineering direction, and feature cleanup experiments did not justify dropping the final 16 promoted features.
 
@@ -150,6 +156,12 @@ v1 uses:
 - `previous_application.csv`
 - `installments_payments.csv`
 
+Post-v1 adds richer monthly history sources:
+
+- `bureau_balance.csv`
+- `POS_CASH_balance.csv`
+- `credit_card_balance.csv`
+
 Kaggle `application_test` rows are scored for a production-like batch scoring demonstration only. They are not used for validation metrics because they do not include labels.
 
 ## Technology Stack
@@ -186,25 +198,28 @@ For a quick review:
 
 Raw Kaggle data is not committed. Download the dataset separately and place the CSV files in `data/raw/`.
 
+To rebuild the frozen v1 and post-v1 dashboard comparison bundles:
+
 ```bash
 make setup
+make pipeline-v1
+make pipeline-post-v1
+make test
+```
+
+For a single active config run, use the step-by-step targets:
+
+```bash
 make ingest
 make features
 make train
 make evaluate
+make calibrate
 make score
-make dashboard-data
-make test
+make explain
 ```
 
-To rebuild the frozen v1 and post-v1 dashboard comparison bundles:
-
-```bash
-make pipeline-v1
-make pipeline-post-v1
-```
-
-Power BI consumes CSV exports from `reports/dashboard_data/` for v1 and `reports/dashboard_data_post_v1/` for the post-v1 comparison bundle.
+Power BI consumes CSV exports from `reports/dashboard_data/` for v1 and `reports/dashboard_data_post_v1/` for the post-v1 comparison bundle. Refresh only those CSV bundles with `make dashboard-data` and `make dashboard-data-post-v1` after the upstream artifacts already exist.
 
 ## Repository Guide
 

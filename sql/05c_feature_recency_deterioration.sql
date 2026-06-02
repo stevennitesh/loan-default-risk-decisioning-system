@@ -1,3 +1,5 @@
+-- Recent deterioration features compare recent behavior against lifetime
+-- behavior. Positive deltas generally mean the recent window looks riskier.
 CREATE OR REPLACE TABLE f_recency_deterioration_features AS
 WITH bureau_status_delta AS (
     SELECT
@@ -22,6 +24,7 @@ WITH bureau_status_delta AS (
     GROUP BY bureau.SK_ID_CURR
 ),
 pos_cash_installment_delta AS (
+    -- Compare recent remaining-installment burden with the applicant's full POS history.
     SELECT
         SK_ID_CURR,
         (
@@ -46,6 +49,7 @@ pos_cash_installment_delta AS (
     GROUP BY SK_ID_CURR
 ),
 credit_card_months AS (
+    -- Normalize utilization once so recent and lifetime windows use the same definition.
     SELECT
         SK_ID_CURR,
         MONTHS_BALANCE,
@@ -86,6 +90,8 @@ SELECT
         - credit_card.credit_card_dpd_month_rate
         AS credit_card_recent_dpd_rate_delta
 FROM f_applicant_static AS applicant
+-- Start from f_applicant_static so train and scoring populations both receive
+-- one row even when a downstream history table has no records.
 LEFT JOIN f_bureau_balance_agg AS bureau_balance
     ON applicant.SK_ID_CURR = bureau_balance.SK_ID_CURR
 LEFT JOIN bureau_status_delta

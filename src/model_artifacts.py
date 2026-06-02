@@ -34,6 +34,7 @@ def load_model_artifact(
     require_feature_columns: bool = False,
     require_predict_proba: bool = False,
 ) -> dict[str, Any]:
+    """Load and validate a persisted model artifact contract."""
     if not path.exists():
         display_label = missing_label or artifact_label
         raise error_cls(f"Missing {display_label}: {path}")
@@ -67,6 +68,7 @@ def normalize_split_ids(
     error_cls: type[Exception],
     label: str = "split_applicant_ids",
 ) -> dict[str, list[int]]:
+    """Validate persisted split IDs and normalize them to integer lists."""
     if not isinstance(raw_split_ids, dict):
         raise error_cls(f"{label} must be a mapping")
 
@@ -86,6 +88,7 @@ def normalize_split_ids(
 
 
 def selected_model_types(connection: Any) -> set[str]:
+    """Read the selected model type values from DuckDB, if present."""
     if "model_comparison_summary" not in existing_tables(connection):
         return set()
     return {
@@ -102,6 +105,7 @@ def load_selected_model_type(
     *,
     error_cls: type[Exception],
 ) -> str:
+    """Load the single selected model type from model_comparison_summary."""
     if "model_comparison_summary" not in existing_tables(connection):
         raise error_cls("Missing required DuckDB table: model_comparison_summary")
 
@@ -123,6 +127,7 @@ def load_selected_model_artifact(
     *,
     error_cls: type[Exception],
 ) -> dict[str, Any]:
+    """Load the artifact for the model type selected by evaluation."""
     expected_model_version, artifact_name = model_artifacts[selected_model_type]
     artifact_path = model_dir / artifact_name
     return load_model_artifact(
@@ -144,6 +149,7 @@ def load_calibration_artifact(
     *,
     error_cls: type[Exception],
 ) -> dict[str, Any]:
+    """Load a matching calibration artifact or return the uncalibrated contract."""
     artifact_path = model_dir / calibration_artifact_name
     if (
         selected_artifact["model_type"] != calibrated_model_type
@@ -180,4 +186,5 @@ def load_calibration_artifact(
 
 
 def uncalibrated_calibration_artifact() -> dict[str, Any]:
+    """Return the no-op calibration artifact used when calibration is unavailable."""
     return {"selected_method": UNCALIBRATED_METHOD, "calibrators": {}}

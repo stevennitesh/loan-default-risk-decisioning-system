@@ -24,6 +24,7 @@ def fit_calibrators(
     random_seed: int,
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, Any]:
+    """Fit sigmoid and isotonic calibrators on validation predictions."""
     validate_probabilities(
         validation_probabilities, "validation calibration input", error_cls=error_cls
     )
@@ -50,6 +51,7 @@ def apply_calibration_method(
     uncalibrated_predictions: dict[str, pd.DataFrame],
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, pd.DataFrame]:
+    """Apply one calibration method to every split prediction frame."""
     calibrated = {}
     for split_name, frame in uncalibrated_predictions.items():
         probabilities = frame["probability"].to_numpy()
@@ -73,6 +75,7 @@ def apply_calibration_to_probabilities(
     error_cls: type[Exception] = ValueError,
     label: str | None = None,
 ) -> np.ndarray:
+    """Apply a configured calibration method to a probability vector."""
     if method == UNCALIBRATED_METHOD:
         adjusted_probabilities = probabilities
     elif method == SIGMOID_METHOD:
@@ -94,6 +97,7 @@ def apply_saved_calibration_artifact(
     error_cls: type[Exception] = ValueError,
     label: str = "saved calibration",
 ) -> np.ndarray:
+    """Apply the selected method from a saved calibration artifact."""
     return apply_calibration_to_probabilities(
         str(calibration_artifact["selected_method"]),
         calibration_artifact["calibrators"],
@@ -107,6 +111,7 @@ def select_calibration_method(
     comparison_rows: list[dict[str, Any]],
     error_cls: type[Exception] = ValueError,
 ) -> str:
+    """Select calibration by validation Brier improvement and simplicity rules."""
     validation_rows = [
         row for row in comparison_rows if row["split"] == CALIBRATION_FIT_SPLIT
     ]
@@ -135,5 +140,6 @@ def select_calibration_method(
 
 
 def logit_features(probabilities: np.ndarray) -> np.ndarray:
+    """Convert probabilities to clipped logit features for sigmoid calibration."""
     clipped = np.clip(probabilities.astype(float), 1e-6, 1 - 1e-6)
     return np.log(clipped / (1 - clipped)).reshape(-1, 1)

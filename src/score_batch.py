@@ -51,6 +51,7 @@ class ScoringError(RuntimeError):
 
 
 def run_scoring(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+    """Score holdout and Kaggle populations into the credit_risk_scores table."""
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -136,6 +137,7 @@ def _load_balanced_threshold_policy(
     connection: duckdb.DuckDBPyConnection,
     model_version: str,
 ) -> dict[str, Any]:
+    """Load the validation-derived balanced threshold policy for scoring."""
     require_table(connection, "model_threshold_metrics", error_cls=ScoringError)
     rows = connection.execute(
         """
@@ -165,6 +167,7 @@ def _load_holdout_test_frame(
     applicant_ids: list[int],
     feature_columns: list[str],
 ) -> pd.DataFrame:
+    """Load the saved labeled holdout split used for scoring demonstration."""
     return load_labeled_split_frame(
         connection,
         applicant_ids,
@@ -184,6 +187,7 @@ def _score_population(
     calibration_artifact: dict[str, Any],
     scored_at: datetime,
 ) -> list[dict[str, Any]]:
+    """Build score rows for one scoring population."""
     raw_probabilities = predict_probabilities(
         artifact,
         frame,
@@ -202,6 +206,8 @@ def _score_population(
         f"{scoring_population} calibrated",
         error_cls=ScoringError,
     )
+    # Action bands stay tied to the validation-selected raw-score thresholds;
+    # calibrated scores are exported separately for probability-quality reading.
     risk_actions = assign_risk_bands(raw_probabilities, threshold_policy)
     ranked_frame = pd.DataFrame(
         {
@@ -247,6 +253,7 @@ def _score_population(
 
 
 def _validate_output_rows(rows: list[dict[str, Any]]) -> None:
+    """Validate score output keys and required score/action fields."""
     if not rows:
         raise ScoringError("credit_risk_scores output must not be empty")
     frame = pd.DataFrame(rows, columns=CREDIT_RISK_SCORE_COLUMNS)
@@ -274,6 +281,7 @@ def _validate_output_rows(rows: list[dict[str, Any]]) -> None:
 
 
 def main() -> None:
+    """Run the batch-scoring CLI."""
     parser = argparse.ArgumentParser(
         description="Score applicants in batch and write DuckDB score outputs."
     )

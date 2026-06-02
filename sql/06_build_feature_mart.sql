@@ -1,3 +1,5 @@
+-- Post-v1 mart joins applicant-grain feature tables, preserving one row per
+-- (SK_ID_CURR, source_population). Diagnostic segment fields stay outside.
 CREATE OR REPLACE TABLE mart_credit_risk_features AS
 SELECT
     applicant.*,
@@ -139,6 +141,8 @@ SELECT
     risk_pressure.bureau_debt_to_income_ratio,
     risk_pressure.payment_shortfall_ratio
 FROM f_applicant_static AS applicant
+-- Aggregate history features are keyed only by SK_ID_CURR because the history
+-- tables apply to both training and scoring populations for the same applicant.
 LEFT JOIN f_bureau_agg AS bureau
     ON applicant.SK_ID_CURR = bureau.SK_ID_CURR
 LEFT JOIN f_bureau_balance_agg AS bureau_balance
@@ -151,6 +155,8 @@ LEFT JOIN f_previous_application_agg AS previous
     ON applicant.SK_ID_CURR = previous.SK_ID_CURR
 LEFT JOIN f_installments_agg AS installments
     ON applicant.SK_ID_CURR = installments.SK_ID_CURR
+-- Derived features that start from f_applicant_static include source_population
+-- in the join key to preserve the mart grain explicitly.
 LEFT JOIN f_risk_pressure_features AS risk_pressure
     ON applicant.SK_ID_CURR = risk_pressure.SK_ID_CURR
     AND applicant.source_population = risk_pressure.source_population

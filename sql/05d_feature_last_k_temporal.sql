@@ -1,5 +1,9 @@
+-- Last-k temporal features isolate the most recent repayment and account
+-- behavior without changing the final applicant population grain.
 CREATE OR REPLACE TABLE f_last_k_temporal_features AS
 WITH installment_ranked AS (
+    -- DAYS_INSTALMENT is negative relative to application date; DESC selects the
+    -- least-negative, most recent installment first.
     SELECT
         SK_ID_CURR,
         DAYS_INSTALMENT,
@@ -22,6 +26,7 @@ WITH installment_ranked AS (
     FROM stg_installments_payments
 ),
 installment_last_3 AS (
+    -- Last three installment rows capture near-term repayment behavior.
     SELECT
         SK_ID_CURR,
         AVG(paid_late) AS installments_last_3_late_payment_rate,
@@ -42,6 +47,8 @@ installment_last_payment AS (
     WHERE payment_recency_rank = 1
 ),
 pos_cash_ranked AS (
+    -- MONTHS_BALANCE is negative relative to application date; DESC selects the
+    -- most recent POS cash month first.
     SELECT
         SK_ID_CURR,
         SK_ID_PREV,
@@ -70,6 +77,8 @@ pos_cash_last_3 AS (
     GROUP BY SK_ID_CURR
 ),
 pos_cash_latest_loan AS (
+    -- Identify the most recently observed POS cash loan before summarizing all
+    -- monthly rows for that loan.
     SELECT
         SK_ID_CURR,
         SK_ID_PREV
@@ -99,6 +108,8 @@ pos_cash_last_loan AS (
     GROUP BY pos_cash.SK_ID_CURR
 ),
 credit_card_ranked AS (
+    -- Rank credit-card months per applicant so the last-3 window can be compared
+    -- with lifetime credit-card aggregates.
     SELECT
         SK_ID_CURR,
         MONTHS_BALANCE,
@@ -152,6 +163,8 @@ SELECT
         - credit_card.credit_card_avg_credit_utilization
         AS credit_card_last_3_utilization_delta
 FROM f_applicant_static AS applicant
+-- Preserve the applicant/static population grain; missing histories remain NULL
+-- feature values for downstream imputers instead of dropping applicants.
 LEFT JOIN installment_last_3
     ON applicant.SK_ID_CURR = installment_last_3.SK_ID_CURR
 LEFT JOIN installment_last_payment

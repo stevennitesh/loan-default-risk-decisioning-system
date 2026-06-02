@@ -15,6 +15,7 @@ def validate_probabilities(
     *,
     error_cls: type[TError],
 ) -> None:
+    """Validate that model probabilities are one-dimensional values in [0, 1]."""
     if probabilities.ndim != 1:
         raise error_cls(f"{label} probabilities must be one-dimensional")
     if not np.isfinite(probabilities).all():
@@ -29,6 +30,7 @@ def top_decile_lift(
     *,
     error_cls: type[TError] = ValueError,
 ) -> float:
+    """Return default lift among the highest-risk decile."""
     portfolio_positive_rate = float(y_true.mean())
     top_precision = precision_at_rate(y_true, probabilities, 0.10, error_cls=error_cls)
     return float(top_precision / portfolio_positive_rate)
@@ -41,6 +43,7 @@ def precision_at_rate(
     *,
     error_cls: type[TError] = ValueError,
 ) -> float:
+    """Return target precision among the top-ranked applicants at a rate."""
     frame = _probability_frame(y_true, probabilities)
     return float(_top_rate_frame(frame, rate, error_cls)["target"].mean())
 
@@ -52,6 +55,7 @@ def recall_at_rate(
     *,
     error_cls: type[TError] = ValueError,
 ) -> float:
+    """Return target recall among the top-ranked applicants at a rate."""
     frame = _probability_frame(y_true, probabilities)
     positives_in_top = int(_top_rate_frame(frame, rate, error_cls)["target"].sum())
     total_positives = int(frame["target"].sum())
@@ -59,27 +63,16 @@ def recall_at_rate(
 
 
 def top_count(row_count: int, rate: float, *, error_cls: type[TError]) -> int:
+    """Convert a positive selection rate to at least one selected row."""
     if rate <= 0 or rate > 1:
         raise error_cls(f"Selection rate must be in (0, 1], got {rate}")
     return max(1, int(np.ceil(row_count * rate)))
 
 
-def _top_rate_frame(
-    frame: pd.DataFrame,
-    rate: float,
-    error_cls: type[TError],
-) -> pd.DataFrame:
-    count = top_count(len(frame), rate, error_cls=error_cls)
-    return frame.sort_values("probability", ascending=False).head(count)
-
-
-def _probability_frame(y_true: pd.Series, probabilities: np.ndarray) -> pd.DataFrame:
-    return pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
-
-
 def with_probability_rank_bin(
     frame: pd.DataFrame, column_name: str, *, descending: bool
 ) -> pd.DataFrame:
+    """Add a deterministic 1-10 probability rank bin column."""
     ranked = frame.sort_values(
         ["probability", "SK_ID_CURR"],
         ascending=[not descending, True],
@@ -92,6 +85,7 @@ def with_probability_rank_bin(
 
 
 def nullable_mean(series: pd.Series) -> float | None:
+    """Return a float mean, or None for empty report groups."""
     if series.empty:
         return None
     return float(series.mean())
@@ -100,6 +94,7 @@ def nullable_mean(series: pd.Series) -> float | None:
 def target_class_values(
     targets: pd.Series | np.ndarray, *, dropna: bool = False
 ) -> set[int]:
+    """Return observed integer target classes, optionally dropping missing values."""
     target_series = pd.Series(targets)
     if dropna:
         target_series = target_series.dropna()
@@ -107,19 +102,17 @@ def target_class_values(
 
 
 def roc_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
+    """Return ROC-AUC when a segment contains both classes, otherwise None."""
     if not _has_binary_targets(targets):
         return None
     return float(roc_auc_score(targets, probabilities))
 
 
 def pr_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
+    """Return PR-AUC when a segment contains both classes, otherwise None."""
     if not _has_binary_targets(targets):
         return None
     return float(average_precision_score(targets, probabilities))
-
-
-def _has_binary_targets(targets: pd.Series) -> bool:
-    return target_class_values(targets) == {0, 1}
 
 
 def probability_metrics(
@@ -128,6 +121,7 @@ def probability_metrics(
     manual_review_capacity_rate: float,
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, float]:
+    """Build the standard credit-risk probability metric bundle."""
     return {
         "roc_auc": roc_auc_score(y_true, probabilities),
         "pr_auc": average_precision_score(y_true, probabilities),
@@ -155,6 +149,7 @@ def build_probability_metric_rows(
     *,
     error_cls: type[TError] = ValueError,
 ) -> list[dict[str, object]]:
+    """Build long-form probability metric rows for each prediction split."""
     rows: list[dict[str, object]] = []
     for split_name, frame in prediction_frames.items():
         y_true = frame["target"]
@@ -180,6 +175,7 @@ def build_calibration_bin_rows(
     prediction_frames: dict[str, pd.DataFrame],
     reporting_splits: tuple[str, ...],
 ) -> list[dict[str, object]]:
+    """Build calibration-bin rows for the configured reporting splits."""
     rows: list[dict[str, object]] = []
     for split_name in reporting_splits:
         frame = with_probability_rank_bin(
@@ -204,3 +200,23 @@ def build_calibration_bin_rows(
                 }
             )
     return rows
+
+
+def _top_rate_frame(
+    frame: pd.DataFrame,
+    rate: float,
+    error_cls: type[TError],
+) -> pd.DataFrame:
+    """Return the top rows by probability for the requested selection rate."""
+    count = top_count(len(frame), rate, error_cls=error_cls)
+    return frame.sort_values("probability", ascending=False).head(count)
+
+
+def _probability_frame(y_true: pd.Series, probabilities: np.ndarray) -> pd.DataFrame:
+    """Build the canonical target/probability frame used by rank metrics."""
+    return pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
+
+
+def _has_binary_targets(targets: pd.Series) -> bool:
+    """Return whether targets contain exactly the two binary classes."""
+    return target_class_values(targets) == {0, 1}

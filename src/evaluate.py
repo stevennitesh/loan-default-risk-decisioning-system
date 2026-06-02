@@ -80,6 +80,7 @@ warnings.filterwarnings(
 
 
 def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+    """Evaluate saved models and write validation, threshold, and figure outputs."""
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -226,6 +227,7 @@ def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, A
 def _validate_artifacts(
     artifacts: dict[str, dict[str, Any]],
 ) -> tuple[list[str], dict[str, list[int]]]:
+    """Validate that competing model artifacts share features and split IDs."""
     baseline = artifacts[BASELINE_MODEL_TYPE]
     lightgbm = artifacts[LIGHTGBM_MODEL_TYPE]
 
@@ -255,6 +257,7 @@ def _build_prediction_frames(
     split_frames: dict[str, pd.DataFrame],
     feature_columns: list[str],
 ) -> dict[str, pd.DataFrame]:
+    """Build prediction frames for all evaluation splits for one artifact."""
     prediction_frames = {}
     for split_name, frame in split_frames.items():
         probabilities = predict_probabilities(
@@ -273,6 +276,7 @@ def _build_metric_rows(
     created_at: str,
     config: dict[str, Any],
 ) -> list[dict[str, Any]]:
+    """Build probability metric rows for all evaluated model families."""
     model_versions = {
         BASELINE_MODEL_TYPE: BASELINE_MODEL_VERSION,
         LIGHTGBM_MODEL_TYPE: LIGHTGBM_MODEL_VERSION,
@@ -298,6 +302,7 @@ def _build_lift_rows(
     model_version: str,
     prediction_frames: dict[str, pd.DataFrame],
 ) -> list[dict[str, Any]]:
+    """Build top-risk decile lift rows for reporting splits."""
     rows: list[dict[str, Any]] = []
     for split_name in REPORTING_SPLITS:
         frame = with_probability_rank_bin(
@@ -335,6 +340,7 @@ def _build_lift_rows(
 
 
 def _select_model_type(metric_rows: list[dict[str, Any]]) -> str:
+    """Recompute selected model type from validation PR-AUC metric rows."""
     validation_metrics = {
         row["model_version"]: float(row["metric_value"])
         for row in metric_rows
@@ -350,6 +356,7 @@ def _verify_saved_model_selection(
     connection: duckdb.DuckDBPyConnection,
     selected_model_type: str,
 ) -> None:
+    """Ensure saved model-selection state agrees with recomputed evaluation."""
     saved_selections = selected_model_types(connection)
     if saved_selections and saved_selections != {selected_model_type}:
         raise EvaluationError(
@@ -359,6 +366,7 @@ def _verify_saved_model_selection(
 
 
 def main() -> None:
+    """Run the evaluation CLI, optionally exporting dashboard data."""
     parser = argparse.ArgumentParser(
         description="Evaluate model metrics and export reporting tables."
     )

@@ -47,6 +47,7 @@ def run_feature_selection_experiment(
     selected_features_name: str = SELECTED_FEATURES_NAME,
     report_name: str = FEATURE_SELECTION_REPORT_NAME,
 ) -> dict[str, Any]:
+    """Compare top-N feature sets and write feature-selection experiment outputs."""
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -128,6 +129,7 @@ def run_feature_selection_experiment(
 def _selected_feature_rows(
     feature_set_name: str, feature_columns: list[str]
 ) -> list[dict[str, Any]]:
+    """Build selected-feature CSV rows for the winning feature set."""
     return [
         {
             "feature_set": feature_set_name,
@@ -144,6 +146,7 @@ def _write_report(
     selected_feature_set: str,
     selected_features_name: str = SELECTED_FEATURES_NAME,
 ) -> None:
+    """Write the markdown feature-selection experiment report."""
     table_lines = "\n".join(
         "| {feature_set} | {feature_count} | {selected_calibration_method} | "
         "{validation_pr_auc:.6f} | {validation_brier_score:.6f} | "
@@ -194,6 +197,7 @@ This experiment changes the model feature surface only. It does not add new sour
 def _interpretation_text(
     rows: list[dict[str, Any]], selected_row: dict[str, Any]
 ) -> str:
+    """Build interpretation text for the selected feature-set report."""
     selected_name = str(selected_row["feature_set"])
     full_row = next((row for row in rows if row["feature_set"] == "full"), None)
     first_paragraph = (
@@ -237,6 +241,7 @@ def _interpretation_text(
 
 
 def main() -> None:
+    """Run the feature-selection experiment CLI."""
     parser = argparse.ArgumentParser(
         description="Compare top-N feature-selection variants for the LightGBM risk model.",
     )

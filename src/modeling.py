@@ -31,6 +31,7 @@ def load_labeled_training_frame(
     feature_columns: list[str],
     error_cls: type[Exception] = ValueError,
 ) -> pd.DataFrame:
+    """Load all labeled training-population rows for model fitting."""
     if not feature_columns:
         raise error_cls("No model feature columns are available for training")
 
@@ -58,6 +59,7 @@ def split_labeled_frame(
     random_seed: int,
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, pd.DataFrame]:
+    """Create stratified train, validation, and test splits."""
     split_config = config["split"]
     validation_size = float(split_config["validation_size"])
     test_size = float(split_config["test_size"])
@@ -95,6 +97,7 @@ def classify_feature_columns(
     train_frame: pd.DataFrame,
     feature_columns: list[str],
 ) -> tuple[list[str], list[str]]:
+    """Classify selected feature columns as numeric or categorical for sklearn."""
     numeric_features = [
         column
         for column in feature_columns
@@ -112,6 +115,7 @@ def build_baseline_pipeline(
     categorical_features: list[str],
     random_seed: int,
 ) -> Pipeline:
+    """Build the logistic-regression baseline preprocessing and classifier pipeline."""
     preprocessor = ColumnTransformer(
         transformers=[
             (
@@ -167,6 +171,7 @@ def build_lightgbm_pipeline(
     categorical_features: list[str],
     lightgbm_params: dict[str, Any],
 ) -> Pipeline:
+    """Build the LightGBM preprocessing and classifier pipeline."""
     preprocessor = ColumnTransformer(
         transformers=[
             (
@@ -215,6 +220,7 @@ def lightgbm_params(
     train_frame: pd.DataFrame,
     random_seed: int,
 ) -> dict[str, Any]:
+    """Build LightGBM parameters from config and class-balance evidence."""
     params: dict[str, Any] = {
         "objective": "binary",
         "n_estimators": 300,
@@ -243,6 +249,7 @@ def fit_tuned_lightgbm(
     manual_review_capacity_rate: float,
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, Any]:
+    """Train bounded LightGBM candidates and select the best validation model."""
     tuning_config = config["model"].get("lightgbm_tuning", {})
     tuning_enabled = bool(tuning_config.get("enabled", True))
     max_candidates = int(tuning_config.get("max_candidates", 8))
@@ -310,6 +317,7 @@ def predict_probabilities(
     label: str,
     error_cls: type[Exception] = ValueError,
 ) -> np.ndarray:
+    """Predict validated default probabilities from a persisted model artifact."""
     pipeline = artifact["pipeline"]
     if not hasattr(pipeline, "predict_proba"):
         raise error_cls(
@@ -321,6 +329,7 @@ def predict_probabilities(
 
 
 def prediction_frame(frame: pd.DataFrame, probabilities: np.ndarray) -> pd.DataFrame:
+    """Build the canonical applicant, target, and probability prediction frame."""
     return pd.DataFrame(
         {
             "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
@@ -331,6 +340,7 @@ def prediction_frame(frame: pd.DataFrame, probabilities: np.ndarray) -> pd.DataF
 
 
 def build_lightgbm_tuning_artifact(tuning_result: dict[str, Any]) -> dict[str, Any]:
+    """Build a serializable summary of the selected LightGBM tuning result."""
     selected = tuning_result["selected_candidate"]
     selected_rank = next(
         rank
@@ -358,6 +368,7 @@ def _lightgbm_candidate_specs(
     max_candidates: int,
     tuning_enabled: bool,
 ) -> list[dict[str, Any]]:
+    """Return ordered LightGBM candidate parameter specifications."""
     base_scale_pos_weight = float(base_params.get("scale_pos_weight", 1.0))
     # Preset order is part of the bounded tuning contract; max_candidates selects a prefix.
     presets = [
@@ -492,6 +503,8 @@ def _lightgbm_candidate_specs(
 def _lightgbm_selection_key(
     metrics: dict[str, float],
 ) -> tuple[float, float, float, float, float, float]:
+    """Return the validation ranking key for LightGBM candidate selection."""
+    # Reject constant-score candidates before optimizing rank and calibration metrics.
     return (
         1.0 if _has_nonconstant_score_distribution(metrics) else 0.0,
         metrics["pr_auc"],
@@ -503,8 +516,10 @@ def _lightgbm_selection_key(
 
 
 def _lightgbm_selection_score(metrics: dict[str, float]) -> float:
+    """Return the headline tuning score persisted in tuning reports."""
     return float(metrics["pr_auc"])
 
 
 def _has_nonconstant_score_distribution(metrics: dict[str, float]) -> bool:
+    """Return whether a model produced more than one predicted score value."""
     return metrics["max_predicted_probability"] > metrics["min_predicted_probability"]

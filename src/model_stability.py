@@ -67,6 +67,7 @@ def run_model_stability_experiment(
     summary_name: str = "model_stability_summary.csv",
     report_name: str = MODEL_STABILITY_REPORT_NAME,
 ) -> dict[str, Any]:
+    """Run repeated-seed model stability experiments and write summary outputs."""
     seeds = _normalize_seeds(seeds)
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
@@ -156,6 +157,7 @@ def aggregate_stability_rows(
     run_rows: list[dict[str, Any]],
     created_at: str,
 ) -> list[dict[str, Any]]:
+    """Aggregate per-seed feature-set runs into stability summary rows."""
     if not run_rows:
         raise ModelStabilityError("At least one seed run row is required")
 
@@ -200,11 +202,13 @@ def aggregate_stability_rows(
 
 
 def select_stability_feature_set(rows: list[dict[str, Any]]) -> str:
+    """Select the best feature set from aggregate stability rows."""
     selected = max(rows, key=_stability_selection_key)
     return str(selected["feature_set"])
 
 
 def _normalize_seeds(seeds: tuple[int, ...]) -> tuple[int, ...]:
+    """Validate and normalize repeated-run seed values."""
     normalized = tuple(int(seed) for seed in seeds)
     if not normalized:
         raise ModelStabilityError("At least one seed is required")
@@ -216,6 +220,7 @@ def _normalize_seeds(seeds: tuple[int, ...]) -> tuple[int, ...]:
 def _stability_selection_key(
     row: dict[str, Any],
 ) -> tuple[float, float, float, float, float, float, float, int]:
+    """Return the aggregate validation-first ranking key for stability selection."""
     return (
         float(row["validation_pr_auc_mean"]),
         float(row["validation_win_rate"]),
@@ -234,6 +239,7 @@ def _write_report(
     selected_feature_set: str,
     seeds: tuple[int, ...],
 ) -> None:
+    """Write the markdown model-stability experiment report."""
     table_lines = "\n".join(
         "| {feature_set} | {feature_count} | {seed_count} | {validation_win_rate:.2f} | "
         "{validation_pr_auc_mean:.6f} | {validation_pr_auc_std:.6f} | "
@@ -286,6 +292,7 @@ This experiment changes the model-generation evidence only. It does not add new 
 
 
 def _interpretation_text(selected_row: dict[str, Any]) -> str:
+    """Build interpretation text for the selected stability result."""
     selected_feature_set = str(selected_row["feature_set"])
     if selected_feature_set == "full":
         return (
@@ -302,6 +309,7 @@ def _interpretation_text(selected_row: dict[str, Any]) -> str:
 
 
 def _std(values: pd.Series) -> float:
+    """Return population standard deviation with NaN normalized to zero."""
     result = float(values.std(ddof=0))
     if np.isnan(result):
         return 0.0
@@ -309,10 +317,12 @@ def _std(values: pd.Series) -> float:
 
 
 def _seed_list(seeds: tuple[int, ...]) -> str:
+    """Format seed values for markdown report text."""
     return ", ".join(str(seed) for seed in seeds)
 
 
 def main() -> None:
+    """Run the model-stability experiment CLI."""
     parser = argparse.ArgumentParser(
         description="Compare model-generation stability across repeated seeds.",
     )
