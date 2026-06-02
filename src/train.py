@@ -337,7 +337,7 @@ def _build_metric_rows(
     split_frames: dict[str, pd.DataFrame],
     feature_columns: list[str],
     created_at: str,
-    manual_review_capacity_rate: float,
+    review_capacity_rate: float,
 ) -> list[dict[str, Any]]:
     artifact = {"pipeline": pipeline, "model_version": model_version}
     prediction_frames = {}
@@ -354,7 +354,7 @@ def _build_metric_rows(
         model_version,
         prediction_frames,
         created_at,
-        manual_review_capacity_rate,
+        review_capacity_rate,
         error_cls=TrainingError,
     )
 

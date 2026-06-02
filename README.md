@@ -64,7 +64,7 @@ Frozen v1 selected model: `lightgbm_credit_risk_v1`.
 | Held-out test recall at 10% review capacity | 0.348281 |
 | Validation PR-AUC improvement over logistic regression | +0.015556 |
 
-Post-v1, the best experimental candidate is a 168-feature last-k temporal LightGBM model with sigmoid calibration. The biggest gain is probability quality: held-out test Brier score improves from `0.173301` to `0.066460` without changing rank metrics.
+Post-v1, the best experimental candidate is a 168-feature last-k temporal LightGBM model with sigmoid calibration. The combined feature and calibration candidate improves held-out test PR-AUC from `0.258236` to `0.269925`; sigmoid calibration is the main probability-quality gain, reducing the post-v1 candidate's uncalibrated held-out test Brier score from `0.173301` to `0.066460` while preserving its rank metrics.
 
 | Post-v1 improvement | Frozen v1 | Best post-v1 | Difference |
 |---|---:|---:|---:|
