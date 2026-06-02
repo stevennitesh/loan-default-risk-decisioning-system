@@ -10,6 +10,9 @@ import joblib
 import pandas as pd
 
 from src.config import load_config
+from src.config import data_scope_version
+from src.config import manual_review_capacity_rate
+from src.config import project_random_seed
 from src.data_contracts import DataContractError
 from src.data_contracts import get_model_feature_columns
 from src.data_contracts import validate_data_contracts
@@ -19,6 +22,7 @@ from src.model_contracts import BASELINE_MODEL_VERSION
 from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
 from src.model_contracts import LIGHTGBM_MODEL_TYPE
 from src.model_contracts import LIGHTGBM_MODEL_VERSION
+from src.model_contracts import select_model_type_by_validation_pr_auc
 from src.modeling import build_baseline_pipeline
 from src.modeling import build_lightgbm_tuning_artifact
 from src.modeling import classify_feature_columns
@@ -26,8 +30,9 @@ from src.modeling import fit_tuned_lightgbm
 from src.modeling import lightgbm_params
 from src.modeling import load_labeled_training_frame
 from src.modeling import predict_probabilities
+from src.modeling import prediction_frame
 from src.modeling import split_labeled_frame
-from src.metrics import probability_metrics
+from src.metrics import build_probability_metric_rows
 from src.report_contracts import LIGHTGBM_TUNING_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_COMPARISON_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
@@ -36,7 +41,7 @@ from src.report_contracts import SPLIT_SUMMARY_COLUMNS
 from src.runtime import created_at_utc
 from src.runtime import feature_frame
 from src.runtime import replace_duckdb_table
-from src.runtime import resolve_project_path
+from src.runtime import resolve_config_path
 from src.runtime import write_csv
 
 
@@ -53,17 +58,17 @@ warnings.filterwarnings(
 
 def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
-    report_dir = resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
+    report_dir = resolve_config_path(config, "report_dir")
 
     if not duckdb_path.exists():
         raise TrainingError(f"DuckDB database not found: {duckdb_path}")
 
     created_at = created_at_utc()
     run_id = f"model_training_v1_{created_at.replace('-', '').replace(':', '').replace('Z', '')}"
-    random_seed = int(config["project"]["random_seed"])
-    manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
+    random_seed = project_random_seed(config)
+    review_capacity_rate = manual_review_capacity_rate(config)
 
     with duckdb.connect(str(duckdb_path)) as connection:
         # Training is gated by the mart contract so artifacts cannot be created from invalid grain.
@@ -112,7 +117,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
             base_lightgbm_params,
             split_frames,
             feature_columns,
-            manual_review_capacity_rate,
+            review_capacity_rate,
             error_cls=TrainingError,
         )
         lightgbm_pipeline = lightgbm_tuning["pipeline"]
@@ -125,7 +130,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
             split_frames,
             feature_columns,
             created_at,
-            manual_review_capacity_rate,
+            review_capacity_rate,
         )
         lightgbm_metric_rows = _build_metric_rows(
             LIGHTGBM_MODEL_VERSION,
@@ -133,7 +138,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
             split_frames,
             feature_columns,
             created_at,
-            manual_review_capacity_rate,
+            review_capacity_rate,
         )
         metric_rows = [*baseline_metric_rows, *lightgbm_metric_rows]
         comparison_rows = _build_model_comparison_rows(baseline_metric_rows, lightgbm_metric_rows)
@@ -302,10 +307,9 @@ def _build_metric_rows(
     created_at: str,
     manual_review_capacity_rate: float,
 ) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
     artifact = {"pipeline": pipeline, "model_version": model_version}
+    prediction_frames = {}
     for split_name, frame in split_frames.items():
-        y_true = frame["TARGET"].astype(int)
         probabilities = predict_probabilities(
             artifact,
             frame,
@@ -313,23 +317,14 @@ def _build_metric_rows(
             f"{model_version} {split_name}",
             TrainingError,
         )
-        metrics = probability_metrics(
-            y_true,
-            probabilities,
-            manual_review_capacity_rate,
-            error_cls=TrainingError,
-        )
-        rows.extend(
-            {
-                "model_version": model_version,
-                "split": split_name,
-                "metric_name": metric_name,
-                "metric_value": metric_value,
-                "created_at": created_at,
-            }
-            for metric_name, metric_value in metrics.items()
-        )
-    return rows
+        prediction_frames[split_name] = prediction_frame(frame, probabilities)
+    return build_probability_metric_rows(
+        model_version,
+        prediction_frames,
+        created_at,
+        manual_review_capacity_rate,
+        error_cls=TrainingError,
+    )
 
 
 def _build_model_comparison_rows(
@@ -346,10 +341,9 @@ def _build_model_comparison_rows(
         for row in lightgbm_metric_rows
         if row["split"] == "validation"
     }
-    selected_model_type = (
-        LIGHTGBM_MODEL_TYPE
-        if lightgbm_validation["pr_auc"] >= baseline_validation["pr_auc"]
-        else BASELINE_MODEL_TYPE
+    selected_model_type = select_model_type_by_validation_pr_auc(
+        baseline_validation["pr_auc"],
+        lightgbm_validation["pr_auc"],
     )
     return [
         {
@@ -379,7 +373,7 @@ def _build_run_summary_row(
         "model_version": model_version,
         "run_id": run_id,
         "model_type": model_type,
-        "data_scope_version": config["project"]["data_scope_version"],
+        "data_scope_version": data_scope_version(config),
         "train_rows": split_rows["train"]["row_count"],
         "validation_rows": split_rows["validation"]["row_count"],
         "test_rows": split_rows["test"]["row_count"],

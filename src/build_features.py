@@ -9,6 +9,7 @@ import duckdb
 from src.config import is_post_v1_scope
 from src.config import load_config
 from src.ingest import STAGING_TABLES
+from src.mart_access import duplicate_key_count
 from src.mart_access import existing_tables
 from src.mart_access import fetch_count
 from src.mart_access import table_columns
@@ -20,7 +21,8 @@ from src.data_contracts import validate_data_contracts
 from src.data_contracts import write_contract_reports
 from src.runtime import REPO_ROOT
 from src.runtime import created_at_utc
-from src.runtime import resolve_project_path
+from src.runtime import resolve_config_path
+from src.runtime import sql_identifier
 from src.runtime import write_csv
 
 V1_FEATURE_SQL_FILES = [
@@ -76,8 +78,8 @@ class FeatureBuildError(RuntimeError):
 
 def run_feature_build(config_path: str | Path = "configs/base.yaml") -> list[dict[str, Any]]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    report_dir = resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    report_dir = resolve_config_path(config, "report_dir")
 
     report_dir.mkdir(parents=True, exist_ok=True)
     duckdb_path.parent.mkdir(parents=True, exist_ok=True)
@@ -142,15 +144,20 @@ def _profile_feature_tables(
                 "table_name": table_name,
                 "row_count": fetch_count(
                     connection,
-                    f'SELECT COUNT(*) FROM "{table_name}"',
+                    f"SELECT COUNT(*) FROM {sql_identifier(table_name)}",
                     FeatureBuildError,
                 ),
                 "distinct_applicant_count": fetch_count(
                     connection,
-                    f'SELECT COUNT(DISTINCT SK_ID_CURR) FROM "{table_name}"',
+                    f"SELECT COUNT(DISTINCT SK_ID_CURR) FROM {sql_identifier(table_name)}",
                     FeatureBuildError,
                 ),
-                "duplicate_key_count": _duplicate_key_count(connection, table_name, columns),
+                "duplicate_key_count": duplicate_key_count(
+                    connection,
+                    table_name,
+                    _profile_key_columns(columns),
+                    FeatureBuildError,
+                ),
                 "column_count": len(columns),
                 "created_at_utc": profile_created_at,
             }
@@ -158,28 +165,10 @@ def _profile_feature_tables(
     return rows
 
 
-def _duplicate_key_count(
-    connection: duckdb.DuckDBPyConnection,
-    table_name: str,
-    columns: list[str],
-) -> int:
+def _profile_key_columns(columns: list[str]) -> tuple[str, ...]:
     if "source_population" in columns:
-        key_columns = "SK_ID_CURR, source_population"
-    else:
-        key_columns = "SK_ID_CURR"
-    return fetch_count(
-        connection,
-        f"""
-        SELECT COUNT(*)
-        FROM (
-            SELECT {key_columns}
-            FROM "{table_name}"
-            GROUP BY {key_columns}
-            HAVING COUNT(*) > 1
-        )
-        """,
-        FeatureBuildError,
-    )
+        return ("SK_ID_CURR", "source_population")
+    return ("SK_ID_CURR",)
 
 
 def main() -> None:

@@ -8,7 +8,11 @@ from typing import Any
 import duckdb
 import pandas as pd
 
+from src.config import business_assumptions
 from src.config import load_config
+from src.config import manual_review_capacity_rate
+from src.config import threshold_policy
+from src.config import threshold_version
 from src.evaluation_reports import write_business_value_report
 from src.evaluation_reports import write_figures
 from src.evaluation_reports import write_validation_report
@@ -16,7 +20,6 @@ from src.metrics import build_calibration_bin_rows
 from src.metrics import build_probability_metric_rows
 from src.metrics import nullable_mean
 from src.metrics import with_probability_rank_bin
-from src.mart_access import existing_tables
 from src.mart_access import load_labeled_split_frames
 from src.model_contracts import BASELINE_MODEL_TYPE
 from src.model_contracts import BASELINE_MODEL_VERSION
@@ -25,8 +28,10 @@ from src.model_contracts import LIGHTGBM_MODEL_TYPE
 from src.model_contracts import LIGHTGBM_MODEL_VERSION
 from src.model_contracts import MODEL_ARTIFACTS
 from src.model_contracts import REPORTING_SPLITS
+from src.model_contracts import select_model_type_by_validation_pr_auc
 from src.model_artifacts import load_model_artifact
 from src.model_artifacts import normalize_split_ids
+from src.model_artifacts import selected_model_types
 from src.modeling import predict_probabilities
 from src.modeling import prediction_frame
 from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
@@ -36,7 +41,7 @@ from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
 from src.runtime import created_at_utc
 from src.runtime import replace_duckdb_table
-from src.runtime import resolve_project_path
+from src.runtime import resolve_config_path
 from src.runtime import write_csv
 from src.thresholding import ThresholdingError
 from src.thresholding import build_confusion_matrix_rows
@@ -57,9 +62,9 @@ warnings.filterwarnings(
 
 def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
-    report_dir = resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
+    report_dir = resolve_config_path(config, "report_dir")
 
     if not duckdb_path.exists():
         raise EvaluationError(f"DuckDB database not found: {duckdb_path}")
@@ -100,15 +105,15 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
         try:
             # Thresholds are selected from validation predictions and then applied unchanged to test.
             scenario_thresholds = resolve_scenario_thresholds(
-                config["threshold_policy"],
+                threshold_policy(config),
                 selected_predictions["validation"]["probability"].to_numpy(),
             )
             threshold_rows = build_threshold_metric_rows(
                 selected_model_version,
-                str(config["threshold_policy"]["threshold_version"]),
+                threshold_version(config),
                 selected_predictions,
                 scenario_thresholds,
-                config["business_assumptions"],
+                business_assumptions(config),
                 created_at,
             )
             confusion_rows = build_confusion_matrix_rows(
@@ -154,14 +159,14 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
             selected_artifact,
             scenario_thresholds,
             threshold_rows,
-            config["business_assumptions"],
+            business_assumptions(config),
         )
         write_business_value_report(
             report_dir / "business_value_analysis.md",
             selected_model_type,
             selected_model_version,
             threshold_rows,
-            config["business_assumptions"],
+            business_assumptions(config),
         )
         write_figures(figures_dir, selected_model_version, selected_predictions, lift_rows, calibration_rows)
 
@@ -238,7 +243,7 @@ def _build_metric_rows(
         LIGHTGBM_MODEL_TYPE: LIGHTGBM_MODEL_VERSION,
     }
     rows: list[dict[str, Any]] = []
-    manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
+    review_capacity_rate = manual_review_capacity_rate(config)
 
     for model_type, split_predictions in prediction_frames.items():
         model_version = model_versions[model_type]
@@ -247,7 +252,7 @@ def _build_metric_rows(
                 model_version,
                 split_predictions,
                 created_at,
-                manual_review_capacity_rate,
+                review_capacity_rate,
                 error_cls=EvaluationError,
             )
         )
@@ -297,10 +302,9 @@ def _select_model_type(metric_rows: list[dict[str, Any]]) -> str:
         for row in metric_rows
         if row["split"] == "validation" and row["metric_name"] == "pr_auc"
     }
-    return (
-        LIGHTGBM_MODEL_TYPE
-        if validation_metrics[LIGHTGBM_MODEL_VERSION] >= validation_metrics[BASELINE_MODEL_VERSION]
-        else BASELINE_MODEL_TYPE
+    return select_model_type_by_validation_pr_auc(
+        validation_metrics[BASELINE_MODEL_VERSION],
+        validation_metrics[LIGHTGBM_MODEL_VERSION],
     )
 
 
@@ -308,14 +312,7 @@ def _verify_saved_model_selection(
     connection: duckdb.DuckDBPyConnection,
     selected_model_type: str,
 ) -> None:
-    if "model_comparison_summary" not in existing_tables(connection):
-        return
-    saved_selections = {
-        row[0]
-        for row in connection.execute(
-            "SELECT DISTINCT selected_model_type FROM model_comparison_summary"
-        ).fetchall()
-    }
+    saved_selections = selected_model_types(connection)
     if saved_selections and saved_selections != {selected_model_type}:
         raise EvaluationError(
             "Saved model_comparison_summary selection does not match recomputed validation PR-AUC "

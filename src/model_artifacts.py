@@ -85,6 +85,17 @@ def normalize_split_ids(
     return split_ids
 
 
+def selected_model_types(connection: Any) -> set[str]:
+    if "model_comparison_summary" not in existing_tables(connection):
+        return set()
+    return {
+        str(row[0])
+        for row in connection.execute(
+            "SELECT DISTINCT selected_model_type FROM model_comparison_summary"
+        ).fetchall()
+    }
+
+
 def load_selected_model_type(
     connection: Any,
     supported_model_types: set[str],
@@ -94,12 +105,7 @@ def load_selected_model_type(
     if "model_comparison_summary" not in existing_tables(connection):
         raise error_cls("Missing required DuckDB table: model_comparison_summary")
 
-    selected_values = {
-        row[0]
-        for row in connection.execute(
-            "SELECT DISTINCT selected_model_type FROM model_comparison_summary"
-        ).fetchall()
-    }
+    selected_values = selected_model_types(connection)
     if len(selected_values) != 1:
         raise error_cls(
             f"model_comparison_summary must contain exactly one selected_model_type, got {sorted(selected_values)}"

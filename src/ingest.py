@@ -12,7 +12,7 @@ from src.mart_access import fetch_count
 from src.report_contracts import INGESTION_SUMMARY_COLUMNS
 from src.runtime import REPO_ROOT
 from src.runtime import created_at_utc
-from src.runtime import resolve_project_path
+from src.runtime import resolve_config_path
 from src.runtime import sql_identifier
 from src.runtime import write_csv
 
@@ -34,12 +34,11 @@ class IngestionError(RuntimeError):
 
 def run_ingestion(config_path: str | Path = "configs/base.yaml") -> list[dict[str, Any]]:
     config = load_config(config_path)
-    paths = config["paths"]
 
-    raw_dir = resolve_project_path(paths["raw_dir"])
-    parquet_dir = resolve_project_path(paths["parquet_dir"])
-    duckdb_path = resolve_project_path(paths["duckdb_path"])
-    report_dir = resolve_project_path(paths["report_dir"])
+    raw_dir = resolve_config_path(config, "raw_dir")
+    parquet_dir = resolve_config_path(config, "parquet_dir")
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    report_dir = resolve_config_path(config, "report_dir")
 
     raw_files = {
         source_name: raw_dir / source_file

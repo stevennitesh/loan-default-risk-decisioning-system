@@ -5,13 +5,16 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
-import numpy as np
 import pandas as pd
 
 from src.calibration import CALIBRATION_METHODS
 from src.calibration import apply_calibration_method
 from src.calibration import fit_calibrators
 from src.calibration import select_calibration_method
+from src.config import business_assumptions
+from src.config import project_random_seed
+from src.config import threshold_policy
+from src.config import threshold_version
 from src.feature_labels import readable_feature_label
 from src.mart_access import load_labeled_split_frames
 from src.model_artifacts import load_model_artifact
@@ -26,6 +29,7 @@ from src.modeling import lightgbm_params
 from src.modeling import predict_probabilities
 from src.modeling import prediction_frame
 from src.metrics import probability_metrics
+from src.metrics import with_probability_rank_bin
 from src.thresholding import build_threshold_metric_rows
 from src.thresholding import resolve_scenario_thresholds
 
@@ -48,7 +52,7 @@ def run_single_feature_set(
     random_seed: int | None = None,
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, Any]:
-    random_seed = int(config["project"]["random_seed"] if random_seed is None else random_seed)
+    random_seed = project_random_seed(config) if random_seed is None else int(random_seed)
     numeric_features, categorical_features = classify_feature_columns(
         split_frames["train"],
         feature_columns,
@@ -206,6 +210,30 @@ def feature_sets(
     return candidate_sets
 
 
+def prepare_feature_set_specs(
+    report_dir: Path,
+    full_feature_columns: list[str],
+    feature_limits: tuple[int, ...],
+    include_full: bool,
+    error_cls: type[Exception] = FeatureExperimentError,
+) -> list[tuple[str, list[str], int | None]]:
+    importance_rows = load_feature_importance_rows(report_dir, error_cls=error_cls)
+    ranked_features = ranked_raw_features(importance_rows, full_feature_columns)
+    max_limit = max(feature_limits) if feature_limits else 0
+    if len(ranked_features) < min(max_limit, len(full_feature_columns)):
+        raise error_cls(
+            "Feature importance ranking does not cover enough model features for requested limits: "
+            f"ranked={len(ranked_features)}, requested={max_limit}"
+        )
+    return feature_sets(
+        ranked_features,
+        full_feature_columns,
+        feature_limits,
+        include_full,
+        error_cls=error_cls,
+    )
+
+
 def load_split_frames(
     connection: duckdb.DuckDBPyConnection,
     split_applicant_ids: dict[str, list[int]],
@@ -284,8 +312,7 @@ def metrics_by_split(
 
 
 def weighted_calibration_error(frame: pd.DataFrame) -> float:
-    ranked = frame.sort_values(["probability", "SK_ID_CURR"], ascending=[True, True]).reset_index(drop=True)
-    ranked["bin_id"] = np.ceil((np.arange(len(ranked)) + 1) * 10 / len(ranked)).astype(int).clip(1, 10)
+    ranked = with_probability_rank_bin(frame, "bin_id", descending=False)
     total_count = len(ranked)
     weighted_error = 0.0
     for bin_id in range(1, 11):
@@ -304,15 +331,15 @@ def balanced_threshold_rows(
     created_at: str,
 ) -> list[dict[str, Any]]:
     scenario_thresholds = resolve_scenario_thresholds(
-        config["threshold_policy"],
+        threshold_policy(config),
         prediction_frames_by_split["validation"]["probability"].to_numpy(),
     )
     return build_threshold_metric_rows(
         model_version,
-        str(config["threshold_policy"]["threshold_version"]),
+        threshold_version(config),
         prediction_frames_by_split,
         scenario_thresholds,
-        config["business_assumptions"],
+        business_assumptions(config),
         created_at,
     )
 

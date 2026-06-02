@@ -27,6 +27,7 @@ from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
 from src.report_contracts import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
 from src.runtime import replace_duckdb_table
+from src.runtime import resolve_config_path
 from src.runtime import resolve_project_path
 from src.runtime import sql_identifier
 
@@ -79,12 +80,12 @@ def run_dashboard_export(
     use_calibrated_probability_quality: bool = False,
 ) -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
     resolved_export_dir = (
         resolve_project_path(str(export_dir))
         if export_dir is not None
-        else resolve_project_path(config["paths"]["dashboard_export_dir"])
+        else resolve_config_path(config, "dashboard_export_dir")
     )
 
     if not duckdb_path.exists():

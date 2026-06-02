@@ -184,17 +184,9 @@ def write_figures(
 
 
 def _build_post_v1_calibration_section(report_dir: Path) -> str:
-    comparison_path = report_dir / "model_calibration_comparison.csv"
-    if not comparison_path.exists():
+    row_lookup = _calibration_comparison_lookup(report_dir)
+    if not row_lookup:
         return ""
-
-    with comparison_path.open(newline="", encoding="utf-8") as csv_file:
-        rows = list(csv.DictReader(csv_file))
-
-    row_lookup = {
-        (row["calibration_method"], row["split"]): row
-        for row in rows
-    }
     required_keys = [
         ("uncalibrated", "validation"),
         ("uncalibrated", "test"),
@@ -217,17 +209,9 @@ def _build_post_v1_calibration_section(report_dir: Path) -> str:
 
 
 def _build_business_value_calibration_note(report_dir: Path) -> str:
-    comparison_path = report_dir / "model_calibration_comparison.csv"
-    if not comparison_path.exists():
+    row_lookup = _calibration_comparison_lookup(report_dir)
+    if not row_lookup:
         return ""
-
-    with comparison_path.open(newline="", encoding="utf-8") as csv_file:
-        rows = list(csv.DictReader(csv_file))
-
-    row_lookup = {
-        (row["calibration_method"], row["split"]): row
-        for row in rows
-    }
     if ("uncalibrated", "test") not in row_lookup or ("sigmoid", "test") not in row_lookup:
         return ""
 
@@ -236,6 +220,18 @@ def _build_business_value_calibration_note(report_dir: Path) -> str:
     return f"""## Calibration Note
 
 Post-v1 Experiment 004 materially improves probability quality with a separate sigmoid calibration layer. Because the current threshold and expected-value workflow is rank-based, sigmoid calibration does not change the action ordering, scenario thresholds, or expected-value metrics shown above. It does improve the interpretability of the model score scale: held-out test Brier score improves from {float(test_uncalibrated['brier_score']):.6f} to {float(test_sigmoid['brier_score']):.6f}, and held-out test weighted calibration-bin error improves from {float(test_uncalibrated['weighted_calibration_error']):.6f} to {float(test_sigmoid['weighted_calibration_error']):.6f}."""
+
+
+def _calibration_comparison_lookup(report_dir: Path) -> dict[tuple[str, str], dict[str, str]]:
+    comparison_path = report_dir / "model_calibration_comparison.csv"
+    if not comparison_path.exists():
+        return {}
+
+    with comparison_path.open(newline="", encoding="utf-8") as csv_file:
+        return {
+            (row["calibration_method"], row["split"]): row
+            for row in csv.DictReader(csv_file)
+        }
 
 
 def _write_roc_curve(

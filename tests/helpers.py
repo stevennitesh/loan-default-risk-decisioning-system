@@ -9,7 +9,7 @@ import pandas as pd
 from src.feature_labels import readable_feature_label
 from src.mart_access import existing_tables
 from src.mart_access import table_columns
-from src.runtime import sql_identifier
+from src.runtime import replace_duckdb_table_from_frame
 
 
 def read_csv_rows(path: Path, expected_columns: list[str]) -> list[dict[str, str]]:
@@ -267,8 +267,4 @@ def _create_table_from_frame(
     table_name: str,
     frame: pd.DataFrame,
 ) -> None:
-    connection.register("table_frame", frame)
-    try:
-        connection.execute(f"CREATE OR REPLACE TABLE {sql_identifier(table_name)} AS SELECT * FROM table_frame")
-    finally:
-        connection.unregister("table_frame")
+    replace_duckdb_table_from_frame(connection, table_name, frame)

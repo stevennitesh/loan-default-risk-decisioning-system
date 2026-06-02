@@ -11,9 +11,11 @@ import numpy as np
 import pandas as pd
 
 from src.config import load_config
+from src.config import project_random_seed
 from src.feature_labels import readable_feature_label
+from src.mart_access import fetch_count
 from src.mart_access import require_table
-from src.mart_access import table_columns
+from src.mart_access import require_table_columns
 from src.model_contracts import BASELINE_MODEL_TYPE
 from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
 from src.model_contracts import LIGHTGBM_MODEL_TYPE
@@ -22,7 +24,7 @@ from src.model_artifacts import load_model_artifact
 from src.model_artifacts import load_selected_model_type
 from src.runtime import replace_duckdb_table
 from src.runtime import replace_duckdb_table_from_frame
-from src.runtime import resolve_project_path
+from src.runtime import resolve_config_path
 from src.runtime import sql_identifier
 from src.runtime import write_csv
 from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
@@ -52,9 +54,9 @@ warnings.filterwarnings(
 
 def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
-    report_dir = resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
+    report_dir = resolve_config_path(config, "report_dir")
 
     if not duckdb_path.exists():
         raise ExplainabilityError(f"DuckDB database not found: {duckdb_path}")
@@ -120,7 +122,7 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
             transformed_features,
             shap_values,
             feature_labels,
-            int(config["project"]["random_seed"]),
+            project_random_seed(config),
         )
         replace_duckdb_table(connection, "model_feature_importance", importance_rows)
         _update_credit_risk_score_reasons(connection, reason_rows)
@@ -162,18 +164,18 @@ def _load_scored_feature_frame(
 ) -> pd.DataFrame:
     require_table(connection, "credit_risk_scores", error_cls=ExplainabilityError)
     require_table(connection, "mart_credit_risk_features", error_cls=ExplainabilityError)
-    mart_columns = set(table_columns(connection, "mart_credit_risk_features"))
-    missing_feature_columns = sorted(set(feature_columns).difference(mart_columns))
-    if missing_feature_columns:
-        raise ExplainabilityError(
-            f"mart_credit_risk_features is missing selected model feature columns: {missing_feature_columns}"
-        )
+    require_table_columns(
+        connection,
+        "mart_credit_risk_features",
+        feature_columns,
+        error_cls=ExplainabilityError,
+    )
 
-    scored_row_count = int(
-        connection.execute(
-            "SELECT COUNT(*) FROM credit_risk_scores WHERE model_version = ?",
-            [model_version],
-        ).fetchone()[0]
+    scored_row_count = fetch_count(
+        connection,
+        "SELECT COUNT(*) FROM credit_risk_scores WHERE model_version = ?",
+        ExplainabilityError,
+        [model_version],
     )
     if scored_row_count == 0:
         raise ExplainabilityError(f"credit_risk_scores has no rows for model_version={model_version}")

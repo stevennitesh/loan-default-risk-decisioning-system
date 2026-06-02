@@ -20,6 +20,10 @@ def resolve_project_path(path_value: str | Path) -> Path:
     return REPO_ROOT / path
 
 
+def resolve_config_path(config: dict[str, Any], path_key: str) -> Path:
+    return resolve_project_path(config["paths"][path_key])
+
+
 def created_at_utc() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 

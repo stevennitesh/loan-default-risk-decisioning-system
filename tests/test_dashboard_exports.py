@@ -26,6 +26,7 @@ from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
 from src.report_contracts import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
+from src.runtime import replace_duckdb_table_from_frame
 from src.runtime import sql_identifier
 from src.thresholding import SCENARIO_NAMES
 from src.train import run_training
@@ -385,7 +386,7 @@ def _mart_frame(
         try:
             return connection.execute(
                 f"""
-                SELECT {", ".join(f'"{column}"' for column in selected_columns)}
+                SELECT {", ".join(sql_identifier(column) for column in selected_columns)}
                 FROM mart_credit_risk_features
                 INNER JOIN selected_ids USING (SK_ID_CURR)
                 WHERE source_population = ?
@@ -397,7 +398,7 @@ def _mart_frame(
             connection.unregister("selected_ids")
     return connection.execute(
         f"""
-        SELECT {", ".join(f'"{column}"' for column in selected_columns)}
+        SELECT {", ".join(sql_identifier(column) for column in selected_columns)}
         FROM mart_credit_risk_features
         WHERE source_population = ?
         ORDER BY SK_ID_CURR
@@ -575,6 +576,4 @@ def _replace_table(
     table_name: str,
     frame: pd.DataFrame,
 ) -> None:
-    connection.register("table_frame", frame)
-    connection.execute(f"CREATE OR REPLACE TABLE {sql_identifier(table_name)} AS SELECT * FROM table_frame")
-    connection.unregister("table_frame")
+    replace_duckdb_table_from_frame(connection, table_name, frame)

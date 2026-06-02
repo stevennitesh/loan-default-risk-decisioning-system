@@ -9,16 +9,15 @@ import numpy as np
 import pandas as pd
 
 from src.config import load_config
+from src.config import manual_review_capacity_rate
 from src.feature_experiments import DEFAULT_FEATURE_LIMITS
 from src.feature_experiments import FeatureExperimentError
-from src.feature_experiments import feature_sets
-from src.feature_experiments import load_feature_importance_rows
 from src.feature_experiments import load_lightgbm_artifact
-from src.feature_experiments import ranked_raw_features
+from src.feature_experiments import prepare_feature_set_specs
 from src.feature_experiments import run_single_feature_set
 from src.feature_experiments import select_feature_set
 from src.runtime import created_at_utc
-from src.runtime import resolve_project_path
+from src.runtime import resolve_config_path
 from src.runtime import write_csv
 from src.modeling import load_labeled_training_frame
 from src.modeling import split_labeled_frame
@@ -64,28 +63,20 @@ def run_model_stability_experiment(
 ) -> dict[str, Any]:
     seeds = _normalize_seeds(seeds)
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
-    report_dir = resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
+    report_dir = resolve_config_path(config, "report_dir")
 
     if not duckdb_path.exists():
         raise ModelStabilityError(f"DuckDB database not found: {duckdb_path}")
 
     base_artifact = load_lightgbm_artifact(model_dir, error_cls=ModelStabilityError)
     full_feature_columns = list(base_artifact["feature_columns"])
-    importance_rows = load_feature_importance_rows(report_dir, error_cls=ModelStabilityError)
-    ranked_features = ranked_raw_features(importance_rows, full_feature_columns)
-    max_limit = max(feature_limits) if feature_limits else 0
-    if len(ranked_features) < min(max_limit, len(full_feature_columns)):
-        raise ModelStabilityError(
-            "Feature importance ranking does not cover enough model features for requested limits: "
-            f"ranked={len(ranked_features)}, requested={max_limit}"
-        )
 
     created_at = created_at_utc()
-    manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
-    feature_set_specs = feature_sets(
-        ranked_features,
+    review_capacity_rate = manual_review_capacity_rate(config)
+    feature_set_specs = prepare_feature_set_specs(
+        report_dir,
         full_feature_columns,
         feature_limits,
         include_full,
@@ -114,7 +105,7 @@ def run_model_stability_experiment(
                         feature_columns,
                         feature_limit,
                         split_frames,
-                        manual_review_capacity_rate,
+                        review_capacity_rate,
                         created_at,
                         random_seed=seed,
                         error_cls=ModelStabilityError,

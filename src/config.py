@@ -89,13 +89,37 @@ def validate_config(config: dict[str, Any]) -> None:
 
 
 def required_source_files_for_scope(config: dict[str, Any]) -> set[str]:
-    data_scope_version = str(config["project"].get("data_scope_version", ""))
-    if data_scope_version == "v1":
+    scope_version = data_scope_version(config)
+    if scope_version == "v1":
         return V1_SOURCE_FILES
     if is_post_v1_scope(config):
         return POST_V1_SOURCE_FILES
-    raise ConfigError(f"Unsupported data_scope_version: {data_scope_version}")
+    raise ConfigError(f"Unsupported data_scope_version: {scope_version}")
 
 
 def is_post_v1_scope(config: dict[str, Any]) -> bool:
-    return str(config["project"].get("data_scope_version", "")).startswith("post_v1")
+    return data_scope_version(config).startswith("post_v1")
+
+
+def data_scope_version(config: dict[str, Any]) -> str:
+    return str(config["project"].get("data_scope_version", ""))
+
+
+def manual_review_capacity_rate(config: dict[str, Any]) -> float:
+    return float(config["business_assumptions"]["manual_review_capacity_rate"])
+
+
+def project_random_seed(config: dict[str, Any]) -> int:
+    return int(config["project"]["random_seed"])
+
+
+def business_assumptions(config: dict[str, Any]) -> dict[str, Any]:
+    return config["business_assumptions"]
+
+
+def threshold_policy(config: dict[str, Any]) -> dict[str, Any]:
+    return config["threshold_policy"]
+
+
+def threshold_version(config: dict[str, Any]) -> str:
+    return str(threshold_policy(config)["threshold_version"])

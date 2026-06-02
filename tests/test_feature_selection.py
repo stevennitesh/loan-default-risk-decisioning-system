@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.feature_selection import ranked_raw_features
+from src.feature_experiments import ranked_raw_features
 from src.feature_selection import run_feature_selection_experiment
 from src.report_contracts import FEATURE_SELECTION_COMPARISON_COLUMNS
 from src.train import run_training

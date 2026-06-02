@@ -7,6 +7,7 @@ from typing import Any
 import duckdb
 
 from src.config import is_post_v1_scope
+from src.mart_access import duplicate_key_count
 from src.mart_access import existing_tables
 from src.mart_access import fetch_count
 from src.mart_access import table_columns
@@ -169,10 +170,11 @@ def build_data_inventory(
                     table.table_name,
                     columns,
                 ),
-                "duplicate_grain_key_count": _duplicate_key_count(
+                "duplicate_grain_key_count": duplicate_key_count(
                     connection,
                     table.table_name,
                     table.grain_columns,
+                    DataContractError,
                 ),
                 "has_target_column": has_target_column,
                 "target_non_null_count": _target_count(connection, table.table_name, "IS NOT NULL")
@@ -271,7 +273,12 @@ def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[
     if unexpected_populations:
         errors.append(f"Unexpected source_population values: {unexpected_populations}")
 
-    duplicate_keys = _duplicate_key_count(connection, MART_TABLE, ("SK_ID_CURR", "source_population"))
+    duplicate_keys = duplicate_key_count(
+        connection,
+        MART_TABLE,
+        ("SK_ID_CURR", "source_population"),
+        DataContractError,
+    )
     if duplicate_keys:
         errors.append(f"Duplicate mart grain keys: {duplicate_keys}")
 
@@ -365,7 +372,12 @@ def _validate_aggregate_keys(
     errors: list[str],
 ) -> None:
     for table_name in _aggregate_tables(config):
-        duplicate_keys = _duplicate_key_count(connection, table_name, ("SK_ID_CURR",))
+        duplicate_keys = duplicate_key_count(
+            connection,
+            table_name,
+            ("SK_ID_CURR",),
+            DataContractError,
+        )
         if duplicate_keys:
             errors.append(f"{table_name} has duplicate SK_ID_CURR keys: {duplicate_keys}")
 
@@ -421,26 +433,6 @@ def _exclusion_group_map(config: dict[str, Any]) -> dict[str, str]:
         for column_name in column_names:
             exclusions[column_name] = group_name
     return exclusions
-
-
-def _duplicate_key_count(
-    connection: duckdb.DuckDBPyConnection,
-    table_name: str,
-    key_columns: tuple[str, ...],
-) -> int:
-    key_select = ", ".join(sql_identifier(column_name) for column_name in key_columns)
-    return _fetch_count(
-        connection,
-        f"""
-        SELECT COUNT(*)
-        FROM (
-            SELECT {key_select}
-            FROM {sql_identifier(table_name)}
-            GROUP BY {key_select}
-            HAVING COUNT(*) > 1
-        )
-        """,
-    )
 
 
 def _target_count(

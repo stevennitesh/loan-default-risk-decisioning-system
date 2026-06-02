@@ -6,13 +6,13 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
-import numpy as np
 import pandas as pd
 
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
 from src.calibration import apply_saved_calibration_artifact
 from src.config import load_config
 from src.metrics import validate_probabilities
+from src.metrics import with_probability_rank_bin
 from src.mart_access import load_application_test_frame
 from src.mart_access import load_labeled_split_frame
 from src.mart_access import require_table
@@ -26,7 +26,7 @@ from src.modeling import predict_probabilities
 from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
 from src.runtime import current_utc_datetime
 from src.runtime import replace_duckdb_table
-from src.runtime import resolve_project_path
+from src.runtime import resolve_config_path
 from src.thresholding import assign_risk_bands
 
 
@@ -43,8 +43,8 @@ class ScoringError(RuntimeError):
 
 def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
 
     if not duckdb_path.exists():
         raise ScoringError(f"DuckDB database not found: {duckdb_path}")
@@ -185,15 +185,15 @@ def _score_population(
     risk_actions = assign_risk_bands(raw_probabilities, threshold_policy)
     ranked_frame = pd.DataFrame(
         {
-            "applicant_id": frame["SK_ID_CURR"].astype(int),
+            "SK_ID_CURR": frame["SK_ID_CURR"].astype(int),
             "observed_target": frame["TARGET"],
-            "score": raw_probabilities.astype(float),
+            "probability": raw_probabilities.astype(float),
             "raw_risk_score": raw_probabilities.astype(float),
             "calibrated_risk_score": calibrated_probabilities.astype(float),
             "risk_action": risk_actions,
         }
     )
-    ranked_frame["score_decile"] = _score_deciles(ranked_frame)
+    ranked_frame = with_probability_rank_bin(ranked_frame, "score_decile", descending=True)
 
     rows = []
     for record in ranked_frame.to_dict("records"):
@@ -201,12 +201,12 @@ def _score_population(
         observed_target = record["observed_target"]
         rows.append(
             {
-                "applicant_id": int(record["applicant_id"]),
+                "applicant_id": int(record["SK_ID_CURR"]),
                 "scoring_population": scoring_population,
                 "observed_target": None
                 if pd.isna(observed_target)
                 else int(observed_target),
-                "score": float(record["score"]),
+                "score": float(record["probability"]),
                 "raw_risk_score": float(record["raw_risk_score"]),
                 "calibrated_risk_score": float(record["calibrated_risk_score"]),
                 "calibration_method": calibration_artifact["selected_method"],
@@ -222,16 +222,6 @@ def _score_population(
             }
         )
     return rows
-
-
-def _score_deciles(frame: pd.DataFrame) -> pd.Series:
-    ranked = frame.sort_values(
-        ["score", "applicant_id"],
-        ascending=[False, True],
-    ).reset_index()
-    ranked["score_decile"] = np.ceil((np.arange(len(ranked)) + 1) * 10 / len(ranked)).astype(int)
-    ranked["score_decile"] = ranked["score_decile"].clip(1, 10)
-    return ranked.set_index("index").sort_index()["score_decile"]
 
 
 def _validate_output_rows(rows: list[dict[str, Any]]) -> None:

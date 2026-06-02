@@ -7,19 +7,18 @@ from typing import Any
 import duckdb
 
 from src.config import load_config
+from src.config import manual_review_capacity_rate
 from src.feature_experiments import DEFAULT_FEATURE_LIMITS
 from src.feature_experiments import FeatureExperimentError
-from src.feature_experiments import feature_sets
-from src.feature_experiments import load_feature_importance_rows
 from src.feature_experiments import load_lightgbm_artifact
 from src.feature_experiments import load_split_frames
-from src.feature_experiments import ranked_raw_features
+from src.feature_experiments import prepare_feature_set_specs
 from src.feature_experiments import run_single_feature_set
 from src.feature_experiments import select_feature_set
 from src.model_artifacts import normalize_split_ids
 from src.model_contracts import EVALUATION_SPLITS
 from src.runtime import created_at_utc
-from src.runtime import resolve_project_path
+from src.runtime import resolve_config_path
 from src.runtime import write_csv
 from src.report_contracts import FEATURE_SELECTION_COMPARISON_COLUMNS
 from src.report_contracts import SELECTED_FEATURE_COLUMNS
@@ -42,9 +41,9 @@ def run_feature_selection_experiment(
     report_name: str = FEATURE_SELECTION_REPORT_NAME,
 ) -> dict[str, Any]:
     config = load_config(config_path)
-    duckdb_path = resolve_project_path(config["paths"]["duckdb_path"])
-    model_dir = resolve_project_path(config["paths"]["model_dir"])
-    report_dir = resolve_project_path(config["paths"]["report_dir"])
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
+    report_dir = resolve_config_path(config, "report_dir")
 
     if not duckdb_path.exists():
         raise FeatureSelectionError(f"DuckDB database not found: {duckdb_path}")
@@ -56,20 +55,12 @@ def run_feature_selection_experiment(
         EVALUATION_SPLITS,
         error_cls=FeatureSelectionError,
     )
-    importance_rows = load_feature_importance_rows(report_dir, error_cls=FeatureSelectionError)
-    ranked_features = ranked_raw_features(importance_rows, full_feature_columns)
-    max_limit = max(feature_limits) if feature_limits else 0
-    if len(ranked_features) < min(max_limit, len(full_feature_columns)):
-        raise FeatureSelectionError(
-            "Feature importance ranking does not cover enough model features for requested limits: "
-            f"ranked={len(ranked_features)}, requested={max_limit}"
-        )
 
     created_at = created_at_utc()
-    manual_review_capacity_rate = float(config["business_assumptions"]["manual_review_capacity_rate"])
+    review_capacity_rate = manual_review_capacity_rate(config)
     rows: list[dict[str, Any]] = []
-    feature_set_specs = feature_sets(
-        ranked_features,
+    feature_set_specs = prepare_feature_set_specs(
+        report_dir,
         full_feature_columns,
         feature_limits,
         include_full,
@@ -94,7 +85,7 @@ def run_feature_selection_experiment(
                     feature_columns,
                     feature_limit,
                     split_frames,
-                    manual_review_capacity_rate,
+                    review_capacity_rate,
                     created_at,
                     error_cls=FeatureSelectionError,
                 )

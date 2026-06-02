@@ -6,6 +6,7 @@ import duckdb
 import pandas as pd
 
 from src.calibration import apply_saved_calibration_artifact
+from src.config import manual_review_capacity_rate
 from src.metrics import build_calibration_bin_rows
 from src.metrics import build_probability_metric_rows
 from src.metrics import validate_probabilities
@@ -122,7 +123,7 @@ def _metrics_frame_with_calibrated_selected_model(
             dashboard_model_version,
             prediction_frames,
             created_at,
-            float(config["business_assumptions"]["manual_review_capacity_rate"]),
+            manual_review_capacity_rate(config),
             error_cls=error_cls,
         ),
         columns=MODEL_METRICS_SUMMARY_COLUMNS,
