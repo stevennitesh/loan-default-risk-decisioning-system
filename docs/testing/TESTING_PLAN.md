@@ -458,8 +458,8 @@ For CI, use synthetic fixture data instead of the full Kaggle dataset.
 A lightweight GitHub Actions workflow should run the checked-in test suite:
 
 ```bash
-python -m pip install -r requirements.txt
-python -m pytest -q
+make setup
+make test
 ```
 
 ---

@@ -16,7 +16,9 @@ from src.report_contracts import (
 from src.train import run_training
 from tests.helpers import create_training_database, read_csv_rows, table_row_count
 
-pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:X does not have valid feature names.*:UserWarning"
+)
 
 
 def test_calibration_experiment_fits_on_validation_and_exports_comparison_artifacts(
@@ -48,19 +50,20 @@ def test_calibration_experiment_fits_on_validation_and_exports_comparison_artifa
     assert artifact["calibration_fit_split"] == "validation"
     assert artifact["selected_method"] == result["selected_method"]
     assert set(artifact["calibrators"]) == {"sigmoid", "isotonic"}
-    assert artifact["fit_applicant_ids"] == artifact["split_applicant_ids"]["validation"]
+    assert (
+        artifact["fit_applicant_ids"] == artifact["split_applicant_ids"]["validation"]
+    )
 
     assert len(comparison_rows) == len(CALIBRATION_METHODS) * len(REPORTING_SPLITS)
-    assert {
-        (row["calibration_method"], row["split"]) for row in comparison_rows
-    } == {
-        (method, split)
-        for method in CALIBRATION_METHODS
-        for split in REPORTING_SPLITS
+    assert {(row["calibration_method"], row["split"]) for row in comparison_rows} == {
+        (method, split) for method in CALIBRATION_METHODS for split in REPORTING_SPLITS
     }
     for row in comparison_rows:
         assert row["base_model_version"] == "lightgbm_credit_risk_v1"
-        assert row["model_version"] == f"lightgbm_credit_risk_v1_{row['calibration_method']}"
+        assert (
+            row["model_version"]
+            == f"lightgbm_credit_risk_v1_{row['calibration_method']}"
+        )
         assert 0 <= float(row["min_predicted_probability"]) <= 1
         assert 0 <= float(row["max_predicted_probability"]) <= 1
         assert float(row["brier_score"]) >= 0
@@ -82,11 +85,17 @@ def test_calibration_experiment_fits_on_validation_and_exports_comparison_artifa
             assert all(0 <= float(row["observed_default_rate"]) <= 1 for row in rows)
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
-        assert table_row_count(connection, "model_calibration_comparison") == len(comparison_rows)
-        assert table_row_count(connection, "model_calibration_bins_comparison") == len(bin_rows)
+        assert table_row_count(connection, "model_calibration_comparison") == len(
+            comparison_rows
+        )
+        assert table_row_count(connection, "model_calibration_bins_comparison") == len(
+            bin_rows
+        )
 
 
-def test_calibration_selection_prefers_sigmoid_when_isotonic_brier_gain_is_tiny() -> None:
+def test_calibration_selection_prefers_sigmoid_when_isotonic_brier_gain_is_tiny() -> (
+    None
+):
     rows = [
         {
             "calibration_method": "uncalibrated",

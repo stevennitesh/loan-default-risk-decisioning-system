@@ -75,10 +75,15 @@ def test_v1_and_post_v1_configs_are_valid_reproducible_pipeline_scopes() -> None
 
     assert post_v1_config["project"]["data_scope_version"].startswith("post_v1")
     assert post_v1_config["source_files"] == POST_V1_SOURCE_FILES
-    assert post_v1_config["paths"]["duckdb_path"] == "data/db/credit_risk_post_v1.duckdb"
+    assert (
+        post_v1_config["paths"]["duckdb_path"] == "data/db/credit_risk_post_v1.duckdb"
+    )
     assert post_v1_config["paths"]["model_dir"] == "models/post_v1"
     assert post_v1_config["paths"]["report_dir"] == "reports/post_v1"
-    assert post_v1_config["paths"]["dashboard_export_dir"] == "reports/dashboard_data_post_v1"
+    assert (
+        post_v1_config["paths"]["dashboard_export_dir"]
+        == "reports/dashboard_data_post_v1"
+    )
 
 
 def test_split_fractions_sum_to_one() -> None:

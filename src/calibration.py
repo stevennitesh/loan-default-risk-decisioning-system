@@ -24,13 +24,17 @@ def fit_calibrators(
     random_seed: int,
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, Any]:
-    validate_probabilities(validation_probabilities, "validation calibration input", error_cls=error_cls)
+    validate_probabilities(
+        validation_probabilities, "validation calibration input", error_cls=error_cls
+    )
     target_values = target_class_values(validation_targets)
     if target_values != {0, 1}:
         raise error_cls("Calibration fit split must contain both target classes")
 
     sigmoid = LogisticRegression(max_iter=1000, random_state=random_seed)
-    sigmoid.fit(logit_features(validation_probabilities), validation_targets.astype(int))
+    sigmoid.fit(
+        logit_features(validation_probabilities), validation_targets.astype(int)
+    )
 
     isotonic = IsotonicRegression(out_of_bounds="clip")
     isotonic.fit(validation_probabilities, validation_targets.astype(int))
@@ -56,7 +60,9 @@ def apply_calibration_method(
             error_cls=error_cls,
             label=f"{method} {split_name}",
         )
-        calibrated[split_name] = frame.assign(probability=adjusted_probabilities.astype(float))
+        calibrated[split_name] = frame.assign(
+            probability=adjusted_probabilities.astype(float)
+        )
     return calibrated
 
 
@@ -110,7 +116,9 @@ def select_calibration_method(
     }
     missing_methods = set(CALIBRATION_METHODS).difference(by_method)
     if missing_methods:
-        raise error_cls(f"Missing calibration comparison rows for: {sorted(missing_methods)}")
+        raise error_cls(
+            f"Missing calibration comparison rows for: {sorted(missing_methods)}"
+        )
 
     uncalibrated_brier = by_method[UNCALIBRATED_METHOD]
     best_method = min(by_method, key=by_method.get)

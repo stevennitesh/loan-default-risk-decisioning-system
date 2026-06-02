@@ -46,7 +46,9 @@ def load_labeled_training_frame(
         raise error_cls("No labeled application_train rows are available for training")
     target_values = target_class_values(frame["TARGET"], dropna=True)
     if target_values != {0, 1}:
-        raise error_cls(f"Training TARGET must contain both binary classes, got {sorted(target_values)}")
+        raise error_cls(
+            f"Training TARGET must contain both binary classes, got {sorted(target_values)}"
+        )
     return frame
 
 
@@ -94,9 +96,13 @@ def classify_feature_columns(
     feature_columns: list[str],
 ) -> tuple[list[str], list[str]]:
     numeric_features = [
-        column for column in feature_columns if pd.api.types.is_numeric_dtype(train_frame[column])
+        column
+        for column in feature_columns
+        if pd.api.types.is_numeric_dtype(train_frame[column])
     ]
-    categorical_features = [column for column in feature_columns if column not in numeric_features]
+    categorical_features = [
+        column for column in feature_columns if column not in numeric_features
+    ]
     return numeric_features, categorical_features
 
 
@@ -112,7 +118,10 @@ def build_baseline_pipeline(
                 "numeric",
                 Pipeline(
                     steps=[
-                        ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
+                        (
+                            "imputer",
+                            SimpleImputer(strategy="median", keep_empty_features=True),
+                        ),
                         ("scaler", StandardScaler()),
                     ]
                 ),
@@ -124,7 +133,9 @@ def build_baseline_pipeline(
                     steps=[
                         (
                             "imputer",
-                            SimpleImputer(strategy="most_frequent", keep_empty_features=True),
+                            SimpleImputer(
+                                strategy="most_frequent", keep_empty_features=True
+                            ),
                         ),
                         (
                             "encoder",
@@ -162,7 +173,10 @@ def build_lightgbm_pipeline(
                 "numeric",
                 Pipeline(
                     steps=[
-                        ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
+                        (
+                            "imputer",
+                            SimpleImputer(strategy="median", keep_empty_features=True),
+                        ),
                     ]
                 ),
                 numeric_features,
@@ -173,7 +187,9 @@ def build_lightgbm_pipeline(
                     steps=[
                         (
                             "imputer",
-                            SimpleImputer(strategy="most_frequent", keep_empty_features=True),
+                            SimpleImputer(
+                                strategy="most_frequent", keep_empty_features=True
+                            ),
                         ),
                         (
                             "encoder",
@@ -233,7 +249,9 @@ def fit_tuned_lightgbm(
     if max_candidates < 1:
         raise error_cls("model.lightgbm_tuning.max_candidates must be at least 1")
 
-    candidate_specs = _lightgbm_candidate_specs(base_params, max_candidates, tuning_enabled)
+    candidate_specs = _lightgbm_candidate_specs(
+        base_params, max_candidates, tuning_enabled
+    )
     x_train = feature_frame(split_frames["train"], feature_columns)
     y_train = split_frames["train"]["TARGET"].astype(int)
     validation_frame = split_frames["validation"]
@@ -261,7 +279,9 @@ def fit_tuned_lightgbm(
                 "pipeline": pipeline,
                 "validation_metrics": validation_metrics,
                 "selection_key": _lightgbm_selection_key(validation_metrics),
-                "validation_selection_score": _lightgbm_selection_score(validation_metrics),
+                "validation_selection_score": _lightgbm_selection_score(
+                    validation_metrics
+                ),
             }
         )
 
@@ -292,7 +312,9 @@ def predict_probabilities(
 ) -> np.ndarray:
     pipeline = artifact["pipeline"]
     if not hasattr(pipeline, "predict_proba"):
-        raise error_cls(f"Model {artifact['model_version']} does not expose predict_proba")
+        raise error_cls(
+            f"Model {artifact['model_version']} does not expose predict_proba"
+        )
     probabilities = pipeline.predict_proba(feature_frame(frame, feature_columns))[:, 1]
     validate_probabilities(probabilities, label, error_cls=error_cls)
     return probabilities.astype(float)
@@ -467,7 +489,9 @@ def _lightgbm_candidate_specs(
     return specs
 
 
-def _lightgbm_selection_key(metrics: dict[str, float]) -> tuple[float, float, float, float, float, float]:
+def _lightgbm_selection_key(
+    metrics: dict[str, float],
+) -> tuple[float, float, float, float, float, float]:
     return (
         1.0 if _has_nonconstant_score_distribution(metrics) else 0.0,
         metrics["pr_auc"],

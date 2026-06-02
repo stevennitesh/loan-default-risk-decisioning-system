@@ -61,7 +61,9 @@ V1_REQUIRED_TABLES = [
 POST_V1_EXTRA_REQUIRED_TABLES = [
     TableContract("stg_bureau_balance", "staging", ("SK_ID_BUREAU", "MONTHS_BALANCE")),
     TableContract("stg_pos_cash_balance", "staging", ("SK_ID_PREV", "MONTHS_BALANCE")),
-    TableContract("stg_credit_card_balance", "staging", ("SK_ID_PREV", "MONTHS_BALANCE")),
+    TableContract(
+        "stg_credit_card_balance", "staging", ("SK_ID_PREV", "MONTHS_BALANCE")
+    ),
     TableContract("f_bureau_balance_agg", "feature", ("SK_ID_CURR",)),
     TableContract("f_pos_cash_agg", "feature", ("SK_ID_CURR",)),
     TableContract("f_credit_card_agg", "feature", ("SK_ID_CURR",)),
@@ -102,14 +104,20 @@ POST_V1_EXTRA_AGGREGATE_TABLES = [
     "f_credit_card_agg",
 ]
 
-AGGREGATE_TABLES = [*V1_AGGREGATE_TABLES[:1], *POST_V1_EXTRA_AGGREGATE_TABLES, *V1_AGGREGATE_TABLES[1:]]
+AGGREGATE_TABLES = [
+    *V1_AGGREGATE_TABLES[:1],
+    *POST_V1_EXTRA_AGGREGATE_TABLES,
+    *V1_AGGREGATE_TABLES[1:],
+]
 
 
 class DataContractError(RuntimeError):
     """Raised when the feature mart violates the pre-model data contract."""
 
 
-def validate_data_contracts(connection: duckdb.DuckDBPyConnection, config: dict[str, Any]) -> None:
+def validate_data_contracts(
+    connection: duckdb.DuckDBPyConnection, config: dict[str, Any]
+) -> None:
     available_tables = existing_tables(connection)
     missing_tables = sorted(
         table.table_name
@@ -117,7 +125,9 @@ def validate_data_contracts(connection: duckdb.DuckDBPyConnection, config: dict[
         if table.table_name not in available_tables
     )
     if missing_tables:
-        raise DataContractError(f"Missing required DuckDB tables: {', '.join(missing_tables)}")
+        raise DataContractError(
+            f"Missing required DuckDB tables: {', '.join(missing_tables)}"
+        )
 
     # Collect all contract failures before raising so one pipeline run gives a useful fix list.
     errors: list[str] = []
@@ -176,10 +186,14 @@ def build_data_inventory(
                     DataContractError,
                 ),
                 "has_target_column": has_target_column,
-                "target_non_null_count": _target_count(connection, table.table_name, "IS NOT NULL")
+                "target_non_null_count": _target_count(
+                    connection, table.table_name, "IS NOT NULL"
+                )
                 if has_target_column
                 else 0,
-                "target_null_count": _target_count(connection, table.table_name, "IS NULL")
+                "target_null_count": _target_count(
+                    connection, table.table_name, "IS NULL"
+                )
                 if has_target_column
                 else 0,
                 "created_at_utc": timestamp,
@@ -199,7 +213,9 @@ def build_feature_inventory(
     rows: list[dict[str, Any]] = []
 
     for table_name in _feature_inventory_tables(config):
-        row_count = _fetch_count(connection, f"SELECT COUNT(*) FROM {sql_identifier(table_name)}")
+        row_count = _fetch_count(
+            connection, f"SELECT COUNT(*) FROM {sql_identifier(table_name)}"
+        )
         for column_name, duckdb_type in table_columns(connection, table_name).items():
             missing_count = _fetch_count(
                 connection,
@@ -214,7 +230,8 @@ def build_feature_inventory(
                     "table_name": table_name,
                     "column_name": column_name,
                     "duckdb_type": duckdb_type,
-                    "is_model_feature": table_name == MART_TABLE and column_name in model_features,
+                    "is_model_feature": table_name == MART_TABLE
+                    and column_name in model_features,
                     "exclusion_group": exclusion_groups.get(column_name, ""),
                     "missing_count": missing_count,
                     "missing_rate": missing_count / row_count if row_count else None,
@@ -238,8 +255,14 @@ def write_contract_reports(
 ) -> None:
     report_path = Path(report_dir)
     ensure_directories(report_path)
-    write_csv(report_path / "data_inventory.csv", DATA_INVENTORY_COLUMNS, data_inventory_rows)
-    write_csv(report_path / "feature_inventory.csv", FEATURE_INVENTORY_COLUMNS, feature_inventory_rows)
+    write_csv(
+        report_path / "data_inventory.csv", DATA_INVENTORY_COLUMNS, data_inventory_rows
+    )
+    write_csv(
+        report_path / "feature_inventory.csv",
+        FEATURE_INVENTORY_COLUMNS,
+        feature_inventory_rows,
+    )
 
 
 def _distinct_applicant_count(
@@ -255,11 +278,17 @@ def _distinct_applicant_count(
     )
 
 
-def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[str]) -> None:
+def _validate_mart_contract(
+    connection: duckdb.DuckDBPyConnection, errors: list[str]
+) -> None:
     mart_columns = set(table_columns(connection, MART_TABLE))
-    missing_columns = {"SK_ID_CURR", "source_population", "TARGET"}.difference(mart_columns)
+    missing_columns = {"SK_ID_CURR", "source_population", "TARGET"}.difference(
+        mart_columns
+    )
     if missing_columns:
-        errors.append(f"mart_credit_risk_features is missing required columns: {sorted(missing_columns)}")
+        errors.append(
+            f"mart_credit_risk_features is missing required columns: {sorted(missing_columns)}"
+        )
         return
 
     source_populations = {
@@ -268,7 +297,9 @@ def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[
             f"SELECT DISTINCT source_population FROM {sql_identifier(MART_TABLE)}"
         ).fetchall()
     }
-    unexpected_populations = sorted(source_populations.difference(ALLOWED_SOURCE_POPULATIONS))
+    unexpected_populations = sorted(
+        source_populations.difference(ALLOWED_SOURCE_POPULATIONS)
+    )
     if unexpected_populations:
         errors.append(f"Unexpected source_population values: {unexpected_populations}")
 
@@ -291,7 +322,9 @@ def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[
         """,
     )
     if train_null_targets:
-        errors.append(f"application_train rows must have non-null TARGET: {train_null_targets}")
+        errors.append(
+            f"application_train rows must have non-null TARGET: {train_null_targets}"
+        )
 
     train_non_binary_targets = _fetch_count(
         connection,
@@ -304,7 +337,9 @@ def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[
         """,
     )
     if train_non_binary_targets:
-        errors.append(f"application_train TARGET values must be binary: {train_non_binary_targets}")
+        errors.append(
+            f"application_train TARGET values must be binary: {train_non_binary_targets}"
+        )
 
     test_non_null_targets = _fetch_count(
         connection,
@@ -316,7 +351,9 @@ def _validate_mart_contract(connection: duckdb.DuckDBPyConnection, errors: list[
         """,
     )
     if test_non_null_targets:
-        errors.append(f"application_test rows must have NULL TARGET: {test_non_null_targets}")
+        errors.append(
+            f"application_test rows must have NULL TARGET: {test_non_null_targets}"
+        )
 
 
 def _validate_applicant_row_reconciliation(
@@ -378,7 +415,9 @@ def _validate_aggregate_keys(
             DataContractError,
         )
         if duplicate_keys:
-            errors.append(f"{table_name} has duplicate SK_ID_CURR keys: {duplicate_keys}")
+            errors.append(
+                f"{table_name} has duplicate SK_ID_CURR keys: {duplicate_keys}"
+            )
 
 
 def _validate_diagnostic_separation(
@@ -389,14 +428,22 @@ def _validate_diagnostic_separation(
     mart_columns = set(table_columns(connection, MART_TABLE))
     diagnostic_columns = set(table_columns(connection, DIAGNOSTIC_TABLE))
 
-    sensitive_columns = set(config["excluded_features"]["sensitive_or_protected_status_like"])
+    sensitive_columns = set(
+        config["excluded_features"]["sensitive_or_protected_status_like"]
+    )
     sensitive_columns_in_mart = sorted(sensitive_columns.intersection(mart_columns))
     if sensitive_columns_in_mart:
-        errors.append(f"Diagnostic-only columns are present in the model mart: {sensitive_columns_in_mart}")
+        errors.append(
+            f"Diagnostic-only columns are present in the model mart: {sensitive_columns_in_mart}"
+        )
 
-    missing_diagnostic_columns = sorted(DIAGNOSTIC_ONLY_COLUMNS.difference(diagnostic_columns))
+    missing_diagnostic_columns = sorted(
+        DIAGNOSTIC_ONLY_COLUMNS.difference(diagnostic_columns)
+    )
     if missing_diagnostic_columns:
-        errors.append(f"segment_diagnostics is missing diagnostic columns: {missing_diagnostic_columns}")
+        errors.append(
+            f"segment_diagnostics is missing diagnostic columns: {missing_diagnostic_columns}"
+        )
 
 
 def _validate_model_feature_quality(
@@ -405,7 +452,9 @@ def _validate_model_feature_quality(
     errors: list[str],
 ) -> None:
     all_missing_features = []
-    row_count = _fetch_count(connection, f"SELECT COUNT(*) FROM {sql_identifier(MART_TABLE)}")
+    row_count = _fetch_count(
+        connection, f"SELECT COUNT(*) FROM {sql_identifier(MART_TABLE)}"
+    )
     if row_count == 0:
         errors.append("mart_credit_risk_features must not be empty")
         return
@@ -423,7 +472,9 @@ def _validate_model_feature_quality(
             all_missing_features.append(column_name)
 
     if all_missing_features:
-        errors.append(f"Model feature columns are 100% missing: {sorted(all_missing_features)}")
+        errors.append(
+            f"Model feature columns are 100% missing: {sorted(all_missing_features)}"
+        )
 
 
 def _exclusion_group_map(config: dict[str, Any]) -> dict[str, str]:

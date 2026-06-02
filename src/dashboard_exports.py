@@ -100,7 +100,9 @@ def run_dashboard_export(
     require_existing_path(duckdb_path, "DuckDB database", DashboardExportError)
 
     with duckdb.connect(str(duckdb_path)) as connection:
-        require_tables(connection, REQUIRED_SOURCE_TABLES, error_cls=DashboardExportError)
+        require_tables(
+            connection, REQUIRED_SOURCE_TABLES, error_cls=DashboardExportError
+        )
         _validate_export_source_columns(connection)
         selected_model_type = load_selected_model_type(
             connection,
@@ -163,7 +165,9 @@ def run_dashboard_export(
         for table_name in DASHBOARD_EXPORT_TABLES:
             export_path = resolved_export_dir / f"{table_name}.csv"
             if table_name in dashboard_table_overrides:
-                row_counts[table_name] = _export_frame(dashboard_table_overrides[table_name], export_path)
+                row_counts[table_name] = _export_frame(
+                    dashboard_table_overrides[table_name], export_path
+                )
             else:
                 row_counts[table_name] = _export_table(
                     connection,
@@ -223,12 +227,16 @@ def _relabel_model_version(
 
 def _validate_export_source_columns(connection: duckdb.DuckDBPyConnection) -> None:
     available_tables = existing_tables(connection)
-    missing_tables = sorted(table for table in DASHBOARD_EXPORT_TABLES if table not in available_tables)
+    missing_tables = sorted(
+        table for table in DASHBOARD_EXPORT_TABLES if table not in available_tables
+    )
     missing_tables = [
         table for table in missing_tables if table != "segment_performance_summary"
     ]
     if missing_tables:
-        raise DashboardExportError(f"Missing required DuckDB tables: {', '.join(missing_tables)}")
+        raise DashboardExportError(
+            f"Missing required DuckDB tables: {', '.join(missing_tables)}"
+        )
 
     for table_name, expected_columns in EXPORT_TABLE_COLUMNS.items():
         if table_name not in available_tables:
@@ -236,4 +244,6 @@ def _validate_export_source_columns(connection: duckdb.DuckDBPyConnection) -> No
         columns = table_columns(connection, table_name)
         missing_columns = sorted(set(expected_columns).difference(columns))
         if missing_columns:
-            raise DashboardExportError(f"{table_name} is missing required columns: {missing_columns}")
+            raise DashboardExportError(
+                f"{table_name} is missing required columns: {missing_columns}"
+            )

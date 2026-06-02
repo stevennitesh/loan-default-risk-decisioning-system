@@ -61,7 +61,9 @@ def run_single_feature_set(
     random_seed: int | None = None,
     error_cls: type[Exception] = FeatureExperimentError,
 ) -> dict[str, Any]:
-    random_seed = project_random_seed(config) if random_seed is None else int(random_seed)
+    random_seed = (
+        project_random_seed(config) if random_seed is None else int(random_seed)
+    )
     numeric_features, categorical_features = classify_feature_columns(
         split_frames["train"],
         feature_columns,
@@ -100,13 +102,17 @@ def run_single_feature_set(
         )
         for method in CALIBRATION_METHODS
     }
-    metric_rows = calibration_metric_rows(predictions_by_method, manual_review_capacity_rate, error_cls)
+    metric_rows = calibration_metric_rows(
+        predictions_by_method, manual_review_capacity_rate, error_cls
+    )
     selected_calibration_method = select_calibration_method(
         metric_rows,
         error_cls=error_cls,
     )
     selected_predictions = predictions_by_method[selected_calibration_method]
-    metrics = metrics_by_split(selected_predictions, manual_review_capacity_rate, error_cls)
+    metrics = metrics_by_split(
+        selected_predictions, manual_review_capacity_rate, error_cls
+    )
     weighted_bin_errors = {
         split_name: weighted_calibration_error(selected_predictions[split_name])
         for split_name in REPORTING_SPLITS
@@ -134,7 +140,9 @@ def run_single_feature_set(
         "validation_roc_auc": metrics["validation"]["roc_auc"],
         "validation_brier_score": metrics["validation"]["brier_score"],
         "validation_top_decile_lift": metrics["validation"]["top_decile_lift"],
-        "validation_precision_at_top_decile": metrics["validation"]["precision_at_top_decile"],
+        "validation_precision_at_top_decile": metrics["validation"][
+            "precision_at_top_decile"
+        ],
         "validation_recall_at_review_capacity": metrics["validation"][
             "recall_at_manual_review_capacity"
         ],
@@ -144,7 +152,9 @@ def run_single_feature_set(
         "test_brier_score": metrics["test"]["brier_score"],
         "test_top_decile_lift": metrics["test"]["top_decile_lift"],
         "test_precision_at_top_decile": metrics["test"]["precision_at_top_decile"],
-        "test_recall_at_review_capacity": metrics["test"]["recall_at_manual_review_capacity"],
+        "test_recall_at_review_capacity": metrics["test"][
+            "recall_at_manual_review_capacity"
+        ],
         "test_weighted_calibration_error": weighted_bin_errors["test"],
         "validation_balanced_ev_per_applicant": balanced_ev["validation"],
         "test_balanced_ev_per_applicant": balanced_ev["test"],
@@ -211,7 +221,9 @@ def feature_sets(
         if limit <= 0:
             raise error_cls(f"Feature limits must be positive, got {limit}")
         if limit > full_count:
-            raise error_cls(f"Feature limit {limit} exceeds full feature count {full_count}")
+            raise error_cls(
+                f"Feature limit {limit} exceeds full feature count {full_count}"
+            )
         candidate_sets.append((f"top_{limit}", ranked_features[:limit], limit))
     if include_full:
         candidate_sets.append(("full", full_feature_columns, None))
@@ -327,7 +339,9 @@ def weighted_calibration_error(frame: pd.DataFrame) -> float:
         bin_frame = ranked.loc[ranked["bin_id"] == bin_id]
         if bin_frame.empty:
             continue
-        calibration_error = float(bin_frame["target"].mean() - bin_frame["probability"].mean())
+        calibration_error = float(
+            bin_frame["target"].mean() - bin_frame["probability"].mean()
+        )
         weighted_error += abs(calibration_error) * len(bin_frame) / total_count
     return float(weighted_error)
 
@@ -357,7 +371,9 @@ def select_feature_set(rows: list[dict[str, Any]]) -> str:
     return str(selected["feature_set"])
 
 
-def feature_set_selection_key(row: dict[str, Any]) -> tuple[float, float, float, float, float, int]:
+def feature_set_selection_key(
+    row: dict[str, Any],
+) -> tuple[float, float, float, float, float, int]:
     return (
         float(row["validation_pr_auc"]),
         float(row["validation_top_decile_lift"]),

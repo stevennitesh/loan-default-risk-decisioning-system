@@ -50,7 +50,9 @@ def build_probability_quality_overrides(
             error_cls,
         ),
         "model_calibration_bins": pd.DataFrame(
-            build_calibration_bin_rows(dashboard_model_version, prediction_frames, REPORTING_SPLITS),
+            build_calibration_bin_rows(
+                dashboard_model_version, prediction_frames, REPORTING_SPLITS
+            ),
             columns=MODEL_CALIBRATION_BINS_COLUMNS,
         ),
     }
@@ -96,7 +98,9 @@ def _build_calibrated_prediction_frames(
             f"{split_name} calibrated",
             error_cls=error_cls,
         )
-        prediction_frames[split_name] = prediction_frame(split_frame, adjusted_probabilities)
+        prediction_frames[split_name] = prediction_frame(
+            split_frame, adjusted_probabilities
+        )
 
     return prediction_frames
 
@@ -116,7 +120,9 @@ def _metrics_frame_with_calibrated_selected_model(
         """
     ).fetch_df()
     model_version = str(artifact["model_version"])
-    retained_frame = existing_frame.loc[existing_frame["model_version"] != model_version].copy()
+    retained_frame = existing_frame.loc[
+        existing_frame["model_version"] != model_version
+    ].copy()
     created_at = _existing_metric_created_at(existing_frame, model_version)
     calibrated_frame = pd.DataFrame(
         build_probability_metric_rows(
@@ -128,10 +134,14 @@ def _metrics_frame_with_calibrated_selected_model(
         ),
         columns=MODEL_METRICS_SUMMARY_COLUMNS,
     )
-    return pd.concat([retained_frame, calibrated_frame], ignore_index=True)[MODEL_METRICS_SUMMARY_COLUMNS]
+    return pd.concat([retained_frame, calibrated_frame], ignore_index=True)[
+        MODEL_METRICS_SUMMARY_COLUMNS
+    ]
 
 
-def _existing_metric_created_at(existing_frame: pd.DataFrame, model_version: str) -> str:
+def _existing_metric_created_at(
+    existing_frame: pd.DataFrame, model_version: str
+) -> str:
     matching_rows = existing_frame.loc[existing_frame["model_version"] == model_version]
     if matching_rows.empty:
         return created_at_utc()

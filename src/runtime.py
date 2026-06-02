@@ -63,7 +63,9 @@ def replace_duckdb_table_from_frame(
 ) -> None:
     connection.register("output_frame", frame)
     try:
-        connection.execute(f"CREATE OR REPLACE TABLE {sql_identifier(table_name)} AS SELECT * FROM output_frame")
+        connection.execute(
+            f"CREATE OR REPLACE TABLE {sql_identifier(table_name)} AS SELECT * FROM output_frame"
+        )
     finally:
         connection.unregister("output_frame")
 

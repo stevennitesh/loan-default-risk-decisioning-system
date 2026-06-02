@@ -29,11 +29,15 @@ def table_exists(connection: duckdb.DuckDBPyConnection, table_name: str) -> bool
     return table_name in table_names(connection)
 
 
-def assert_table_missing(connection: duckdb.DuckDBPyConnection, table_name: str) -> None:
+def assert_table_missing(
+    connection: duckdb.DuckDBPyConnection, table_name: str
+) -> None:
     assert not table_exists(connection, table_name)
 
 
-def read_table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -> list[str]:
+def read_table_columns(
+    connection: duckdb.DuckDBPyConnection, table_name: str
+) -> list[str]:
     return list(table_columns(connection, table_name))
 
 
@@ -51,10 +55,14 @@ def query_value(
 
 
 def table_row_count(connection: duckdb.DuckDBPyConnection, table_name: str) -> int:
-    return int(query_value(connection, f"SELECT COUNT(*) FROM {sql_identifier(table_name)}"))
+    return int(
+        query_value(connection, f"SELECT COUNT(*) FROM {sql_identifier(table_name)}")
+    )
 
 
-def create_training_database(database_path: Path, train_rows: int = 40, test_rows: int = 6) -> None:
+def create_training_database(
+    database_path: Path, train_rows: int = 40, test_rows: int = 6
+) -> None:
     ensure_directories(database_path.parent)
     train_records = [
         _mart_record(
@@ -75,10 +83,16 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
         for index in range(test_rows)
     ]
     mart = pd.DataFrame(train_records + test_records)
-    staging_train = mart.loc[mart["source_population"] == "application_train", ["SK_ID_CURR", "TARGET"]]
-    staging_test = mart.loc[mart["source_population"] == "application_test", ["SK_ID_CURR"]]
+    staging_train = mart.loc[
+        mart["source_population"] == "application_train", ["SK_ID_CURR", "TARGET"]
+    ]
+    staging_test = mart.loc[
+        mart["source_population"] == "application_test", ["SK_ID_CURR"]
+    ]
     diagnostics = mart[["SK_ID_CURR", "source_population", "TARGET"]].copy()
-    diagnostics["CODE_GENDER"] = ["F" if row % 2 == 0 else "M" for row in range(len(diagnostics))]
+    diagnostics["CODE_GENDER"] = [
+        "F" if row % 2 == 0 else "M" for row in range(len(diagnostics))
+    ]
     diagnostics["NAME_FAMILY_STATUS"] = "Married"
     diagnostics["applicant_age_years"] = 35
     diagnostics["applicant_age_band"] = "30_to_44"
@@ -105,7 +119,9 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
                 {
                     "SK_ID_BUREAU": range(1, len(mart) + 1),
                     "MONTHS_BALANCE": [0 for _ in range(len(mart))],
-                    "STATUS": ["1" if row % 4 == 0 else "0" for row in range(len(mart))],
+                    "STATUS": [
+                        "1" if row % 4 == 0 else "0" for row in range(len(mart))
+                    ],
                 }
             ),
         )
@@ -130,10 +146,13 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
                     "CNT_INSTALMENT": [12.0 for _ in range(len(mart))],
                     "CNT_INSTALMENT_FUTURE": [6.0 for _ in range(len(mart))],
                     "NAME_CONTRACT_STATUS": [
-                        "Active" if row % 2 == 0 else "Completed" for row in range(len(mart))
+                        "Active" if row % 2 == 0 else "Completed"
+                        for row in range(len(mart))
                     ],
                     "SK_DPD": [1 if row % 5 == 0 else 0 for row in range(len(mart))],
-                    "SK_DPD_DEF": [1 if row % 7 == 0 else 0 for row in range(len(mart))],
+                    "SK_DPD_DEF": [
+                        1 if row % 7 == 0 else 0 for row in range(len(mart))
+                    ],
                 }
             ),
         )
@@ -147,17 +166,24 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
                     "MONTHS_BALANCE": [0 for _ in range(len(mart))],
                     "AMT_BALANCE": [100.0 + row for row in range(len(mart))],
                     "AMT_CREDIT_LIMIT_ACTUAL": [1000.0 for _ in range(len(mart))],
-                    "AMT_DRAWINGS_CURRENT": [10.0 if row % 3 == 0 else 0.0 for row in range(len(mart))],
+                    "AMT_DRAWINGS_CURRENT": [
+                        10.0 if row % 3 == 0 else 0.0 for row in range(len(mart))
+                    ],
                     "AMT_INST_MIN_REGULARITY": [20.0 for _ in range(len(mart))],
                     "AMT_PAYMENT_CURRENT": [20.0 for _ in range(len(mart))],
                     "AMT_PAYMENT_TOTAL_CURRENT": [20.0 for _ in range(len(mart))],
                     "AMT_TOTAL_RECEIVABLE": [100.0 + row for row in range(len(mart))],
-                    "CNT_DRAWINGS_CURRENT": [1.0 if row % 3 == 0 else 0.0 for row in range(len(mart))],
+                    "CNT_DRAWINGS_CURRENT": [
+                        1.0 if row % 3 == 0 else 0.0 for row in range(len(mart))
+                    ],
                     "NAME_CONTRACT_STATUS": [
-                        "Active" if row % 2 == 0 else "Completed" for row in range(len(mart))
+                        "Active" if row % 2 == 0 else "Completed"
+                        for row in range(len(mart))
                     ],
                     "SK_DPD": [1 if row % 6 == 0 else 0 for row in range(len(mart))],
-                    "SK_DPD_DEF": [1 if row % 8 == 0 else 0 for row in range(len(mart))],
+                    "SK_DPD_DEF": [
+                        1 if row % 8 == 0 else 0 for row in range(len(mart))
+                    ],
                 }
             ),
         )
@@ -235,7 +261,13 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
 
 
 def write_feature_importance(path: Path, feature_columns: list[str]) -> None:
-    fieldnames = ["model_version", "feature_name", "importance_type", "importance_value", "rank"]
+    fieldnames = [
+        "model_version",
+        "feature_name",
+        "importance_type",
+        "importance_value",
+        "rank",
+    ]
     write_csv(
         path,
         fieldnames,

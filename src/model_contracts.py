@@ -22,4 +22,8 @@ def select_model_type_by_validation_pr_auc(
     baseline_pr_auc: float,
     lightgbm_pr_auc: float,
 ) -> str:
-    return LIGHTGBM_MODEL_TYPE if lightgbm_pr_auc >= baseline_pr_auc else BASELINE_MODEL_TYPE
+    return (
+        LIGHTGBM_MODEL_TYPE
+        if lightgbm_pr_auc >= baseline_pr_auc
+        else BASELINE_MODEL_TYPE
+    )

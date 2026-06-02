@@ -184,13 +184,17 @@ def aggregate_stability_rows(
             values = group[metric].astype(float)
             row[f"{metric}_mean"] = float(values.mean())
             row[f"{metric}_std"] = _std(values)
-        row["pr_auc_generalization_gap"] = row["test_pr_auc_mean"] - row["validation_pr_auc_mean"]
+        row["pr_auc_generalization_gap"] = (
+            row["test_pr_auc_mean"] - row["validation_pr_auc_mean"]
+        )
         row["abs_pr_auc_generalization_gap"] = abs(row["pr_auc_generalization_gap"])
         row["balanced_ev_generalization_gap"] = (
             row["test_balanced_ev_per_applicant_mean"]
             - row["validation_balanced_ev_per_applicant_mean"]
         )
-        row["abs_balanced_ev_generalization_gap"] = abs(row["balanced_ev_generalization_gap"])
+        row["abs_balanced_ev_generalization_gap"] = abs(
+            row["balanced_ev_generalization_gap"]
+        )
         aggregate_rows.append(row)
     return aggregate_rows
 
@@ -209,7 +213,9 @@ def _normalize_seeds(seeds: tuple[int, ...]) -> tuple[int, ...]:
     return normalized
 
 
-def _stability_selection_key(row: dict[str, Any]) -> tuple[float, float, float, float, float, float, float, int]:
+def _stability_selection_key(
+    row: dict[str, Any],
+) -> tuple[float, float, float, float, float, float, float, int]:
     return (
         float(row["validation_pr_auc_mean"]),
         float(row["validation_win_rate"]),
@@ -236,7 +242,9 @@ def _write_report(
         "{test_balanced_ev_per_applicant_mean:.2f} | {selected} |".format(**row)
         for row in aggregate_rows
     )
-    selected_row = next(row for row in aggregate_rows if row["feature_set"] == selected_feature_set)
+    selected_row = next(
+        row for row in aggregate_rows if row["feature_set"] == selected_feature_set
+    )
     interpretation_text = _interpretation_text(selected_row)
     text = f"""# Experiment 006: Model Stability
 
@@ -260,11 +268,11 @@ The selected setup is chosen with a validation-only aggregate rule: mean validat
 
 ## Selected Setup
 
-Selected feature set: `{selected_feature_set}` with {selected_row['feature_count']} features.
+Selected feature set: `{selected_feature_set}` with {selected_row["feature_count"]} features.
 
 ## Generalization Check
 
-For the selected setup, mean test PR-AUC minus mean validation PR-AUC is {selected_row['pr_auc_generalization_gap']:.6f}, and mean test balanced EV minus mean validation balanced EV is {selected_row['balanced_ev_generalization_gap']:.2f}. These held-out test values are final verification signals, not optimization inputs.
+For the selected setup, mean test PR-AUC minus mean validation PR-AUC is {selected_row["pr_auc_generalization_gap"]:.6f}, and mean test balanced EV minus mean validation balanced EV is {selected_row["balanced_ev_generalization_gap"]:.2f}. These held-out test values are final verification signals, not optimization inputs.
 
 ## Interpretation
 
@@ -319,7 +327,9 @@ def main() -> None:
         default=format_int_csv(DEFAULT_FEATURE_LIMITS),
         help="Comma-separated top-N feature limits to compare.",
     )
-    parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
+    parser.add_argument(
+        "--skip-full", action="store_true", help="Do not include the full feature set."
+    )
     parser.add_argument(
         "--seed-runs-name",
         default="model_stability_seed_runs.csv",

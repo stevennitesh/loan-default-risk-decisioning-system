@@ -80,14 +80,18 @@ def test_ingestion_converts_required_csvs_and_loads_duckdb_staging_without_optio
     assert len(summary_rows) == len(SOURCE_FILES)
     assert {row["source_name"] for row in summary_rows} == set(SOURCE_FILES)
 
-    with duckdb.connect(str(scratch_path / "db" / "credit_risk.duckdb"), read_only=True) as connection:
+    with duckdb.connect(
+        str(scratch_path / "db" / "credit_risk.duckdb"), read_only=True
+    ) as connection:
         tables = table_names(connection)
         assert set(EXPECTED_STAGING_TABLES.values()).issubset(tables)
 
         for row in summary_rows:
             assert row["staging_table"] == EXPECTED_STAGING_TABLES[row["source_name"]]
             assert row["csv_rows"] == row["parquet_rows"] == row["duckdb_rows"]
-            assert table_row_count(connection, row["staging_table"]) == int(row["duckdb_rows"])
+            assert table_row_count(connection, row["staging_table"]) == int(
+                row["duckdb_rows"]
+            )
 
         assert "TARGET" in read_table_columns(connection, "stg_application_train")
         assert "TARGET" not in read_table_columns(connection, "stg_application_test")
@@ -97,14 +101,10 @@ def _write_required_csvs(raw_dir: Path) -> None:
     ensure_directories(raw_dir)
     csv_contents = {
         "application_train.csv": (
-            "SK_ID_CURR,TARGET,AMT_INCOME_TOTAL\n"
-            "100001,0,100000\n"
-            "100002,1,75000\n"
+            "SK_ID_CURR,TARGET,AMT_INCOME_TOTAL\n100001,0,100000\n100002,1,75000\n"
         ),
         "application_test.csv": (
-            "SK_ID_CURR,AMT_INCOME_TOTAL\n"
-            "200001,120000\n"
-            "200002,64000\n"
+            "SK_ID_CURR,AMT_INCOME_TOTAL\n200001,120000\n200002,64000\n"
         ),
         "bureau.csv": (
             "SK_ID_CURR,SK_ID_BUREAU,CREDIT_ACTIVE\n"

@@ -39,7 +39,9 @@ from tests.helpers import (
     table_row_count,
 )
 
-pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:X does not have valid feature names.*:UserWarning"
+)
 
 
 EXPECTED_EXPORT_COLUMNS = {
@@ -113,7 +115,10 @@ def test_run_dashboard_export_creates_power_bi_csv_bundle_and_segment_table(
     with duckdb.connect(str(database_path), read_only=True) as connection:
         assert table_exists(connection, "segment_performance_summary")
         for table_name in DASHBOARD_EXPORT_TABLES:
-            assert table_row_count(connection, table_name) == result["row_counts"][table_name]
+            assert (
+                table_row_count(connection, table_name)
+                == result["row_counts"][table_name]
+            )
 
         segment_rows = connection.execute(
             """
@@ -130,7 +135,9 @@ def test_run_dashboard_export_creates_power_bi_csv_bundle_and_segment_table(
         split_rows = segment_rows.loc[segment_rows["split"] == split]
         for segment_name in SEGMENTS:
             segment_count = int(
-                split_rows.loc[split_rows["segment_name"] == segment_name, "applicant_count"].sum()
+                split_rows.loc[
+                    split_rows["segment_name"] == segment_name, "applicant_count"
+                ].sum()
             )
             assert segment_count == split_sizes[split]
 
@@ -152,13 +159,18 @@ def test_run_dashboard_export_creates_power_bi_csv_bundle_and_segment_table(
     assert {row["scenario_name"] for row in threshold_rows} == SCENARIOS
     assert {row["scenario_name"] for row in confusion_rows} == SCENARIOS
 
-    lift_rows = read_csv_rows(export_dir / "model_lift_by_decile.csv", MODEL_LIFT_BY_DECILE_COLUMNS)
+    lift_rows = read_csv_rows(
+        export_dir / "model_lift_by_decile.csv", MODEL_LIFT_BY_DECILE_COLUMNS
+    )
     for split in ["validation", "test"]:
-        assert sum(
-            int(row["applicant_count"])
-            for row in lift_rows
-            if row["split"] == split
-        ) == split_sizes[split]
+        assert (
+            sum(
+                int(row["applicant_count"])
+                for row in lift_rows
+                if row["split"] == split
+            )
+            == split_sizes[split]
+        )
 
 
 def test_run_dashboard_export_can_write_same_bundle_to_post_v1_folder(
@@ -190,7 +202,9 @@ def test_dashboard_export_uses_selected_calibration_for_probability_quality_tabl
     _create_dashboard_ready_state(database_path, project_config_path)
     _write_constant_sigmoid_calibration_artifact(scratch_path / "models")
 
-    result = run_dashboard_export(project_config_path, use_calibrated_probability_quality=True)
+    result = run_dashboard_export(
+        project_config_path, use_calibrated_probability_quality=True
+    )
 
     export_dir = scratch_path / "reports" / "dashboard_data"
     assert result["selected_model_version"] == POST_V1_DASHBOARD_MODEL_VERSION
@@ -203,11 +217,17 @@ def test_dashboard_export_uses_selected_calibration_for_probability_quality_tabl
         for row in metric_rows
         if row["model_version"] == POST_V1_DASHBOARD_MODEL_VERSION
         and row["split"] in {"validation", "test"}
-        and row["metric_name"] in {"min_predicted_probability", "max_predicted_probability"}
+        and row["metric_name"]
+        in {"min_predicted_probability", "max_predicted_probability"}
     ]
     assert selected_probability_range_rows
-    assert all(float(row["metric_value"]) == pytest.approx(0.10) for row in selected_probability_range_rows)
-    assert POST_V1_DASHBOARD_MODEL_VERSION in {row["model_version"] for row in metric_rows}
+    assert all(
+        float(row["metric_value"]) == pytest.approx(0.10)
+        for row in selected_probability_range_rows
+    )
+    assert POST_V1_DASHBOARD_MODEL_VERSION in {
+        row["model_version"] for row in metric_rows
+    }
     assert LIGHTGBM_MODEL_VERSION not in {row["model_version"] for row in metric_rows}
     assert len({row["model_version"] for row in metric_rows}) > 1
 
@@ -215,21 +235,32 @@ def test_dashboard_export_uses_selected_calibration_for_probability_quality_tabl
         export_dir / "model_calibration_bins.csv",
         MODEL_CALIBRATION_BINS_COLUMNS,
     )
-    assert {row["model_version"] for row in calibration_rows} == {POST_V1_DASHBOARD_MODEL_VERSION}
-    assert all(float(row["average_predicted_score"]) == pytest.approx(0.10) for row in calibration_rows)
+    assert {row["model_version"] for row in calibration_rows} == {
+        POST_V1_DASHBOARD_MODEL_VERSION
+    }
+    assert all(
+        float(row["average_predicted_score"]) == pytest.approx(0.10)
+        for row in calibration_rows
+    )
 
     segment_rows = read_csv_rows(
         export_dir / "segment_performance_summary.csv",
         SEGMENT_PERFORMANCE_SUMMARY_COLUMNS,
     )
-    assert {row["model_version"] for row in segment_rows} == {POST_V1_DASHBOARD_MODEL_VERSION}
-    assert all(float(row["average_score"]) == pytest.approx(0.10) for row in segment_rows)
+    assert {row["model_version"] for row in segment_rows} == {
+        POST_V1_DASHBOARD_MODEL_VERSION
+    }
+    assert all(
+        float(row["average_score"]) == pytest.approx(0.10) for row in segment_rows
+    )
 
     for table_name, expected_columns in EXPECTED_EXPORT_COLUMNS.items():
         if table_name == "model_metrics_summary":
             continue
         rows = read_csv_rows(export_dir / f"{table_name}.csv", expected_columns)
-        assert {row["model_version"] for row in rows} == {POST_V1_DASHBOARD_MODEL_VERSION}
+        assert {row["model_version"] for row in rows} == {
+            POST_V1_DASHBOARD_MODEL_VERSION
+        }
 
 
 def test_dashboard_export_keeps_raw_v1_probability_quality_by_default(
@@ -252,23 +283,32 @@ def test_dashboard_export_keeps_raw_v1_probability_quality_by_default(
         for row in metric_rows
         if row["model_version"] == LIGHTGBM_MODEL_VERSION
         and row["split"] in {"validation", "test"}
-        and row["metric_name"] in {"min_predicted_probability", "max_predicted_probability"}
+        and row["metric_name"]
+        in {"min_predicted_probability", "max_predicted_probability"}
     ]
     assert selected_probability_range_rows
-    assert any(float(row["metric_value"]) != pytest.approx(0.10) for row in selected_probability_range_rows)
+    assert any(
+        float(row["metric_value"]) != pytest.approx(0.10)
+        for row in selected_probability_range_rows
+    )
 
     calibration_rows = read_csv_rows(
         export_dir / "model_calibration_bins.csv",
         MODEL_CALIBRATION_BINS_COLUMNS,
     )
-    assert any(float(row["average_predicted_score"]) != pytest.approx(0.10) for row in calibration_rows)
+    assert any(
+        float(row["average_predicted_score"]) != pytest.approx(0.10)
+        for row in calibration_rows
+    )
 
 
 def test_dashboard_export_cli_smoke(
     scratch_path: Path,
     project_config_path: Path,
 ) -> None:
-    _create_dashboard_ready_state(scratch_path / "db" / "credit_risk.duckdb", project_config_path)
+    _create_dashboard_ready_state(
+        scratch_path / "db" / "credit_risk.duckdb", project_config_path
+    )
 
     result = subprocess.run(
         [
@@ -286,14 +326,18 @@ def test_dashboard_export_cli_smoke(
     )
 
     assert result.returncode == 0, result.stderr
-    assert (scratch_path / "reports" / "dashboard_data" / "segment_performance_summary.csv").exists()
+    assert (
+        scratch_path / "reports" / "dashboard_data" / "segment_performance_summary.csv"
+    ).exists()
 
 
 def test_dashboard_export_cli_can_write_post_v1_folder(
     scratch_path: Path,
     project_config_path: Path,
 ) -> None:
-    _create_dashboard_ready_state(scratch_path / "db" / "credit_risk.duckdb", project_config_path)
+    _create_dashboard_ready_state(
+        scratch_path / "db" / "credit_risk.duckdb", project_config_path
+    )
     post_v1_export_dir = scratch_path / "reports" / "dashboard_data_post_v1"
 
     result = subprocess.run(
@@ -316,25 +360,35 @@ def test_dashboard_export_cli_can_write_post_v1_folder(
 
     assert result.returncode == 0, result.stderr
     assert (post_v1_export_dir / "segment_performance_summary.csv").exists()
-    assert not (scratch_path / "reports" / "dashboard_data" / "segment_performance_summary.csv").exists()
+    assert not (
+        scratch_path / "reports" / "dashboard_data" / "segment_performance_summary.csv"
+    ).exists()
 
     metric_rows = read_csv_rows(
         post_v1_export_dir / "model_metrics_summary.csv",
         MODEL_METRICS_SUMMARY_COLUMNS,
     )
-    assert POST_V1_DASHBOARD_MODEL_VERSION in {row["model_version"] for row in metric_rows}
+    assert POST_V1_DASHBOARD_MODEL_VERSION in {
+        row["model_version"] for row in metric_rows
+    }
     assert LIGHTGBM_MODEL_VERSION not in {row["model_version"] for row in metric_rows}
 
 
-def _create_dashboard_ready_state(database_path: Path, config_path: Path) -> dict[str, int]:
+def _create_dashboard_ready_state(
+    database_path: Path, config_path: Path
+) -> dict[str, int]:
     create_training_database(database_path, train_rows=80, test_rows=12)
     run_training(config_path)
     artifact_path = database_path.parents[1] / "models" / LIGHTGBM_MODEL_ARTIFACT_NAME
     artifact = joblib.load(artifact_path)
-    split_sizes = {split: len(ids) for split, ids in artifact["split_applicant_ids"].items()}
+    split_sizes = {
+        split: len(ids) for split, ids in artifact["split_applicant_ids"].items()
+    }
 
     with duckdb.connect(str(database_path)) as connection:
-        connection.execute("UPDATE model_comparison_summary SET selected_model_type = 'lightgbm'")
+        connection.execute(
+            "UPDATE model_comparison_summary SET selected_model_type = 'lightgbm'"
+        )
         _create_credit_risk_scores(connection, artifact)
         _create_model_threshold_metrics(connection, split_sizes)
         _create_lift_rows(connection, split_sizes)
@@ -362,7 +416,11 @@ def _create_credit_risk_scores(
         *_score_rows(artifact, holdout_frame, feature_columns, "holdout_test"),
         *_score_rows(artifact, kaggle_frame, feature_columns, "kaggle_test"),
     ]
-    _replace_table(connection, "credit_risk_scores", pd.DataFrame(rows, columns=CREDIT_RISK_SCORE_COLUMNS))
+    _replace_table(
+        connection,
+        "credit_risk_scores",
+        pd.DataFrame(rows, columns=CREDIT_RISK_SCORE_COLUMNS),
+    )
 
 
 def _write_constant_sigmoid_calibration_artifact(model_dir: Path) -> None:
@@ -422,13 +480,21 @@ def _score_rows(
             {
                 "applicant_id": int(record["SK_ID_CURR"]),
                 "scoring_population": scoring_population,
-                "observed_target": None if pd.isna(record["TARGET"]) else int(record["TARGET"]),
+                "observed_target": None
+                if pd.isna(record["TARGET"])
+                else int(record["TARGET"]),
                 "score": score,
                 "raw_risk_score": score,
                 "calibrated_risk_score": score,
                 "calibration_method": "uncalibrated",
-                "score_decile": max(1, min(10, int(np.ceil((index + 1) * 10 / len(frame))))),
-                "risk_band": "high_risk" if score >= 0.7 else "medium_risk" if score >= 0.3 else "low_risk",
+                "score_decile": max(
+                    1, min(10, int(np.ceil((index + 1) * 10 / len(frame))))
+                ),
+                "risk_band": "high_risk"
+                if score >= 0.7
+                else "medium_risk"
+                if score >= 0.3
+                else "low_risk",
                 "recommended_action": "high_priority_review"
                 if score >= 0.7
                 else "manual_review"
@@ -476,10 +542,16 @@ def _create_model_threshold_metrics(
             }
             for scenario in sorted(SCENARIOS)
         )
-    _replace_table(connection, "model_threshold_metrics", pd.DataFrame(rows, columns=MODEL_THRESHOLD_METRICS_COLUMNS))
+    _replace_table(
+        connection,
+        "model_threshold_metrics",
+        pd.DataFrame(rows, columns=MODEL_THRESHOLD_METRICS_COLUMNS),
+    )
 
 
-def _create_lift_rows(connection: duckdb.DuckDBPyConnection, split_sizes: dict[str, int]) -> None:
+def _create_lift_rows(
+    connection: duckdb.DuckDBPyConnection, split_sizes: dict[str, int]
+) -> None:
     rows = []
     for split in ["validation", "test"]:
         counts = _ten_bin_counts(split_sizes[split])
@@ -497,10 +569,16 @@ def _create_lift_rows(connection: duckdb.DuckDBPyConnection, split_sizes: dict[s
                     "cumulative_default_capture_rate": min(1.0, decile / 10),
                 }
             )
-    _replace_table(connection, "model_lift_by_decile", pd.DataFrame(rows, columns=MODEL_LIFT_BY_DECILE_COLUMNS))
+    _replace_table(
+        connection,
+        "model_lift_by_decile",
+        pd.DataFrame(rows, columns=MODEL_LIFT_BY_DECILE_COLUMNS),
+    )
 
 
-def _create_calibration_rows(connection: duckdb.DuckDBPyConnection, split_sizes: dict[str, int]) -> None:
+def _create_calibration_rows(
+    connection: duckdb.DuckDBPyConnection, split_sizes: dict[str, int]
+) -> None:
     rows = []
     for split in ["validation", "test"]:
         counts = _ten_bin_counts(split_sizes[split])
@@ -523,7 +601,9 @@ def _create_calibration_rows(connection: duckdb.DuckDBPyConnection, split_sizes:
     )
 
 
-def _create_confusion_rows(connection: duckdb.DuckDBPyConnection, split_sizes: dict[str, int]) -> None:
+def _create_confusion_rows(
+    connection: duckdb.DuckDBPyConnection, split_sizes: dict[str, int]
+) -> None:
     rows = []
     for split in ["validation", "test"]:
         for scenario in sorted(SCENARIOS):
@@ -542,7 +622,11 @@ def _create_confusion_rows(connection: duckdb.DuckDBPyConnection, split_sizes: d
                         "count": counts[row_index],
                     }
                 )
-    _replace_table(connection, "model_confusion_matrix", pd.DataFrame(rows, columns=MODEL_CONFUSION_MATRIX_COLUMNS))
+    _replace_table(
+        connection,
+        "model_confusion_matrix",
+        pd.DataFrame(rows, columns=MODEL_CONFUSION_MATRIX_COLUMNS),
+    )
 
 
 def _create_feature_importance(connection: duckdb.DuckDBPyConnection) -> None:
@@ -562,7 +646,11 @@ def _create_feature_importance(connection: duckdb.DuckDBPyConnection) -> None:
             "rank": 2,
         },
     ]
-    _replace_table(connection, "model_feature_importance", pd.DataFrame(rows, columns=MODEL_FEATURE_IMPORTANCE_COLUMNS))
+    _replace_table(
+        connection,
+        "model_feature_importance",
+        pd.DataFrame(rows, columns=MODEL_FEATURE_IMPORTANCE_COLUMNS),
+    )
 
 
 def _ten_bin_counts(row_count: int) -> list[int]:

@@ -36,7 +36,9 @@ REQUIRED_EVALUATION_METRICS = {
 
 SCENARIOS = set(SCENARIO_NAMES)
 
-pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:X does not have valid feature names.*:UserWarning"
+)
 
 
 def test_evaluation_fails_clearly_without_model_artifacts(
@@ -74,14 +76,20 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
     project_config_path: Path,
 ) -> None:
     train_rows = 80
-    create_training_database(scratch_path / "db" / "credit_risk.duckdb", train_rows=train_rows)
+    create_training_database(
+        scratch_path / "db" / "credit_risk.duckdb", train_rows=train_rows
+    )
     run_training(project_config_path)
 
     result = run_evaluation(project_config_path)
 
     report_dir = scratch_path / "reports"
-    metrics_rows = read_csv_rows(report_dir / "model_metrics_summary.csv", MODEL_METRICS_SUMMARY_COLUMNS)
-    lift_rows = read_csv_rows(report_dir / "model_lift_by_decile.csv", MODEL_LIFT_BY_DECILE_COLUMNS)
+    metrics_rows = read_csv_rows(
+        report_dir / "model_metrics_summary.csv", MODEL_METRICS_SUMMARY_COLUMNS
+    )
+    lift_rows = read_csv_rows(
+        report_dir / "model_lift_by_decile.csv", MODEL_LIFT_BY_DECILE_COLUMNS
+    )
     calibration_rows = read_csv_rows(
         report_dir / "model_calibration_bins.csv",
         MODEL_CALIBRATION_BINS_COLUMNS,
@@ -127,10 +135,14 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
         rows = [row for row in lift_rows if row["split"] == split]
         assert {int(row["decile"]) for row in rows} == set(range(1, 11))
         assert sum(int(row["applicant_count"]) for row in rows) == split_sizes[split]
-        decile_scores = {int(row["decile"]): float(row["average_score"]) for row in rows}
+        decile_scores = {
+            int(row["decile"]): float(row["average_score"]) for row in rows
+        }
         assert decile_scores[1] >= decile_scores[10]
         assert all(float(row["lift"]) >= 0 for row in rows)
-        assert all(0 <= float(row["cumulative_default_capture_rate"]) <= 1 for row in rows)
+        assert all(
+            0 <= float(row["cumulative_default_capture_rate"]) <= 1 for row in rows
+        )
 
     assert {row["split"] for row in calibration_rows} == {"validation", "test"}
     for split in {"validation", "test"}:
@@ -147,7 +159,9 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
     assert {row["split"] for row in threshold_rows} == {"validation", "test"}
     assert {row["scenario_name"] for row in threshold_rows} == SCENARIOS
     assert {row["threshold_version"] for row in threshold_rows} == {"threshold_v1"}
-    assert {row["model_version"] for row in threshold_rows} == {result["selected_model_version"]}
+    assert {row["model_version"] for row in threshold_rows} == {
+        result["selected_model_version"]
+    }
     assert len(threshold_rows) == 2 * len(SCENARIOS)
     validation_thresholds = {
         row["scenario_name"]: (row["threshold_low"], row["threshold_high"])
@@ -188,13 +202,17 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
                 if row["true_label"] == "1" and row["predicted_label"] == "1"
             )
             total_default_count = sum(
-                int(row["count"])
-                for row in rows
-                if row["true_label"] == "1"
+                int(row["count"]) for row in rows if row["true_label"] == "1"
             )
 
             assert applicant_count == split_sizes[split]
-            assert approved_good_count + approved_bad_count + manual_review_count + high_risk_count == applicant_count
+            assert (
+                approved_good_count
+                + approved_bad_count
+                + manual_review_count
+                + high_risk_count
+                == applicant_count
+            )
             assert float(threshold_row["approval_rate"]) == pytest.approx(
                 (approved_good_count + approved_bad_count) / applicant_count
             )
@@ -205,13 +223,11 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
                 high_risk_count / applicant_count
             )
             assert high_risk_count == sum(
-                int(row["count"])
-                for row in rows
-                if row["predicted_label"] == "1"
+                int(row["count"]) for row in rows if row["predicted_label"] == "1"
             )
-            assert float(threshold_row["high_risk_default_capture_rate"]) == pytest.approx(
-                high_risk_default_count / total_default_count
-            )
+            assert float(
+                threshold_row["high_risk_default_capture_rate"]
+            ) == pytest.approx(high_risk_default_count / total_default_count)
 
     for figure_name in [
         "roc_curve.png",
@@ -221,19 +237,34 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
     ]:
         assert (report_dir / "figures" / figure_name).stat().st_size > 0
 
-    validation_report = (report_dir / "validation_report.md").read_text(encoding="utf-8")
-    business_value_report = (report_dir / "business_value_analysis.md").read_text(encoding="utf-8")
+    validation_report = (report_dir / "validation_report.md").read_text(
+        encoding="utf-8"
+    )
+    business_value_report = (report_dir / "business_value_analysis.md").read_text(
+        encoding="utf-8"
+    )
     assert "Expected-value analysis is pending Milestone 7" not in validation_report
     assert "Threshold expected-value analysis" in validation_report
     assert "Expected margin per good approved loan: 1000" in business_value_report
     assert "Expected loss per bad approved loan: 5000" in business_value_report
     assert "Manual review cost: 50" in business_value_report
-    assert "Kaggle application_test rows are not used for evaluation metrics" in validation_report
+    assert (
+        "Kaggle application_test rows are not used for evaluation metrics"
+        in validation_report
+    )
 
-    with duckdb.connect(str(scratch_path / "db" / "credit_risk.duckdb"), read_only=True) as connection:
+    with duckdb.connect(
+        str(scratch_path / "db" / "credit_risk.duckdb"), read_only=True
+    ) as connection:
         assert table_row_count(connection, "model_metrics_summary") == len(metrics_rows)
         assert table_row_count(connection, "model_lift_by_decile") == len(lift_rows)
-        assert table_row_count(connection, "model_calibration_bins") == len(calibration_rows)
-        assert table_row_count(connection, "model_confusion_matrix") == len(confusion_rows)
-        assert table_row_count(connection, "model_threshold_metrics") == len(threshold_rows)
+        assert table_row_count(connection, "model_calibration_bins") == len(
+            calibration_rows
+        )
+        assert table_row_count(connection, "model_confusion_matrix") == len(
+            confusion_rows
+        )
+        assert table_row_count(connection, "model_threshold_metrics") == len(
+            threshold_rows
+        )
         assert table_exists(connection, "model_threshold_metrics")

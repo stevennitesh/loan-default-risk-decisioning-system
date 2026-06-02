@@ -90,7 +90,9 @@ def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any
         try:
             validate_data_contracts(connection, config)
         except DataContractError as error:
-            raise TrainingError(f"Data contract validation failed before training: {error}") from error
+            raise TrainingError(
+                f"Data contract validation failed before training: {error}"
+            ) from error
 
         feature_columns = get_model_feature_columns(connection, config)
         training_frame = load_labeled_training_frame(
@@ -156,8 +158,12 @@ def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any
             review_capacity_rate,
         )
         metric_rows = [*baseline_metric_rows, *lightgbm_metric_rows]
-        comparison_rows = _build_model_comparison_rows(baseline_metric_rows, lightgbm_metric_rows)
-        tuning_summary_rows = _build_lightgbm_tuning_summary_rows(lightgbm_tuning, created_at)
+        comparison_rows = _build_model_comparison_rows(
+            baseline_metric_rows, lightgbm_metric_rows
+        )
+        tuning_summary_rows = _build_lightgbm_tuning_summary_rows(
+            lightgbm_tuning, created_at
+        )
         run_summary_rows = [
             _build_run_summary_row(
                 config,
@@ -215,9 +221,19 @@ def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any
         joblib.dump(baseline_artifact, model_dir / BASELINE_MODEL_ARTIFACT_NAME)
         joblib.dump(lightgbm_artifact, model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME)
 
-        write_csv(report_dir / "model_run_summary.csv", MODEL_RUN_SUMMARY_COLUMNS, run_summary_rows)
-        write_csv(report_dir / "model_metrics_summary.csv", MODEL_METRICS_SUMMARY_COLUMNS, metric_rows)
-        write_csv(report_dir / "split_summary.csv", SPLIT_SUMMARY_COLUMNS, split_summary_rows)
+        write_csv(
+            report_dir / "model_run_summary.csv",
+            MODEL_RUN_SUMMARY_COLUMNS,
+            run_summary_rows,
+        )
+        write_csv(
+            report_dir / "model_metrics_summary.csv",
+            MODEL_METRICS_SUMMARY_COLUMNS,
+            metric_rows,
+        )
+        write_csv(
+            report_dir / "split_summary.csv", SPLIT_SUMMARY_COLUMNS, split_summary_rows
+        )
         write_csv(
             report_dir / "lightgbm_tuning_summary.csv",
             LIGHTGBM_TUNING_SUMMARY_COLUMNS,
@@ -269,7 +285,9 @@ def _build_lightgbm_tuning_summary_rows(
                 "validation_roc_auc": metrics["roc_auc"],
                 "validation_brier_score": metrics["brier_score"],
                 "validation_top_decile_lift": metrics["top_decile_lift"],
-                "validation_precision_at_top_decile": metrics["precision_at_top_decile"],
+                "validation_precision_at_top_decile": metrics[
+                    "precision_at_top_decile"
+                ],
                 "validation_recall_at_manual_review_capacity": metrics[
                     "recall_at_manual_review_capacity"
                 ],
@@ -399,7 +417,9 @@ def _build_run_summary_row(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train baseline and primary credit-risk models.")
+    parser = argparse.ArgumentParser(
+        description="Train baseline and primary credit-risk models."
+    )
     add_config_argument(parser)
     args = parser.parse_args()
 

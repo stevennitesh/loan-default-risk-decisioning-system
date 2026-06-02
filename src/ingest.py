@@ -35,7 +35,9 @@ class IngestionError(RuntimeError):
     """Raised when ingestion cannot satisfy the Milestone 1 contract."""
 
 
-def run_ingestion(config_path: str | Path = DEFAULT_CONFIG_PATH) -> list[dict[str, Any]]:
+def run_ingestion(
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
+) -> list[dict[str, Any]]:
     config = load_config(config_path)
 
     raw_dir = resolve_config_path(config, "raw_dir")
@@ -105,7 +107,9 @@ def run_ingestion(config_path: str | Path = DEFAULT_CONFIG_PATH) -> list[dict[st
                 }
             )
 
-    write_csv(report_dir / "ingestion_summary.csv", INGESTION_SUMMARY_COLUMNS, summary_rows)
+    write_csv(
+        report_dir / "ingestion_summary.csv", INGESTION_SUMMARY_COLUMNS, summary_rows
+    )
     return summary_rows
 
 
@@ -113,7 +117,9 @@ def _validate_source_name(source_name: str) -> None:
     if source_name not in SUPPORTED_SOURCE_FILES:
         raise IngestionError(f"Unsupported source file key: {source_name}")
     if source_name not in STAGING_TABLES:
-        raise IngestionError(f"No staging table configured for source file key: {source_name}")
+        raise IngestionError(
+            f"No staging table configured for source file key: {source_name}"
+        )
 
 
 def _sql_path(path: Path) -> str:
@@ -130,7 +136,9 @@ def _display_path(path: Path) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Convert raw CSV files to Parquet and DuckDB staging tables.")
+    parser = argparse.ArgumentParser(
+        description="Convert raw CSV files to Parquet and DuckDB staging tables."
+    )
     add_config_argument(parser)
     args = parser.parse_args()
 

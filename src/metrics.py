@@ -77,12 +77,16 @@ def _probability_frame(y_true: pd.Series, probabilities: np.ndarray) -> pd.DataF
     return pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
 
 
-def with_probability_rank_bin(frame: pd.DataFrame, column_name: str, *, descending: bool) -> pd.DataFrame:
+def with_probability_rank_bin(
+    frame: pd.DataFrame, column_name: str, *, descending: bool
+) -> pd.DataFrame:
     ranked = frame.sort_values(
         ["probability", "SK_ID_CURR"],
         ascending=[not descending, True],
     ).reset_index(drop=True)
-    ranked[column_name] = np.ceil((np.arange(len(ranked)) + 1) * 10 / len(ranked)).astype(int)
+    ranked[column_name] = np.ceil(
+        (np.arange(len(ranked)) + 1) * 10 / len(ranked)
+    ).astype(int)
     ranked[column_name] = ranked[column_name].clip(1, 10)
     return ranked
 
@@ -93,7 +97,9 @@ def nullable_mean(series: pd.Series) -> float | None:
     return float(series.mean())
 
 
-def target_class_values(targets: pd.Series | np.ndarray, *, dropna: bool = False) -> set[int]:
+def target_class_values(
+    targets: pd.Series | np.ndarray, *, dropna: bool = False
+) -> set[int]:
     target_series = pd.Series(targets)
     if dropna:
         target_series = target_series.dropna()
@@ -129,7 +135,9 @@ def probability_metrics(
         "min_predicted_probability": float(np.min(probabilities)),
         "max_predicted_probability": float(np.max(probabilities)),
         "top_decile_lift": top_decile_lift(y_true, probabilities, error_cls=error_cls),
-        "precision_at_top_decile": precision_at_rate(y_true, probabilities, 0.10, error_cls=error_cls),
+        "precision_at_top_decile": precision_at_rate(
+            y_true, probabilities, 0.10, error_cls=error_cls
+        ),
         "recall_at_manual_review_capacity": recall_at_rate(
             y_true,
             probabilities,
@@ -151,7 +159,9 @@ def build_probability_metric_rows(
     for split_name, frame in prediction_frames.items():
         y_true = frame["target"]
         probabilities = frame["probability"].to_numpy(dtype=float)
-        metrics = probability_metrics(y_true, probabilities, manual_review_capacity_rate, error_cls)
+        metrics = probability_metrics(
+            y_true, probabilities, manual_review_capacity_rate, error_cls
+        )
         rows.extend(
             {
                 "model_version": model_version,
@@ -172,7 +182,9 @@ def build_calibration_bin_rows(
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for split_name in reporting_splits:
-        frame = with_probability_rank_bin(prediction_frames[split_name], "bin_id", descending=False)
+        frame = with_probability_rank_bin(
+            prediction_frames[split_name], "bin_id", descending=False
+        )
         for bin_id in range(1, 11):
             bin_frame = frame.loc[frame["bin_id"] == bin_id]
             average_predicted_score = nullable_mean(bin_frame["probability"])
@@ -186,7 +198,8 @@ def build_calibration_bin_rows(
                     "average_predicted_score": average_predicted_score,
                     "observed_default_rate": observed_default_rate,
                     "calibration_error": observed_default_rate - average_predicted_score
-                    if observed_default_rate is not None and average_predicted_score is not None
+                    if observed_default_rate is not None
+                    and average_predicted_score is not None
                     else None,
                 }
             )

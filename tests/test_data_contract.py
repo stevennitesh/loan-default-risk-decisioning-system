@@ -14,19 +14,26 @@ from src.report_contracts import DATA_INVENTORY_COLUMNS, FEATURE_INVENTORY_COLUM
 from tests.helpers import read_csv_rows
 
 
-def test_data_contract_fails_when_feature_tables_are_missing(staged_feature_fixture) -> None:
+def test_data_contract_fails_when_feature_tables_are_missing(
+    staged_feature_fixture,
+) -> None:
     config = load_config(staged_feature_fixture.config_path)
 
-    with duckdb.connect(str(staged_feature_fixture.database_path)) as connection, pytest.raises(
-        DataContractError
-    ) as error:
+    with (
+        duckdb.connect(str(staged_feature_fixture.database_path)) as connection,
+        pytest.raises(DataContractError) as error,
+    ):
         validate_data_contracts(connection, config)
 
     message = str(error.value)
     assert "Missing required DuckDB tables" in message
     assert "mart_credit_risk_features" in message
-    assert not (staged_feature_fixture.scratch_path / "reports" / "data_inventory.csv").exists()
-    assert not (staged_feature_fixture.scratch_path / "reports" / "feature_inventory.csv").exists()
+    assert not (
+        staged_feature_fixture.scratch_path / "reports" / "data_inventory.csv"
+    ).exists()
+    assert not (
+        staged_feature_fixture.scratch_path / "reports" / "feature_inventory.csv"
+    ).exists()
 
 
 def test_data_contract_accepts_valid_mart_and_writes_inventory_reports(
@@ -35,7 +42,9 @@ def test_data_contract_accepts_valid_mart_and_writes_inventory_reports(
     run_feature_build(staged_feature_fixture.config_path)
     config = load_config(staged_feature_fixture.config_path)
 
-    with duckdb.connect(str(staged_feature_fixture.database_path), read_only=True) as connection:
+    with duckdb.connect(
+        str(staged_feature_fixture.database_path), read_only=True
+    ) as connection:
         validate_data_contracts(connection, config)
         model_features = get_model_feature_columns(connection, config)
         data_inventory = build_data_inventory(connection)
@@ -64,7 +73,11 @@ def test_data_contract_accepts_valid_mart_and_writes_inventory_reports(
         "CNT_FAM_MEMBERS",
     }.intersection(model_features)
 
-    mart_inventory = next(row for row in data_inventory if row["table_name"] == "mart_credit_risk_features")
+    mart_inventory = next(
+        row
+        for row in data_inventory
+        if row["table_name"] == "mart_credit_risk_features"
+    )
     assert mart_inventory["row_count"] == 3
     assert mart_inventory["distinct_applicant_count"] == 3
     assert mart_inventory["duplicate_grain_key_count"] == 0
@@ -133,7 +146,9 @@ def test_data_contract_detects_duplicate_mart_keys(staged_feature_fixture) -> No
     assert "Duplicate mart grain keys" in str(error.value)
 
 
-def test_data_contract_detects_target_population_violations(staged_feature_fixture) -> None:
+def test_data_contract_detects_target_population_violations(
+    staged_feature_fixture,
+) -> None:
     run_feature_build(staged_feature_fixture.config_path)
     config = load_config(staged_feature_fixture.config_path)
 
@@ -169,4 +184,6 @@ def test_data_contract_detects_applicant_row_reconciliation_errors(
         with pytest.raises(DataContractError) as error:
             validate_data_contracts(connection, config)
 
-    assert "application_test staging rows do not reconcile to mart rows" in str(error.value)
+    assert "application_test staging rows do not reconcile to mart rows" in str(
+        error.value
+    )

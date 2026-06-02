@@ -105,7 +105,9 @@ def load_labeled_split_frame(
     if require_both_target_classes:
         targets = target_class_values(frame["TARGET"])
         if targets != {0, 1}:
-            raise error_cls(f"{split_name} split must contain binary TARGET classes, got {sorted(targets)}")
+            raise error_cls(
+                f"{split_name} split must contain binary TARGET classes, got {sorted(targets)}"
+            )
     return frame.reset_index(drop=True)
 
 
@@ -125,7 +127,9 @@ def load_application_test_frame(
         """
     ).fetch_df()
     if frame.empty:
-        raise error_cls("No application_test rows are available for kaggle_test scoring")
+        raise error_cls(
+            "No application_test rows are available for kaggle_test scoring"
+        )
     if frame["TARGET"].notna().any():
         raise error_cls("kaggle_test rows must have NULL TARGET values")
     return frame.reset_index(drop=True)
@@ -142,16 +146,24 @@ def load_labeled_segment_split_frame(
     mart_columns = set(table_columns(connection, "mart_credit_risk_features"))
     diagnostic_columns = set(table_columns(connection, "segment_diagnostics"))
     missing_feature_columns = sorted(set(feature_columns).difference(mart_columns))
-    missing_segment_columns = sorted(set(segment_columns).difference(diagnostic_columns))
+    missing_segment_columns = sorted(
+        set(segment_columns).difference(diagnostic_columns)
+    )
     if missing_feature_columns:
         raise error_cls(
             f"mart_credit_risk_features is missing selected model feature columns: {missing_feature_columns}"
         )
     if missing_segment_columns:
-        raise error_cls(f"segment_diagnostics is missing segment columns: {missing_segment_columns}")
+        raise error_cls(
+            f"segment_diagnostics is missing segment columns: {missing_segment_columns}"
+        )
 
-    feature_select = ", ".join(f"m.{sql_identifier(column)}" for column in feature_columns)
-    segment_select = ", ".join(f"d.{sql_identifier(column)}" for column in segment_columns)
+    feature_select = ", ".join(
+        f"m.{sql_identifier(column)}" for column in feature_columns
+    )
+    segment_select = ", ".join(
+        f"d.{sql_identifier(column)}" for column in segment_columns
+    )
     frame = _fetch_with_split_ids(
         connection,
         applicant_ids,
@@ -179,7 +191,9 @@ def load_labeled_segment_split_frame(
     )
     target_values = target_class_values(frame["TARGET"], dropna=True)
     if target_values != {0, 1}:
-        raise error_cls(f"{split_name} dashboard segment rows must contain both target classes")
+        raise error_cls(
+            f"{split_name} dashboard segment rows must contain both target classes"
+        )
     return frame.reset_index(drop=True)
 
 
@@ -204,7 +218,9 @@ def _require_applicant_id_reconciliation(
 ) -> None:
     if len(frame) == len(applicant_ids):
         return
-    found_ids = set(frame["SK_ID_CURR"].astype(int).tolist()) if not frame.empty else set()
+    found_ids = (
+        set(frame["SK_ID_CURR"].astype(int).tolist()) if not frame.empty else set()
+    )
     missing_ids = sorted(set(applicant_ids).difference(found_ids))
     raise error_cls(message_template.format(missing_ids=missing_ids[:10]))
 
@@ -232,10 +248,14 @@ def require_tables(
         raise error_cls(f"Missing required DuckDB tables: {', '.join(missing_tables)}")
 
 
-def table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -> dict[str, str]:
+def table_columns(
+    connection: duckdb.DuckDBPyConnection, table_name: str
+) -> dict[str, str]:
     return {
         row[1]: row[2]
-        for row in connection.execute(f"PRAGMA table_info({sql_literal(table_name)})").fetchall()
+        for row in connection.execute(
+            f"PRAGMA table_info({sql_literal(table_name)})"
+        ).fetchall()
     }
 
 

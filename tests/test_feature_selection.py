@@ -14,7 +14,9 @@ from tests.helpers import (
     write_feature_importance,
 )
 
-pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:X does not have valid feature names.*:UserWarning"
+)
 
 
 def test_ranked_raw_features_maps_readable_shap_labels_to_model_columns() -> None:
@@ -28,7 +30,10 @@ def test_ranked_raw_features_maps_readable_shap_labels_to_model_columns() -> Non
         {"feature_name": "Name education type: Higher education", "rank": "1"},
         {"feature_name": "Ext source mean", "rank": "2"},
         {"feature_name": "Credit card avg credit utilization", "rank": "3"},
-        {"feature_name": "Name education type: Secondary / secondary special", "rank": "4"},
+        {
+            "feature_name": "Name education type: Secondary / secondary special",
+            "rank": "4",
+        },
         {"feature_name": "Amt credit", "rank": "5"},
     ]
 
@@ -65,7 +70,9 @@ def test_feature_selection_experiment_writes_comparison_and_report(
     )
     assert (report_dir / "experiments" / "005_feature_selection.md").exists()
     assert (report_dir / "experiments" / "005_selected_features.csv").exists()
-    report_text = (report_dir / "experiments" / "005_feature_selection.md").read_text(encoding="utf-8")
+    report_text = (report_dir / "experiments" / "005_feature_selection.md").read_text(
+        encoding="utf-8"
+    )
     assert "## Interpretation" in report_text
     assert "validation-only rule" in report_text
     assert "not the optimization target" in report_text
@@ -74,7 +81,11 @@ def test_feature_selection_experiment_writes_comparison_and_report(
     assert {int(row["feature_count"]) for row in rows}.issuperset({3, 5})
     assert sum(row["selected"] == "True" for row in rows) == 1
     for row in rows:
-        assert row["selected_calibration_method"] in {"uncalibrated", "sigmoid", "isotonic"}
+        assert row["selected_calibration_method"] in {
+            "uncalibrated",
+            "sigmoid",
+            "isotonic",
+        }
         assert float(row["validation_pr_auc"]) >= 0
         assert float(row["validation_brier_score"]) >= 0
         assert float(row["test_brier_score"]) >= 0
@@ -103,9 +114,16 @@ def test_feature_selection_experiment_can_write_named_outputs(
         report_name="013_feature_cleanup.md",
     )
 
-    assert result["comparison_path"] == report_dir / "013_feature_cleanup_comparison.csv"
-    assert result["selected_features_path"] == report_dir / "experiments" / "013_selected_features.csv"
-    assert result["report_path"] == report_dir / "experiments" / "013_feature_cleanup.md"
+    assert (
+        result["comparison_path"] == report_dir / "013_feature_cleanup_comparison.csv"
+    )
+    assert (
+        result["selected_features_path"]
+        == report_dir / "experiments" / "013_selected_features.csv"
+    )
+    assert (
+        result["report_path"] == report_dir / "experiments" / "013_feature_cleanup.md"
+    )
     assert result["comparison_path"].exists()
     assert result["selected_features_path"].exists()
     assert result["report_path"].exists()

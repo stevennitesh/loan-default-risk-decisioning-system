@@ -523,7 +523,7 @@ Minimum configuration shape:
 project:
   name: loan-default-decisioning
   random_seed: 42
-  data_scope_version: v1
+  data_scope_version: post_v1_011_last_k_temporal
 
 paths:
   raw_dir: data/raw
@@ -531,12 +531,15 @@ paths:
   duckdb_path: data/db/credit_risk.duckdb
   model_dir: models
   report_dir: reports
-  dashboard_export_dir: reports/dashboard_exports
+  dashboard_export_dir: reports/dashboard_data
 
 source_files:
   application_train: application_train.csv
   application_test: application_test.csv
   bureau: bureau.csv
+  bureau_balance: bureau_balance.csv
+  pos_cash_balance: POS_CASH_balance.csv
+  credit_card_balance: credit_card_balance.csv
   previous_application: previous_application.csv
   installments_payments: installments_payments.csv
 
@@ -551,10 +554,15 @@ model:
   baseline_model: logistic_regression
   use_class_weighting: true
   calibrate_probabilities: false
+  lightgbm_tuning:
+    enabled: true
+    max_candidates: 8
 
 excluded_features:
   identifiers:
     - SK_ID_CURR
+    - SK_ID_PREV
+    - SK_ID_BUREAU
   target:
     - TARGET
   sensitive_or_protected_status_like:
@@ -564,6 +572,8 @@ excluded_features:
     - applicant_age_years
     - applicant_age_band
     - employment_to_age_ratio
+    - CNT_CHILDREN
+    - CNT_FAM_MEMBERS
 
 business_assumptions:
   expected_margin_per_good_loan: 1000

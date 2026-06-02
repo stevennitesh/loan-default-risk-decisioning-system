@@ -80,11 +80,15 @@ def run_explain(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
         artifact = _load_lightgbm_artifact(model_dir)
         model_version = str(artifact["model_version"])
         feature_columns = list(artifact["feature_columns"])
-        scored_frame = _load_scored_feature_frame(connection, model_version, feature_columns)
+        scored_frame = _load_scored_feature_frame(
+            connection, model_version, feature_columns
+        )
         # SHAP runs on the fitted transformed feature space, then maps labels back to raw features.
-        transformed_features, transformed_feature_names, classifier = _transform_features(
-            artifact,
-            scored_frame[feature_columns],
+        transformed_features, transformed_feature_names, classifier = (
+            _transform_features(
+                artifact,
+                scored_frame[feature_columns],
+            )
         )
         feature_labels = _readable_transformed_feature_labels(
             transformed_feature_names,
@@ -92,8 +96,12 @@ def run_explain(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
             list(artifact.get("categorical_feature_columns", [])),
             excluded_terms,
         )
-        shap_values = _compute_shap_values(classifier, transformed_features, len(feature_labels))
-        importance_rows = _build_feature_importance_rows(model_version, feature_labels, shap_values)
+        shap_values = _compute_shap_values(
+            classifier, transformed_features, len(feature_labels)
+        )
+        importance_rows = _build_feature_importance_rows(
+            model_version, feature_labels, shap_values
+        )
         _validate_explanation_texts(
             [row["feature_name"] for row in importance_rows],
             excluded_terms,
@@ -104,7 +112,11 @@ def run_explain(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
             [
                 reason
                 for row in reason_rows
-                for reason in (row["top_reason_1"], row["top_reason_2"], row["top_reason_3"])
+                for reason in (
+                    row["top_reason_1"],
+                    row["top_reason_2"],
+                    row["top_reason_3"],
+                )
                 if reason is not None
             ],
             excluded_terms,
@@ -154,7 +166,9 @@ def _load_lightgbm_artifact(model_dir: Path) -> dict[str, Any]:
     }
     missing_keys = sorted(required_keys.difference(artifact))
     if missing_keys:
-        raise ExplainabilityError(f"LightGBM model artifact is missing required keys: {missing_keys}")
+        raise ExplainabilityError(
+            f"LightGBM model artifact is missing required keys: {missing_keys}"
+        )
     return artifact
 
 
@@ -164,7 +178,9 @@ def _load_scored_feature_frame(
     feature_columns: list[str],
 ) -> pd.DataFrame:
     require_table(connection, "credit_risk_scores", error_cls=ExplainabilityError)
-    require_table(connection, "mart_credit_risk_features", error_cls=ExplainabilityError)
+    require_table(
+        connection, "mart_credit_risk_features", error_cls=ExplainabilityError
+    )
     require_table_columns(
         connection,
         "mart_credit_risk_features",
@@ -179,9 +195,13 @@ def _load_scored_feature_frame(
         [model_version],
     )
     if scored_row_count == 0:
-        raise ExplainabilityError(f"credit_risk_scores has no rows for model_version={model_version}")
+        raise ExplainabilityError(
+            f"credit_risk_scores has no rows for model_version={model_version}"
+        )
 
-    feature_select = ", ".join(f"m.{sql_identifier(column)}" for column in feature_columns)
+    feature_select = ", ".join(
+        f"m.{sql_identifier(column)}" for column in feature_columns
+    )
     frame = connection.execute(
         f"""
         SELECT
@@ -222,7 +242,9 @@ def _transform_features(
     preprocessor = pipeline.named_steps.get("preprocessor")
     classifier = pipeline.named_steps.get("classifier")
     if preprocessor is None or classifier is None:
-        raise ExplainabilityError("LightGBM artifact pipeline must contain preprocessor and classifier steps")
+        raise ExplainabilityError(
+            "LightGBM artifact pipeline must contain preprocessor and classifier steps"
+        )
     if not hasattr(classifier, "booster_"):
         raise ExplainabilityError("LightGBM classifier is not fitted with a booster_")
 
@@ -231,9 +253,13 @@ def _transform_features(
     try:
         transformed_feature_names = list(preprocessor.get_feature_names_out())
     except AttributeError as error:
-        raise ExplainabilityError("LightGBM preprocessor must expose transformed feature names") from error
+        raise ExplainabilityError(
+            "LightGBM preprocessor must expose transformed feature names"
+        ) from error
     if not transformed_feature_names:
-        raise ExplainabilityError("LightGBM preprocessor produced no transformed feature names")
+        raise ExplainabilityError(
+            "LightGBM preprocessor produced no transformed feature names"
+        )
     return transformed, transformed_feature_names, classifier
 
 
@@ -287,7 +313,9 @@ def _readable_transformed_feature_labels(
             categorical_feature_columns,
         )
         if _contains_excluded_term(raw_feature, excluded_terms):
-            raise ExplainabilityError(f"Excluded field appeared in SHAP feature output: {raw_feature}")
+            raise ExplainabilityError(
+                f"Excluded field appeared in SHAP feature output: {raw_feature}"
+            )
         labels.append(readable_feature_label(raw_feature, category_value))
     _validate_explanation_texts(labels, excluded_terms, "SHAP feature labels")
     return labels
@@ -298,7 +326,11 @@ def _raw_feature_for_transformed_name(
     feature_columns: list[str],
     categorical_feature_columns: list[str],
 ) -> tuple[str, str | None]:
-    name_without_transformer = transformed_name.split("__", 1)[1] if "__" in transformed_name else transformed_name
+    name_without_transformer = (
+        transformed_name.split("__", 1)[1]
+        if "__" in transformed_name
+        else transformed_name
+    )
     for category_feature in sorted(categorical_feature_columns, key=len, reverse=True):
         if name_without_transformer == category_feature:
             return category_feature, None
@@ -318,10 +350,12 @@ def _build_feature_importance_rows(
 ) -> list[dict[str, Any]]:
     mean_abs_values = np.abs(shap_values).mean(axis=0)
     importance_by_label: dict[str, float] = {}
-    for feature_label, importance_value in zip(feature_labels, mean_abs_values, strict=True):
-        importance_by_label[feature_label] = importance_by_label.get(feature_label, 0.0) + float(
-            importance_value
-        )
+    for feature_label, importance_value in zip(
+        feature_labels, mean_abs_values, strict=True
+    ):
+        importance_by_label[feature_label] = importance_by_label.get(
+            feature_label, 0.0
+        ) + float(importance_value)
 
     sorted_importance = sorted(
         (
@@ -341,7 +375,9 @@ def _build_feature_importance_rows(
             "importance_value": importance_value,
             "rank": rank,
         }
-        for rank, (feature_name, importance_value) in enumerate(sorted_importance, start=1)
+        for rank, (feature_name, importance_value) in enumerate(
+            sorted_importance, start=1
+        )
     ]
 
 
@@ -391,11 +427,20 @@ def _update_credit_risk_score_reasons(
     score_frame = connection.execute("SELECT * FROM credit_risk_scores").fetch_df()
     if score_frame.empty:
         raise ExplainabilityError("credit_risk_scores must not be empty")
-    missing_columns = sorted(set(CREDIT_RISK_SCORE_COLUMNS).difference(score_frame.columns))
+    missing_columns = sorted(
+        set(CREDIT_RISK_SCORE_COLUMNS).difference(score_frame.columns)
+    )
     if missing_columns:
-        raise ExplainabilityError(f"credit_risk_scores is missing required columns: {missing_columns}")
+        raise ExplainabilityError(
+            f"credit_risk_scores is missing required columns: {missing_columns}"
+        )
 
-    key_columns = ["applicant_id", "scoring_population", "model_version", "threshold_version"]
+    key_columns = [
+        "applicant_id",
+        "scoring_population",
+        "model_version",
+        "threshold_version",
+    ]
     score_frame = score_frame[CREDIT_RISK_SCORE_COLUMNS].copy()
     for column in REASON_COLUMNS:
         score_frame[column] = score_frame[column].astype("object")
@@ -403,7 +448,9 @@ def _update_credit_risk_score_reasons(
     reason_frame = pd.DataFrame(reason_rows).set_index(key_columns)
     missing_reason_keys = reason_frame.index.difference(score_indexed.index)
     if len(missing_reason_keys):
-        raise ExplainabilityError("Reason rows contain keys missing from credit_risk_scores")
+        raise ExplainabilityError(
+            "Reason rows contain keys missing from credit_risk_scores"
+        )
     for column in REASON_COLUMNS:
         score_indexed.loc[reason_frame.index, column] = reason_frame[column]
     updated_frame = score_indexed.reset_index()[CREDIT_RISK_SCORE_COLUMNS]
@@ -420,10 +467,14 @@ def _write_shap_summary(
     sample_indexes = _summary_sample_indexes(shap_values.shape[0], random_seed)
     sampled_shap_values = shap_values[sample_indexes]
     sampled_features = _to_dense(transformed_features[sample_indexes])
-    if _write_shap_package_summary(path, sampled_features, sampled_shap_values, feature_labels):
+    if _write_shap_package_summary(
+        path, sampled_features, sampled_shap_values, feature_labels
+    ):
         return
 
-    feature_order = np.argsort(-np.abs(sampled_shap_values).mean(axis=0))[: min(20, len(feature_labels))]
+    feature_order = np.argsort(-np.abs(sampled_shap_values).mean(axis=0))[
+        : min(20, len(feature_labels))
+    ]
 
     figure, axis = plt.subplots(figsize=(9, max(5, len(feature_order) * 0.35)))
     rng = np.random.default_rng(random_seed)
@@ -488,11 +539,15 @@ def _save_shap_figure(path: Path, figure: Any) -> None:
 
 def _summary_sample_indexes(row_count: int, random_seed: int) -> np.ndarray:
     if row_count <= 0:
-        raise ExplainabilityError("Cannot sample SHAP summary rows from an empty explanation set")
+        raise ExplainabilityError(
+            "Cannot sample SHAP summary rows from an empty explanation set"
+        )
     if row_count <= MAX_SHAP_SUMMARY_ROWS:
         return np.arange(row_count)
     random_generator = np.random.default_rng(random_seed)
-    return np.sort(random_generator.choice(row_count, size=MAX_SHAP_SUMMARY_ROWS, replace=False))
+    return np.sort(
+        random_generator.choice(row_count, size=MAX_SHAP_SUMMARY_ROWS, replace=False)
+    )
 
 
 def _to_dense(matrix: Any) -> np.ndarray:
@@ -501,15 +556,21 @@ def _to_dense(matrix: Any) -> np.ndarray:
     return np.asarray(matrix)
 
 
-def _validate_explanation_texts(texts: list[str], excluded_terms: set[str], output_name: str) -> None:
+def _validate_explanation_texts(
+    texts: list[str], excluded_terms: set[str], output_name: str
+) -> None:
     for text in texts:
         if _contains_excluded_term(text, excluded_terms):
-            raise ExplainabilityError(f"Excluded field appeared in {output_name}: {text}")
+            raise ExplainabilityError(
+                f"Excluded field appeared in {output_name}: {text}"
+            )
 
 
 def _contains_excluded_term(text: str, excluded_terms: set[str]) -> bool:
     normalized_text = _normalize_output_text(text)
-    return any(_normalize_output_text(term) in normalized_text for term in excluded_terms)
+    return any(
+        _normalize_output_text(term) in normalized_text for term in excluded_terms
+    )
 
 
 def _excluded_output_terms(config: dict[str, Any]) -> set[str]:
@@ -524,7 +585,9 @@ def _normalize_output_text(text: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate SHAP feature importance and reason-code-style outputs.")
+    parser = argparse.ArgumentParser(
+        description="Generate SHAP feature importance and reason-code-style outputs."
+    )
     add_config_argument(parser)
     args = parser.parse_args()
 

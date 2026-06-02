@@ -75,7 +75,11 @@ def validate_config(config: dict[str, Any]) -> None:
     split_total = split["train_size"] + split["validation_size"] + split["test_size"]
     if round(split_total, 10) != 1.0:
         raise ConfigError("Split fractions must sum to 1.0")
-    if split["train_size"] <= 0 or split["validation_size"] <= 0 or split["test_size"] <= 0:
+    if (
+        split["train_size"] <= 0
+        or split["validation_size"] <= 0
+        or split["test_size"] <= 0
+    ):
         raise ConfigError("Split fractions must be positive")
 
     excluded_features = config["excluded_features"]

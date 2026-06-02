@@ -54,7 +54,9 @@ class CalibrationError(RuntimeError):
     """Raised when the post-v1 calibration experiment cannot run safely."""
 
 
-def run_calibration_experiment(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+def run_calibration_experiment(
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
+) -> dict[str, Any]:
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
@@ -113,7 +115,9 @@ def run_calibration_experiment(config_path: str | Path = DEFAULT_CONFIG_PATH) ->
             review_capacity_rate,
             created_at,
         )
-        selected_method = select_calibration_method(comparison_rows, error_cls=CalibrationError)
+        selected_method = select_calibration_method(
+            comparison_rows, error_cls=CalibrationError
+        )
 
         ensure_directories(report_dir, model_dir)
         write_csv(
@@ -126,7 +130,9 @@ def run_calibration_experiment(config_path: str | Path = DEFAULT_CONFIG_PATH) ->
             MODEL_CALIBRATION_BINS_COMPARISON_COLUMNS,
             bin_rows,
         )
-        replace_duckdb_table(connection, "model_calibration_comparison", comparison_rows)
+        replace_duckdb_table(
+            connection, "model_calibration_comparison", comparison_rows
+        )
         replace_duckdb_table(connection, "model_calibration_bins_comparison", bin_rows)
 
     calibration_artifact = {
@@ -210,10 +216,18 @@ def _build_comparison_outputs(
                     "max_predicted_probability": metrics["max_predicted_probability"],
                     "top_decile_lift": metrics["top_decile_lift"],
                     "precision_at_top_decile": metrics["precision_at_top_decile"],
-                    "recall_at_manual_review_capacity": metrics["recall_at_manual_review_capacity"],
-                    "mean_absolute_bin_error": split_bin_errors["mean_absolute_bin_error"],
-                    "weighted_calibration_error": split_bin_errors["weighted_calibration_error"],
-                    "max_absolute_bin_error": split_bin_errors["max_absolute_bin_error"],
+                    "recall_at_manual_review_capacity": metrics[
+                        "recall_at_manual_review_capacity"
+                    ],
+                    "mean_absolute_bin_error": split_bin_errors[
+                        "mean_absolute_bin_error"
+                    ],
+                    "weighted_calibration_error": split_bin_errors[
+                        "weighted_calibration_error"
+                    ],
+                    "max_absolute_bin_error": split_bin_errors[
+                        "max_absolute_bin_error"
+                    ],
                     "created_at": created_at,
                 }
             )
@@ -233,7 +247,9 @@ def _build_bin_rows(
             "calibration_method": method,
             "created_at": created_at,
         }
-        for row in build_calibration_bin_rows(model_version, prediction_frames, REPORTING_SPLITS)
+        for row in build_calibration_bin_rows(
+            model_version, prediction_frames, REPORTING_SPLITS
+        )
     ]
 
 
@@ -248,15 +264,22 @@ def _bin_error_summary(bin_rows: list[dict[str, Any]]) -> dict[str, dict[str, fl
         total_count = sum(int(row["applicant_count"]) for row in split_rows)
         absolute_errors = [abs(float(row["calibration_error"])) for row in split_rows]
         weighted_error = (
-            sum(abs(float(row["calibration_error"])) * int(row["applicant_count"]) for row in split_rows)
+            sum(
+                abs(float(row["calibration_error"])) * int(row["applicant_count"])
+                for row in split_rows
+            )
             / total_count
             if total_count
             else 0.0
         )
         summaries[split_name] = {
-            "mean_absolute_bin_error": float(np.mean(absolute_errors)) if absolute_errors else 0.0,
+            "mean_absolute_bin_error": float(np.mean(absolute_errors))
+            if absolute_errors
+            else 0.0,
             "weighted_calibration_error": float(weighted_error),
-            "max_absolute_bin_error": float(np.max(absolute_errors)) if absolute_errors else 0.0,
+            "max_absolute_bin_error": float(np.max(absolute_errors))
+            if absolute_errors
+            else 0.0,
         }
     return summaries
 

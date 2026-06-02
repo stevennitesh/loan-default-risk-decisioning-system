@@ -39,7 +39,9 @@ def resolve_scenario_thresholds(
     scenario_config = threshold_policy_config["scenarios"]
     scenario_names = set(scenario_config)
     if scenario_names != set(SCENARIO_NAMES):
-        raise ThresholdingError(f"Unexpected threshold scenarios: {sorted(scenario_names)}")
+        raise ThresholdingError(
+            f"Unexpected threshold scenarios: {sorted(scenario_names)}"
+        )
 
     thresholds = {}
     for scenario_name in SCENARIO_NAMES:
@@ -73,7 +75,7 @@ def assign_risk_bands(
     if scores.ndim != 1:
         raise ThresholdingError("Scores must be one-dimensional")
     if not np.isfinite(scores).all():
-        raise ThresholdingError("Scores must contain only finite, non-finite values are not allowed")
+        raise ThresholdingError("Scores must not contain non-finite values")
     if ((scores < 0) | (scores > 1)).any():
         raise ThresholdingError("Scores must be in [0, 1]")
 
@@ -164,7 +166,8 @@ def build_threshold_metric_rows(
                     "default_rate_approved": approved_bad_count / approved_count
                     if approved_count
                     else None,
-                    "high_risk_default_capture_rate": high_risk_default_count / total_defaults
+                    "high_risk_default_capture_rate": high_risk_default_count
+                    / total_defaults
                     if total_defaults
                     else None,
                     "expected_value": expected_value,
@@ -189,7 +192,9 @@ def build_confusion_matrix_rows(
                 frame["probability"].to_numpy(),
                 scenario_thresholds[scenario_name],
             )
-            predicted_labels = pd.Series(bands == "high_risk", index=frame.index).astype(int)
+            predicted_labels = pd.Series(
+                bands == "high_risk", index=frame.index
+            ).astype(int)
             rows.extend(
                 {
                     "model_version": model_version,
@@ -197,7 +202,9 @@ def build_confusion_matrix_rows(
                     "scenario_name": scenario_name,
                     "true_label": true_label,
                     "predicted_label": predicted_label,
-                    "count": _confusion_count(frame, predicted_labels, true_label, predicted_label),
+                    "count": _confusion_count(
+                        frame, predicted_labels, true_label, predicted_label
+                    ),
                 }
                 for true_label in [0, 1]
                 for predicted_label in [0, 1]
@@ -211,7 +218,9 @@ def _confusion_count(
     true_label: int,
     predicted_label: int,
 ) -> int:
-    return int(((frame["target"] == true_label) & (predicted_labels == predicted_label)).sum())
+    return int(
+        ((frame["target"] == true_label) & (predicted_labels == predicted_label)).sum()
+    )
 
 
 def _derive_threshold_pair(

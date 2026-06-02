@@ -84,14 +84,18 @@ def run_scoring(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
             error_cls=ScoringError,
             label="Selected model artifact split_applicant_ids",
         )
-        threshold_policy = _load_balanced_threshold_policy(connection, str(artifact["model_version"]))
+        threshold_policy = _load_balanced_threshold_policy(
+            connection, str(artifact["model_version"])
+        )
 
         holdout_frame = _load_holdout_test_frame(
             connection,
             split_applicant_ids["test"],
             feature_columns,
         )
-        kaggle_frame = load_application_test_frame(connection, feature_columns, error_cls=ScoringError)
+        kaggle_frame = load_application_test_frame(
+            connection, feature_columns, error_cls=ScoringError
+        )
         score_rows = [
             *_score_population(
                 artifact,
@@ -113,11 +117,15 @@ def run_scoring(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
             ),
         ]
         _validate_output_rows(score_rows)
-        replace_duckdb_table(connection, "credit_risk_scores", score_rows, CREDIT_RISK_SCORE_COLUMNS)
+        replace_duckdb_table(
+            connection, "credit_risk_scores", score_rows, CREDIT_RISK_SCORE_COLUMNS
+        )
 
     return {
         "row_count": len(score_rows),
-        "scoring_populations": sorted({row["scoring_population"] for row in score_rows}),
+        "scoring_populations": sorted(
+            {row["scoring_population"] for row in score_rows}
+        ),
         "model_version": artifact["model_version"],
         "threshold_version": threshold_policy["threshold_version"],
         "calibration_method": calibration_artifact["selected_method"],
@@ -189,7 +197,11 @@ def _score_population(
         error_cls=ScoringError,
         label="score calibration",
     )
-    validate_probabilities(calibrated_probabilities, f"{scoring_population} calibrated", error_cls=ScoringError)
+    validate_probabilities(
+        calibrated_probabilities,
+        f"{scoring_population} calibrated",
+        error_cls=ScoringError,
+    )
     risk_actions = assign_risk_bands(raw_probabilities, threshold_policy)
     ranked_frame = pd.DataFrame(
         {
@@ -201,7 +213,9 @@ def _score_population(
             "risk_action": risk_actions,
         }
     )
-    ranked_frame = with_probability_rank_bin(ranked_frame, "score_decile", descending=True)
+    ranked_frame = with_probability_rank_bin(
+        ranked_frame, "score_decile", descending=True
+    )
 
     rows = []
     for record in ranked_frame.to_dict("records"):
@@ -238,20 +252,31 @@ def _validate_output_rows(rows: list[dict[str, Any]]) -> None:
     frame = pd.DataFrame(rows, columns=CREDIT_RISK_SCORE_COLUMNS)
     duplicate_count = int(
         frame.duplicated(
-            subset=["applicant_id", "scoring_population", "model_version", "threshold_version"]
+            subset=[
+                "applicant_id",
+                "scoring_population",
+                "model_version",
+                "threshold_version",
+            ]
         ).sum()
     )
     if duplicate_count:
-        raise ScoringError(f"Duplicate credit_risk_scores output keys: {duplicate_count}")
+        raise ScoringError(
+            f"Duplicate credit_risk_scores output keys: {duplicate_count}"
+        )
     if frame["risk_band"].isna().any() or frame["recommended_action"].isna().any():
-        raise ScoringError("Every scored row must have risk_band and recommended_action")
+        raise ScoringError(
+            "Every scored row must have risk_band and recommended_action"
+        )
     score_columns = ["score", "raw_risk_score", "calibrated_risk_score"]
     if frame[score_columns].isna().any().any():
         raise ScoringError("Every scored row must have raw and calibrated score values")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Score applicants in batch and write DuckDB score outputs.")
+    parser = argparse.ArgumentParser(
+        description="Score applicants in batch and write DuckDB score outputs."
+    )
     add_config_argument(parser)
     args = parser.parse_args()
 

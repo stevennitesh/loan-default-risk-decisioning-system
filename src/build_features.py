@@ -83,7 +83,9 @@ class FeatureBuildError(RuntimeError):
     """Raised when feature building cannot satisfy the Milestone 2 contract."""
 
 
-def run_feature_build(config_path: str | Path = DEFAULT_CONFIG_PATH) -> list[dict[str, Any]]:
+def run_feature_build(
+    config_path: str | Path = DEFAULT_CONFIG_PATH,
+) -> list[dict[str, Any]]:
     config = load_config(config_path)
     duckdb_path = resolve_config_path(config, "duckdb_path")
     report_dir = resolve_config_path(config, "report_dir")
@@ -97,7 +99,11 @@ def run_feature_build(config_path: str | Path = DEFAULT_CONFIG_PATH) -> list[dic
             connection.execute(sql_path.read_text(encoding="utf-8"))
 
         profile_rows = _profile_feature_tables(connection, config)
-        write_csv(report_dir / "feature_mart_profile.csv", FEATURE_PROFILE_COLUMNS, profile_rows)
+        write_csv(
+            report_dir / "feature_mart_profile.csv",
+            FEATURE_PROFILE_COLUMNS,
+            profile_rows,
+        )
         validate_data_contracts(connection, config)
         write_contract_reports(
             report_dir,
@@ -109,7 +115,9 @@ def run_feature_build(config_path: str | Path = DEFAULT_CONFIG_PATH) -> list[dic
 
 
 def _feature_sql_files(config: dict[str, Any]) -> list[str]:
-    return POST_V1_FEATURE_SQL_FILES if is_post_v1_scope(config) else V1_FEATURE_SQL_FILES
+    return (
+        POST_V1_FEATURE_SQL_FILES if is_post_v1_scope(config) else V1_FEATURE_SQL_FILES
+    )
 
 
 def _profile_tables(config: dict[str, Any]) -> list[str]:
@@ -120,11 +128,17 @@ def _required_staging_tables(config: dict[str, Any]) -> list[str]:
     return [STAGING_TABLES[source_name] for source_name in config["source_files"]]
 
 
-def _ensure_staging_tables(connection: duckdb.DuckDBPyConnection, config: dict[str, Any]) -> None:
+def _ensure_staging_tables(
+    connection: duckdb.DuckDBPyConnection, config: dict[str, Any]
+) -> None:
     available_tables = existing_tables(connection)
-    missing_tables = sorted(set(_required_staging_tables(config)).difference(available_tables))
+    missing_tables = sorted(
+        set(_required_staging_tables(config)).difference(available_tables)
+    )
     if missing_tables:
-        raise FeatureBuildError(f"Missing required staging tables: {', '.join(missing_tables)}")
+        raise FeatureBuildError(
+            f"Missing required staging tables: {', '.join(missing_tables)}"
+        )
 
 
 def _profile_feature_tables(
@@ -138,12 +152,16 @@ def _profile_feature_tables(
 
     missing_feature_tables = sorted(set(profile_tables).difference(available_tables))
     if missing_feature_tables:
-        raise FeatureBuildError(f"Missing feature output tables: {', '.join(missing_feature_tables)}")
+        raise FeatureBuildError(
+            f"Missing feature output tables: {', '.join(missing_feature_tables)}"
+        )
 
     for table_name in profile_tables:
         columns = list(table_columns(connection, table_name))
         if "SK_ID_CURR" not in columns:
-            raise FeatureBuildError(f"Feature table is missing SK_ID_CURR: {table_name}")
+            raise FeatureBuildError(
+                f"Feature table is missing SK_ID_CURR: {table_name}"
+            )
 
         rows.append(
             {
@@ -178,7 +196,9 @@ def _profile_key_columns(columns: list[str]) -> tuple[str, ...]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build SQL feature tables and the final feature mart.")
+    parser = argparse.ArgumentParser(
+        description="Build SQL feature tables and the final feature mart."
+    )
     add_config_argument(parser)
     args = parser.parse_args()
 

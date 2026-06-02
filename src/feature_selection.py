@@ -110,7 +110,9 @@ def run_feature_selection_experiment(
     write_csv(
         selected_features_path,
         SELECTED_FEATURE_COLUMNS,
-        _selected_feature_rows(selected_feature_set, features_by_set[selected_feature_set]),
+        _selected_feature_rows(
+            selected_feature_set, features_by_set[selected_feature_set]
+        ),
     )
     _write_report(report_path, rows, selected_feature_set, selected_features_name)
 
@@ -123,7 +125,9 @@ def run_feature_selection_experiment(
     }
 
 
-def _selected_feature_rows(feature_set_name: str, feature_columns: list[str]) -> list[dict[str, Any]]:
+def _selected_feature_rows(
+    feature_set_name: str, feature_columns: list[str]
+) -> list[dict[str, Any]]:
     return [
         {
             "feature_set": feature_set_name,
@@ -145,10 +149,14 @@ def _write_report(
         "{validation_pr_auc:.6f} | {validation_brier_score:.6f} | "
         "{validation_top_decile_lift:.6f} | {validation_balanced_ev_per_applicant:.2f} | "
         "{test_pr_auc:.6f} | {test_brier_score:.6f} | "
-        "{test_top_decile_lift:.6f} | {test_balanced_ev_per_applicant:.2f} | {selected} |".format(**row)
+        "{test_top_decile_lift:.6f} | {test_balanced_ev_per_applicant:.2f} | {selected} |".format(
+            **row
+        )
         for row in rows
     )
-    selected_row = next(row for row in rows if row["feature_set"] == selected_feature_set)
+    selected_row = next(
+        row for row in rows if row["feature_set"] == selected_feature_set
+    )
     interpretation_text = _interpretation_text(rows, selected_row)
     text = f"""# Experiment 005: Feature Selection
 
@@ -168,7 +176,7 @@ Feature subsets are selected from `reports/model_feature_importance.csv`, mappin
 
 ## Selected Setup
 
-Selected feature set: `{selected_feature_set}` with {selected_row['feature_count']} features and `{selected_row['selected_calibration_method']}` calibration.
+Selected feature set: `{selected_feature_set}` with {selected_row["feature_count"]} features and `{selected_row["selected_calibration_method"]}` calibration.
 
 Selected raw feature columns are written to `reports/experiments/{selected_features_name}`.
 
@@ -183,7 +191,9 @@ This experiment changes the model feature surface only. It does not add new sour
     path.write_text(text, encoding="utf-8")
 
 
-def _interpretation_text(rows: list[dict[str, Any]], selected_row: dict[str, Any]) -> str:
+def _interpretation_text(
+    rows: list[dict[str, Any]], selected_row: dict[str, Any]
+) -> str:
     selected_name = str(selected_row["feature_set"])
     full_row = next((row for row in rows if row["feature_set"] == "full"), None)
     first_paragraph = (
@@ -194,7 +204,9 @@ def _interpretation_text(rows: list[dict[str, Any]], selected_row: dict[str, Any
     if full_row is None or selected_name == "full":
         return first_paragraph
 
-    removed_features = int(full_row["feature_count"]) - int(selected_row["feature_count"])
+    removed_features = int(full_row["feature_count"]) - int(
+        selected_row["feature_count"]
+    )
     full_test_pr_auc = float(full_row["test_pr_auc"])
     selected_test_pr_auc = float(selected_row["test_pr_auc"])
     full_test_ev = float(full_row["test_balanced_ev_per_applicant"])
@@ -234,7 +246,9 @@ def main() -> None:
         default=format_int_csv(DEFAULT_FEATURE_LIMITS),
         help="Comma-separated top-N feature limits to compare.",
     )
-    parser.add_argument("--skip-full", action="store_true", help="Do not include the full feature set.")
+    parser.add_argument(
+        "--skip-full", action="store_true", help="Do not include the full feature set."
+    )
     parser.add_argument(
         "--comparison-name",
         default="feature_selection_comparison.csv",

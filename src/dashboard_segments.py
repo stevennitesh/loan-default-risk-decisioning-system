@@ -59,14 +59,20 @@ def build_segment_performance_rows(
             error_cls=error_cls,
             label="dashboard calibration",
         )
-        validate_probabilities(probabilities, f"{split_name} calibrated", error_cls=error_cls)
+        validate_probabilities(
+            probabilities, f"{split_name} calibrated", error_cls=error_cls
+        )
         split_frame = split_frame.copy()
         split_frame["probability"] = probabilities.astype(float)
 
         for segment_name in SEGMENT_DIMENSIONS:
-            for segment_value, segment_frame in split_frame.groupby(segment_name, dropna=False, sort=True):
+            for segment_value, segment_frame in split_frame.groupby(
+                segment_name, dropna=False, sort=True
+            ):
                 segment_targets = segment_frame["TARGET"].astype(int)
-                segment_probabilities = segment_frame["probability"].to_numpy(dtype=float)
+                segment_probabilities = segment_frame["probability"].to_numpy(
+                    dtype=float
+                )
                 rows.append(
                     {
                         "model_version": dashboard_model_version,
@@ -76,9 +82,15 @@ def build_segment_performance_rows(
                         "applicant_count": len(segment_frame),
                         "observed_default_rate": float(segment_targets.mean()),
                         "average_score": float(segment_probabilities.mean()),
-                        "roc_auc": roc_auc_or_none(segment_targets, segment_probabilities),
-                        "pr_auc": pr_auc_or_none(segment_targets, segment_probabilities),
-                        "brier_score": float(brier_score_loss(segment_targets, segment_probabilities)),
+                        "roc_auc": roc_auc_or_none(
+                            segment_targets, segment_probabilities
+                        ),
+                        "pr_auc": pr_auc_or_none(
+                            segment_targets, segment_probabilities
+                        ),
+                        "brier_score": float(
+                            brier_score_loss(segment_targets, segment_probabilities)
+                        ),
                     }
                 )
 

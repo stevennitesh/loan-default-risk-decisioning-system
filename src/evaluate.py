@@ -110,7 +110,9 @@ def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, A
             error_cls=EvaluationError,
         )
         prediction_frames = {
-            model_type: _build_prediction_frames(artifact, split_frames, feature_columns)
+            model_type: _build_prediction_frames(
+                artifact, split_frames, feature_columns
+            )
             for model_type, artifact in artifacts.items()
         }
         metric_rows = _build_metric_rows(prediction_frames, created_at, config)
@@ -140,7 +142,9 @@ def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, A
                 scenario_thresholds,
             )
         except ThresholdingError as error:
-            raise EvaluationError(f"Threshold policy validation failed: {error}") from error
+            raise EvaluationError(
+                f"Threshold policy validation failed: {error}"
+            ) from error
         lift_rows = _build_lift_rows(selected_model_version, selected_predictions)
         calibration_rows = build_calibration_bin_rows(
             selected_model_version,
@@ -151,8 +155,16 @@ def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, A
         figures_dir = report_dir / "figures"
         ensure_directories(report_dir, figures_dir)
 
-        write_csv(report_dir / "model_metrics_summary.csv", MODEL_METRICS_SUMMARY_COLUMNS, metric_rows)
-        write_csv(report_dir / "model_lift_by_decile.csv", MODEL_LIFT_BY_DECILE_COLUMNS, lift_rows)
+        write_csv(
+            report_dir / "model_metrics_summary.csv",
+            MODEL_METRICS_SUMMARY_COLUMNS,
+            metric_rows,
+        )
+        write_csv(
+            report_dir / "model_lift_by_decile.csv",
+            MODEL_LIFT_BY_DECILE_COLUMNS,
+            lift_rows,
+        )
         write_csv(
             report_dir / "model_calibration_bins.csv",
             MODEL_CALIBRATION_BINS_COLUMNS,
@@ -185,7 +197,13 @@ def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, A
             threshold_rows,
             business_assumptions(config),
         )
-        write_figures(figures_dir, selected_model_version, selected_predictions, lift_rows, calibration_rows)
+        write_figures(
+            figures_dir,
+            selected_model_version,
+            selected_predictions,
+            lift_rows,
+            calibration_rows,
+        )
 
         replace_duckdb_table(connection, "model_metrics_summary", metric_rows)
         replace_duckdb_table(connection, "model_lift_by_decile", lift_rows)
@@ -282,7 +300,9 @@ def _build_lift_rows(
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for split_name in REPORTING_SPLITS:
-        frame = with_probability_rank_bin(prediction_frames[split_name], "decile", descending=True)
+        frame = with_probability_rank_bin(
+            prediction_frames[split_name], "decile", descending=True
+        )
         total_defaults = int(frame["target"].sum())
         portfolio_default_rate = float(frame["target"].mean())
         cumulative_defaults = 0
@@ -305,7 +325,8 @@ def _build_lift_rows(
                     "lift": observed_default_rate / portfolio_default_rate
                     if observed_default_rate is not None and portfolio_default_rate
                     else None,
-                    "cumulative_default_capture_rate": cumulative_defaults / total_defaults
+                    "cumulative_default_capture_rate": cumulative_defaults
+                    / total_defaults
                     if total_defaults
                     else None,
                 }
@@ -338,9 +359,15 @@ def _verify_saved_model_selection(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate model metrics and export reporting tables.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate model metrics and export reporting tables."
+    )
     add_config_argument(parser)
-    parser.add_argument("--export-dashboard-data", action="store_true", help="Export Power BI-ready dashboard data.")
+    parser.add_argument(
+        "--export-dashboard-data",
+        action="store_true",
+        help="Export Power BI-ready dashboard data.",
+    )
     parser.add_argument(
         "--dashboard-export-dir",
         default=None,

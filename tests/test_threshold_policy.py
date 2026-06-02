@@ -48,7 +48,9 @@ def test_validate_threshold_pair_requires_ordered_unit_interval_thresholds() -> 
         validate_threshold_pair(-0.01, 0.20, "balanced")
 
 
-def test_resolve_scenario_thresholds_uses_config_overrides_and_default_quantiles() -> None:
+def test_resolve_scenario_thresholds_uses_config_overrides_and_default_quantiles() -> (
+    None
+):
     config = {
         "threshold_version": "threshold_v1",
         "scenarios": {

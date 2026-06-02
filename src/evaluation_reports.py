@@ -32,7 +32,9 @@ def write_validation_report(
     assumptions: dict[str, Any],
 ) -> None:
     metrics = {
-        (row["model_version"], row["split"], row["metric_name"]): float(row["metric_value"])
+        (row["model_version"], row["split"], row["metric_name"]): float(
+            row["metric_value"]
+        )
         for row in metric_rows
     }
     split_summary_rows = selected_artifact.get("split_summary", [])
@@ -55,7 +57,8 @@ def write_validation_report(
     balanced_rows = [
         row
         for row in threshold_rows
-        if row["scenario_name"] == BALANCED_SCENARIO and row["split"] in REPORTING_SPLITS
+        if row["scenario_name"] == BALANCED_SCENARIO
+        and row["split"] in REPORTING_SPLITS
     ]
     balanced_lines = "\n".join(
         f"- {row['split']}: approval_rate={row['approval_rate']:.4f}, "
@@ -105,9 +108,9 @@ Threshold expected-value analysis is produced in `model_threshold_metrics` and `
 
 Business assumptions:
 
-- Expected margin per good approved loan: {assumptions['expected_margin_per_good_loan']}
-- Expected loss per bad approved loan: {assumptions['expected_loss_per_bad_loan']}
-- Manual review cost: {assumptions['manual_review_cost']}
+- Expected margin per good approved loan: {assumptions["expected_margin_per_good_loan"]}
+- Expected loss per bad approved loan: {assumptions["expected_loss_per_bad_loan"]}
+- Manual review cost: {assumptions["manual_review_cost"]}
 
 Balanced scenario summary:
 
@@ -147,10 +150,10 @@ Thresholds are selected from validation scores and applied unchanged to the held
 
 ## Assumptions
 
-- Expected margin per good approved loan: {assumptions['expected_margin_per_good_loan']}
-- Expected loss per bad approved loan: {assumptions['expected_loss_per_bad_loan']}
-- Manual review cost: {assumptions['manual_review_cost']}
-- Manual review capacity rate: {assumptions['manual_review_capacity_rate']}
+- Expected margin per good approved loan: {assumptions["expected_margin_per_good_loan"]}
+- Expected loss per bad approved loan: {assumptions["expected_loss_per_bad_loan"]}
+- Manual review cost: {assumptions["manual_review_cost"]}
+- Manual review capacity rate: {assumptions["manual_review_capacity_rate"]}
 
 These values are scenario-comparison utility weights, not calibrated Home Credit economics. The good-loan margin and bad-loan loss encode a simple penalty ratio so approval, review, and high-risk policies can be compared in v1. A production value model would scale margin and loss by exposure, term, pricing, funding cost, recovery, and loss-given-default assumptions.
 
@@ -182,7 +185,9 @@ def write_figures(
 ) -> None:
     _write_roc_curve(figures_dir / "roc_curve.png", model_version, prediction_frames)
     _write_pr_curve(figures_dir / "pr_curve.png", model_version, prediction_frames)
-    _write_calibration_curve(figures_dir / "calibration_curve.png", model_version, calibration_rows)
+    _write_calibration_curve(
+        figures_dir / "calibration_curve.png", model_version, calibration_rows
+    )
     _write_lift_chart(figures_dir / "lift_chart.png", model_version, lift_rows)
 
 
@@ -203,29 +208,34 @@ def _build_post_v1_calibration_section(report_dir: Path) -> str:
     validation_sigmoid = row_lookup[(SIGMOID_METHOD, "validation")]
     test_uncalibrated = row_lookup[(UNCALIBRATED_METHOD, "test")]
     test_sigmoid = row_lookup[(SIGMOID_METHOD, "test")]
-    return f"""Post-v1 Experiment 004 adds a separate sigmoid calibration layer for the Experiment 003 LightGBM model. This is a large improvement in probability quality: held-out test Brier score improves from {float(test_uncalibrated['brier_score']):.6f} to {float(test_sigmoid['brier_score']):.6f}, and held-out test weighted calibration-bin error improves from {float(test_uncalibrated['weighted_calibration_error']):.6f} to {float(test_sigmoid['weighted_calibration_error']):.6f}. PR-AUC, ROC-AUC, top-decile lift, precision at top decile, recall at review capacity, and expected value are unchanged because sigmoid calibration is monotonic.
+    return f"""Post-v1 Experiment 004 adds a separate sigmoid calibration layer for the Experiment 003 LightGBM model. This is a large improvement in probability quality: held-out test Brier score improves from {float(test_uncalibrated["brier_score"]):.6f} to {float(test_sigmoid["brier_score"]):.6f}, and held-out test weighted calibration-bin error improves from {float(test_uncalibrated["weighted_calibration_error"]):.6f} to {float(test_sigmoid["weighted_calibration_error"]):.6f}. PR-AUC, ROC-AUC, top-decile lift, precision at top decile, recall at review capacity, and expected value are unchanged because sigmoid calibration is monotonic.
 
 | Split | Uncalibrated Brier | Sigmoid Brier | Uncalibrated weighted bin error | Sigmoid weighted bin error |
 |---|---:|---:|---:|---:|
-| validation | {float(validation_uncalibrated['brier_score']):.6f} | {float(validation_sigmoid['brier_score']):.6f} | {float(validation_uncalibrated['weighted_calibration_error']):.6f} | {float(validation_sigmoid['weighted_calibration_error']):.6f} |
-| test | {float(test_uncalibrated['brier_score']):.6f} | {float(test_sigmoid['brier_score']):.6f} | {float(test_uncalibrated['weighted_calibration_error']):.6f} | {float(test_sigmoid['weighted_calibration_error']):.6f} |"""
+| validation | {float(validation_uncalibrated["brier_score"]):.6f} | {float(validation_sigmoid["brier_score"]):.6f} | {float(validation_uncalibrated["weighted_calibration_error"]):.6f} | {float(validation_sigmoid["weighted_calibration_error"]):.6f} |
+| test | {float(test_uncalibrated["brier_score"]):.6f} | {float(test_sigmoid["brier_score"]):.6f} | {float(test_uncalibrated["weighted_calibration_error"]):.6f} | {float(test_sigmoid["weighted_calibration_error"]):.6f} |"""
 
 
 def _build_business_value_calibration_note(report_dir: Path) -> str:
     row_lookup = _calibration_comparison_lookup(report_dir)
     if not row_lookup:
         return ""
-    if (UNCALIBRATED_METHOD, "test") not in row_lookup or (SIGMOID_METHOD, "test") not in row_lookup:
+    if (UNCALIBRATED_METHOD, "test") not in row_lookup or (
+        SIGMOID_METHOD,
+        "test",
+    ) not in row_lookup:
         return ""
 
     test_uncalibrated = row_lookup[(UNCALIBRATED_METHOD, "test")]
     test_sigmoid = row_lookup[(SIGMOID_METHOD, "test")]
     return f"""## Calibration Note
 
-Post-v1 Experiment 004 materially improves probability quality with a separate sigmoid calibration layer. Because the current threshold and expected-value workflow is rank-based, sigmoid calibration does not change the action ordering, scenario thresholds, or expected-value metrics shown above. It does improve the interpretability of the model score scale: held-out test Brier score improves from {float(test_uncalibrated['brier_score']):.6f} to {float(test_sigmoid['brier_score']):.6f}, and held-out test weighted calibration-bin error improves from {float(test_uncalibrated['weighted_calibration_error']):.6f} to {float(test_sigmoid['weighted_calibration_error']):.6f}."""
+Post-v1 Experiment 004 materially improves probability quality with a separate sigmoid calibration layer. Because the current threshold and expected-value workflow is rank-based, sigmoid calibration does not change the action ordering, scenario thresholds, or expected-value metrics shown above. It does improve the interpretability of the model score scale: held-out test Brier score improves from {float(test_uncalibrated["brier_score"]):.6f} to {float(test_sigmoid["brier_score"]):.6f}, and held-out test weighted calibration-bin error improves from {float(test_uncalibrated["weighted_calibration_error"]):.6f} to {float(test_sigmoid["weighted_calibration_error"]):.6f}."""
 
 
-def _calibration_comparison_lookup(report_dir: Path) -> dict[tuple[str, str], dict[str, str]]:
+def _calibration_comparison_lookup(
+    report_dir: Path,
+) -> dict[tuple[str, str], dict[str, str]]:
     comparison_path = report_dir / "model_calibration_comparison.csv"
     if not comparison_path.exists():
         return {}
@@ -264,7 +274,9 @@ def _write_pr_curve(
     figure, axis = plt.subplots(figsize=(7, 5))
     for split_name in REPORTING_SPLITS:
         frame = prediction_frames[split_name]
-        precision, recall, _ = precision_recall_curve(frame["target"], frame["probability"])
+        precision, recall, _ = precision_recall_curve(
+            frame["target"], frame["probability"]
+        )
         pr_auc = average_precision_score(frame["target"], frame["probability"])
         axis.plot(recall, precision, label=f"{split_name} PR-AUC={pr_auc:.3f}")
     axis.set_title(f"Precision-Recall Curve - {model_version}")
@@ -282,7 +294,11 @@ def _write_calibration_curve(
 ) -> None:
     figure, axis = plt.subplots(figsize=(7, 5))
     for split_name in REPORTING_SPLITS:
-        rows = [row for row in calibration_rows if row["split"] == split_name and row["applicant_count"]]
+        rows = [
+            row
+            for row in calibration_rows
+            if row["split"] == split_name and row["applicant_count"]
+        ]
         axis.plot(
             [row["average_predicted_score"] for row in rows],
             [row["observed_default_rate"] for row in rows],
@@ -305,7 +321,11 @@ def _write_lift_chart(
 ) -> None:
     figure, axis = plt.subplots(figsize=(7, 5))
     for split_name in REPORTING_SPLITS:
-        rows = [row for row in lift_rows if row["split"] == split_name and row["applicant_count"]]
+        rows = [
+            row
+            for row in lift_rows
+            if row["split"] == split_name and row["applicant_count"]
+        ]
         axis.plot(
             [row["decile"] for row in rows],
             [row["lift"] for row in rows],
