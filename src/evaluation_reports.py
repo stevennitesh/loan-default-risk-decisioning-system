@@ -5,17 +5,17 @@ from typing import Any
 
 import matplotlib
 import pandas as pd
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import precision_recall_curve
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import roc_curve
+from sklearn.metrics import (
+    average_precision_score,
+    precision_recall_curve,
+    roc_auc_score,
+    roc_curve,
+)
 
-from src.calibration import SIGMOID_METHOD
-from src.calibration import UNCALIBRATED_METHOD
+from src.calibration import SIGMOID_METHOD, UNCALIBRATED_METHOD
 from src.model_contracts import REPORTING_SPLITS
 from src.runtime import read_csv
 from src.thresholding import BALANCED_SCENARIO
-
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt

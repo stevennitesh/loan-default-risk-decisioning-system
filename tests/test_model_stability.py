@@ -4,16 +4,21 @@ from pathlib import Path
 
 import pytest
 
-from src.model_stability import aggregate_stability_rows
-from src.model_stability import run_model_stability_experiment
-from src.model_stability import select_stability_feature_set
-from src.report_contracts import MODEL_STABILITY_AGGREGATE_COLUMNS
-from src.report_contracts import MODEL_STABILITY_RUN_COLUMNS
+from src.model_stability import (
+    aggregate_stability_rows,
+    run_model_stability_experiment,
+    select_stability_feature_set,
+)
+from src.report_contracts import (
+    MODEL_STABILITY_AGGREGATE_COLUMNS,
+    MODEL_STABILITY_RUN_COLUMNS,
+)
 from src.train import run_training
-from tests.helpers import create_training_database
-from tests.helpers import read_csv_rows
-from tests.helpers import write_feature_importance
-
+from tests.helpers import (
+    create_training_database,
+    read_csv_rows,
+    write_feature_importance,
+)
 
 pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
 

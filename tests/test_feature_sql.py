@@ -6,11 +6,7 @@ import yaml
 
 from src.build_features import FeatureBuildError, run_feature_build
 from src.report_contracts import FEATURE_PROFILE_COLUMNS
-from tests.helpers import query_value
-from tests.helpers import read_csv_rows
-from tests.helpers import read_table_columns
-from tests.helpers import table_names
-
+from tests.helpers import query_value, read_csv_rows, read_table_columns, table_names
 
 FORBIDDEN_MART_COLUMNS = {
     "CODE_GENDER",

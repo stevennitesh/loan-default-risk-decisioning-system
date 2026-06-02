@@ -7,35 +7,39 @@ import duckdb
 import pandas as pd
 
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
-from src.config import DEFAULT_CONFIG_PATH
-from src.config import load_config
+from src.config import DEFAULT_CONFIG_PATH, load_config
 from src.dashboard_probability_quality import build_probability_quality_overrides
 from src.dashboard_segments import build_segment_performance_rows
-from src.mart_access import existing_tables
-from src.mart_access import require_tables
-from src.mart_access import table_columns
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import MODEL_ARTIFACTS
-from src.model_contracts import SUPPORTED_MODEL_TYPES
-from src.model_artifacts import load_calibration_artifact
-from src.model_artifacts import load_selected_model_artifact
-from src.model_artifacts import load_selected_model_type
-from src.model_artifacts import uncalibrated_calibration_artifact
-from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
-from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
-from src.report_contracts import MODEL_CONFUSION_MATRIX_COLUMNS
-from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
-from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
-from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
-from src.report_contracts import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
-from src.runtime import ensure_directories
-from src.runtime import replace_duckdb_table
-from src.runtime import require_existing_path
-from src.runtime import resolve_config_path
-from src.runtime import resolve_project_path
-from src.runtime import sql_identifier
-
+from src.mart_access import existing_tables, require_tables, table_columns
+from src.model_artifacts import (
+    load_calibration_artifact,
+    load_selected_model_artifact,
+    load_selected_model_type,
+    uncalibrated_calibration_artifact,
+)
+from src.model_contracts import (
+    LIGHTGBM_MODEL_TYPE,
+    MODEL_ARTIFACTS,
+    SUPPORTED_MODEL_TYPES,
+)
+from src.report_contracts import (
+    CREDIT_RISK_SCORE_COLUMNS,
+    MODEL_CALIBRATION_BINS_COLUMNS,
+    MODEL_CONFUSION_MATRIX_COLUMNS,
+    MODEL_FEATURE_IMPORTANCE_COLUMNS,
+    MODEL_LIFT_BY_DECILE_COLUMNS,
+    MODEL_METRICS_SUMMARY_COLUMNS,
+    MODEL_THRESHOLD_METRICS_COLUMNS,
+    SEGMENT_PERFORMANCE_SUMMARY_COLUMNS,
+)
+from src.runtime import (
+    ensure_directories,
+    replace_duckdb_table,
+    require_existing_path,
+    resolve_config_path,
+    resolve_project_path,
+    sql_identifier,
+)
 
 DASHBOARD_EXPORT_TABLES = [
     "credit_risk_scores",

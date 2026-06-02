@@ -4,18 +4,16 @@ import duckdb
 import joblib
 import pytest
 
-from src.report_contracts import LIGHTGBM_TUNING_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_COMPARISON_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_RUN_SUMMARY_COLUMNS
-from src.report_contracts import SPLIT_SUMMARY_COLUMNS
+from src.report_contracts import (
+    LIGHTGBM_TUNING_SUMMARY_COLUMNS,
+    MODEL_COMPARISON_SUMMARY_COLUMNS,
+    MODEL_METRICS_SUMMARY_COLUMNS,
+    MODEL_RUN_SUMMARY_COLUMNS,
+    SPLIT_SUMMARY_COLUMNS,
+)
 from src.runtime import ensure_directories
-from src.train import TrainingError
-from src.train import run_training
-from tests.helpers import create_training_database
-from tests.helpers import read_csv_rows
-from tests.helpers import table_row_count
-
+from src.train import TrainingError, run_training
+from tests.helpers import create_training_database, read_csv_rows, table_row_count
 
 REQUIRED_METRICS = {
     "roc_auc",

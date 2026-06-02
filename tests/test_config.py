@@ -2,7 +2,6 @@ from pathlib import Path
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "configs" / "base.yaml"
 V1_CONFIG_PATH = ROOT / "configs" / "v1.yaml"

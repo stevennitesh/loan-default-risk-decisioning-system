@@ -6,17 +6,17 @@ import duckdb
 import joblib
 import pytest
 
-from src.explain import ExplainabilityError
-from src.explain import run_explain
+from src.explain import ExplainabilityError, run_explain
+from src.model_contracts import LIGHTGBM_MODEL_VERSION
 from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
 from src.score_batch import run_scoring
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
 from src.train import run_training
-from tests.helpers import assert_table_missing
-from tests.helpers import create_training_database
-from tests.helpers import read_csv_rows
-from tests.helpers import table_row_count
-
+from tests.helpers import (
+    assert_table_missing,
+    create_training_database,
+    read_csv_rows,
+    table_row_count,
+)
 
 FORBIDDEN_EXPLANATION_TERMS = {
     "SK_ID_CURR",

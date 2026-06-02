@@ -11,14 +11,10 @@ from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from src.metrics import probability_metrics
-from src.metrics import target_class_values
-from src.metrics import validate_probabilities
-from src.runtime import feature_frame
-from src.runtime import sql_identifier
+from src.metrics import probability_metrics, target_class_values, validate_probabilities
+from src.runtime import feature_frame, sql_identifier
 
 LIGHTGBM_SELECTION_METRIC_ORDER = [
     "nonconstant_score_distribution",

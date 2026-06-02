@@ -7,13 +7,14 @@ import duckdb
 import pandas as pd
 
 from src.feature_labels import readable_feature_label
-from src.mart_access import existing_tables
-from src.mart_access import table_columns
-from src.runtime import ensure_directories
-from src.runtime import read_csv
-from src.runtime import replace_duckdb_table_from_frame
-from src.runtime import sql_identifier
-from src.runtime import write_csv
+from src.mart_access import existing_tables, table_columns
+from src.runtime import (
+    ensure_directories,
+    read_csv,
+    replace_duckdb_table_from_frame,
+    sql_identifier,
+    write_csv,
+)
 
 
 def read_csv_rows(path: Path, expected_columns: list[str]) -> list[dict[str, str]]:

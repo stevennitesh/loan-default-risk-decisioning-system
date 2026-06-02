@@ -10,31 +10,34 @@ import pandas as pd
 
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
 from src.calibration import apply_saved_calibration_artifact
-from src.cli import add_config_argument
-from src.cli import exit_with_error
-from src.config import DEFAULT_CONFIG_PATH
-from src.config import load_config
-from src.metrics import validate_probabilities
-from src.metrics import with_probability_rank_bin
-from src.mart_access import load_application_test_frame
-from src.mart_access import load_labeled_split_frame
-from src.mart_access import require_table
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import MODEL_ARTIFACTS
-from src.model_contracts import SUPPORTED_MODEL_TYPES
-from src.model_artifacts import load_calibration_artifact
-from src.model_artifacts import load_selected_model_artifact
-from src.model_artifacts import load_selected_model_type
-from src.model_artifacts import normalize_split_ids
+from src.cli import add_config_argument, exit_with_error
+from src.config import DEFAULT_CONFIG_PATH, load_config
+from src.mart_access import (
+    load_application_test_frame,
+    load_labeled_split_frame,
+    require_table,
+)
+from src.metrics import validate_probabilities, with_probability_rank_bin
+from src.model_artifacts import (
+    load_calibration_artifact,
+    load_selected_model_artifact,
+    load_selected_model_type,
+    normalize_split_ids,
+)
+from src.model_contracts import (
+    LIGHTGBM_MODEL_TYPE,
+    MODEL_ARTIFACTS,
+    SUPPORTED_MODEL_TYPES,
+)
 from src.modeling import predict_probabilities
 from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
-from src.runtime import current_utc_datetime
-from src.runtime import replace_duckdb_table
-from src.runtime import require_existing_path
-from src.runtime import resolve_config_path
-from src.thresholding import assign_risk_bands
-from src.thresholding import BALANCED_SCENARIO
-
+from src.runtime import (
+    current_utc_datetime,
+    replace_duckdb_table,
+    require_existing_path,
+    resolve_config_path,
+)
+from src.thresholding import BALANCED_SCENARIO, assign_risk_bands
 
 ACTION_LABELS = {
     "approve": ("low_risk", "approve"),

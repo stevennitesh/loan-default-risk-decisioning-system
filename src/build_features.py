@@ -6,28 +6,31 @@ from typing import Any
 
 import duckdb
 
-from src.cli import add_config_argument
-from src.cli import exit_with_error
-from src.config import DEFAULT_CONFIG_PATH
-from src.config import is_post_v1_scope
-from src.config import load_config
+from src.cli import add_config_argument, exit_with_error
+from src.config import DEFAULT_CONFIG_PATH, is_post_v1_scope, load_config
+from src.data_contracts import (
+    DataContractError,
+    build_data_inventory,
+    build_feature_inventory,
+    validate_data_contracts,
+    write_contract_reports,
+)
 from src.ingest import STAGING_TABLES
-from src.mart_access import duplicate_key_count
-from src.mart_access import existing_tables
-from src.mart_access import fetch_count
-from src.mart_access import table_columns
+from src.mart_access import (
+    duplicate_key_count,
+    existing_tables,
+    fetch_count,
+    table_columns,
+)
 from src.report_contracts import FEATURE_PROFILE_COLUMNS
-from src.data_contracts import DataContractError
-from src.data_contracts import build_data_inventory
-from src.data_contracts import build_feature_inventory
-from src.data_contracts import validate_data_contracts
-from src.data_contracts import write_contract_reports
-from src.runtime import REPO_ROOT
-from src.runtime import created_at_utc
-from src.runtime import ensure_directories
-from src.runtime import resolve_config_path
-from src.runtime import sql_identifier
-from src.runtime import write_csv
+from src.runtime import (
+    REPO_ROOT,
+    created_at_utc,
+    ensure_directories,
+    resolve_config_path,
+    sql_identifier,
+    write_csv,
+)
 
 V1_FEATURE_SQL_FILES = [
     "sql/02_feature_applicant.sql",

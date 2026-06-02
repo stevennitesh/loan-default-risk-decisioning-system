@@ -11,30 +11,33 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.dashboard_exports import DASHBOARD_EXPORT_TABLES
-from src.dashboard_exports import POST_V1_DASHBOARD_MODEL_VERSION
-from src.dashboard_exports import DashboardExportError
-from src.dashboard_exports import run_dashboard_export
 from src.calibrate import CALIBRATION_ARTIFACT_NAME
-from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
-from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
-from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
-from src.report_contracts import MODEL_CONFUSION_MATRIX_COLUMNS
-from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
-from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
-from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
-from src.report_contracts import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
-from src.runtime import replace_duckdb_table_from_frame
-from src.runtime import sql_identifier
+from src.dashboard_exports import (
+    DASHBOARD_EXPORT_TABLES,
+    POST_V1_DASHBOARD_MODEL_VERSION,
+    DashboardExportError,
+    run_dashboard_export,
+)
+from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME, LIGHTGBM_MODEL_VERSION
+from src.report_contracts import (
+    CREDIT_RISK_SCORE_COLUMNS,
+    MODEL_CALIBRATION_BINS_COLUMNS,
+    MODEL_CONFUSION_MATRIX_COLUMNS,
+    MODEL_FEATURE_IMPORTANCE_COLUMNS,
+    MODEL_LIFT_BY_DECILE_COLUMNS,
+    MODEL_METRICS_SUMMARY_COLUMNS,
+    MODEL_THRESHOLD_METRICS_COLUMNS,
+    SEGMENT_PERFORMANCE_SUMMARY_COLUMNS,
+)
+from src.runtime import replace_duckdb_table_from_frame, sql_identifier
 from src.thresholding import SCENARIO_NAMES
 from src.train import run_training
-from tests.helpers import create_training_database
-from tests.helpers import read_csv_rows
-from tests.helpers import table_row_count
-from tests.helpers import table_exists
-
+from tests.helpers import (
+    create_training_database,
+    read_csv_rows,
+    table_exists,
+    table_row_count,
+)
 
 pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
 

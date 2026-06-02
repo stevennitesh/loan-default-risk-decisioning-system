@@ -10,35 +10,33 @@ import matplotlib
 import numpy as np
 import pandas as pd
 
-from src.cli import add_config_argument
-from src.cli import exit_with_error
-from src.config import DEFAULT_CONFIG_PATH
-from src.config import load_config
-from src.config import project_random_seed
+from src.cli import add_config_argument, exit_with_error
+from src.config import DEFAULT_CONFIG_PATH, load_config, project_random_seed
 from src.feature_labels import readable_feature_label
-from src.mart_access import fetch_count
-from src.mart_access import require_table
-from src.mart_access import require_table_columns
-from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
-from src.model_contracts import SUPPORTED_MODEL_TYPES
-from src.model_artifacts import load_model_artifact
-from src.model_artifacts import load_selected_model_type
-from src.runtime import ensure_directories
-from src.runtime import replace_duckdb_table
-from src.runtime import replace_duckdb_table_from_frame
-from src.runtime import require_existing_path
-from src.runtime import resolve_config_path
-from src.runtime import sql_identifier
-from src.runtime import write_csv
-from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
-from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
-
+from src.mart_access import fetch_count, require_table, require_table_columns
+from src.model_artifacts import load_model_artifact, load_selected_model_type
+from src.model_contracts import (
+    LIGHTGBM_MODEL_ARTIFACT_NAME,
+    LIGHTGBM_MODEL_TYPE,
+    LIGHTGBM_MODEL_VERSION,
+    SUPPORTED_MODEL_TYPES,
+)
+from src.report_contracts import (
+    CREDIT_RISK_SCORE_COLUMNS,
+    MODEL_FEATURE_IMPORTANCE_COLUMNS,
+)
+from src.runtime import (
+    ensure_directories,
+    replace_duckdb_table,
+    replace_duckdb_table_from_frame,
+    require_existing_path,
+    resolve_config_path,
+    sql_identifier,
+    write_csv,
+)
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
 
 MAX_SHAP_SUMMARY_ROWS = 5_000
 SHAP_BATCH_SIZE = 10_000

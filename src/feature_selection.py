@@ -6,30 +6,30 @@ from typing import Any
 
 import duckdb
 
-from src.cli import add_config_argument
-from src.cli import exit_with_error
-from src.cli import format_int_csv
-from src.cli import parse_int_csv
-from src.config import DEFAULT_CONFIG_PATH
-from src.config import load_config
-from src.config import manual_review_capacity_rate
-from src.feature_experiments import DEFAULT_FEATURE_LIMITS
-from src.feature_experiments import FeatureExperimentError
-from src.feature_experiments import load_lightgbm_artifact
-from src.feature_experiments import load_split_frames
-from src.feature_experiments import prepare_feature_set_specs
-from src.feature_experiments import run_single_feature_set
-from src.feature_experiments import select_feature_set
+from src.cli import add_config_argument, exit_with_error, format_int_csv, parse_int_csv
+from src.config import DEFAULT_CONFIG_PATH, load_config, manual_review_capacity_rate
+from src.feature_experiments import (
+    DEFAULT_FEATURE_LIMITS,
+    FeatureExperimentError,
+    load_lightgbm_artifact,
+    load_split_frames,
+    prepare_feature_set_specs,
+    run_single_feature_set,
+    select_feature_set,
+)
 from src.model_artifacts import normalize_split_ids
 from src.model_contracts import EVALUATION_SPLITS
-from src.runtime import created_at_utc
-from src.runtime import ensure_directories
-from src.runtime import require_existing_path
-from src.runtime import resolve_config_path
-from src.runtime import write_csv
-from src.report_contracts import FEATURE_SELECTION_COMPARISON_COLUMNS
-from src.report_contracts import SELECTED_FEATURE_COLUMNS
-
+from src.report_contracts import (
+    FEATURE_SELECTION_COMPARISON_COLUMNS,
+    SELECTED_FEATURE_COLUMNS,
+)
+from src.runtime import (
+    created_at_utc,
+    ensure_directories,
+    require_existing_path,
+    resolve_config_path,
+    write_csv,
+)
 
 FEATURE_SELECTION_REPORT_NAME = "005_feature_selection.md"
 SELECTED_FEATURES_NAME = "005_selected_features.csv"

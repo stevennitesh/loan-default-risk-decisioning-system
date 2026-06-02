@@ -6,11 +6,12 @@ import pytest
 from src.ingest import IngestionError, run_ingestion
 from src.report_contracts import INGESTION_SUMMARY_COLUMNS
 from src.runtime import ensure_directories
-from tests.helpers import read_csv_rows
-from tests.helpers import read_table_columns
-from tests.helpers import table_row_count
-from tests.helpers import table_names
-
+from tests.helpers import (
+    read_csv_rows,
+    read_table_columns,
+    table_names,
+    table_row_count,
+)
 
 SOURCE_FILES = {
     "application_train": "application_train.csv",

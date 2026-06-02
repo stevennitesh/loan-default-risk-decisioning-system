@@ -9,16 +9,16 @@ import pytest
 from src.calibrate import run_calibration_experiment
 from src.evaluate import run_evaluation
 from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
-from src.score_batch import ScoringError
-from src.score_batch import run_scoring
+from src.score_batch import ScoringError, run_scoring
 from src.thresholding import BALANCED_SCENARIO
 from src.train import run_training
-from tests.helpers import assert_table_missing
-from tests.helpers import create_training_database
-from tests.helpers import query_value
-from tests.helpers import read_table_columns
-from tests.helpers import table_row_count
-
+from tests.helpers import (
+    assert_table_missing,
+    create_training_database,
+    query_value,
+    read_table_columns,
+    table_row_count,
+)
 
 VALID_RISK_BANDS = {"low_risk", "medium_risk", "high_risk"}
 VALID_ACTIONS = {"approve", "manual_review", "high_priority_review"}

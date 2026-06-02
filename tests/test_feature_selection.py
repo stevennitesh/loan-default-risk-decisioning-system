@@ -8,10 +8,11 @@ from src.feature_experiments import ranked_raw_features
 from src.feature_selection import run_feature_selection_experiment
 from src.report_contracts import FEATURE_SELECTION_COMPARISON_COLUMNS
 from src.train import run_training
-from tests.helpers import create_training_database
-from tests.helpers import read_csv_rows
-from tests.helpers import write_feature_importance
-
+from tests.helpers import (
+    create_training_database,
+    read_csv_rows,
+    write_feature_importance,
+)
 
 pytestmark = pytest.mark.filterwarnings("ignore:X does not have valid feature names.*:UserWarning")
 

@@ -6,34 +6,42 @@ from typing import Any
 import duckdb
 import pandas as pd
 
-from src.calibration import CALIBRATION_METHODS
-from src.calibration import apply_calibration_method
-from src.calibration import fit_calibrators
-from src.calibration import select_calibration_method
-from src.config import business_assumptions
-from src.config import project_random_seed
-from src.config import threshold_policy
-from src.config import threshold_version
+from src.calibration import (
+    CALIBRATION_METHODS,
+    apply_calibration_method,
+    fit_calibrators,
+    select_calibration_method,
+)
+from src.config import (
+    business_assumptions,
+    project_random_seed,
+    threshold_policy,
+    threshold_version,
+)
 from src.feature_labels import readable_feature_label
 from src.mart_access import load_labeled_split_frames
+from src.metrics import probability_metrics, with_probability_rank_bin
 from src.model_artifacts import load_model_artifact
-from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
-from src.model_contracts import REPORTING_SPLITS
-from src.modeling import build_lightgbm_tuning_artifact
-from src.modeling import classify_feature_columns
-from src.modeling import fit_tuned_lightgbm
-from src.modeling import lightgbm_params
-from src.modeling import predict_probabilities
-from src.modeling import prediction_frame
-from src.metrics import probability_metrics
-from src.metrics import with_probability_rank_bin
+from src.model_contracts import (
+    LIGHTGBM_MODEL_ARTIFACT_NAME,
+    LIGHTGBM_MODEL_TYPE,
+    LIGHTGBM_MODEL_VERSION,
+    REPORTING_SPLITS,
+)
+from src.modeling import (
+    build_lightgbm_tuning_artifact,
+    classify_feature_columns,
+    fit_tuned_lightgbm,
+    lightgbm_params,
+    predict_probabilities,
+    prediction_frame,
+)
 from src.runtime import read_csv
-from src.thresholding import build_threshold_metric_rows
-from src.thresholding import BALANCED_SCENARIO
-from src.thresholding import resolve_scenario_thresholds
-
+from src.thresholding import (
+    BALANCED_SCENARIO,
+    build_threshold_metric_rows,
+    resolve_scenario_thresholds,
+)
 
 DEFAULT_FEATURE_LIMITS = (40, 60, 80, 100)
 

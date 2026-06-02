@@ -10,8 +10,7 @@ from src.data_contracts import (
     get_model_feature_columns,
     validate_data_contracts,
 )
-from src.report_contracts import DATA_INVENTORY_COLUMNS
-from src.report_contracts import FEATURE_INVENTORY_COLUMNS
+from src.report_contracts import DATA_INVENTORY_COLUMNS, FEATURE_INVENTORY_COLUMNS
 from tests.helpers import read_csv_rows
 
 

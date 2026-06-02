@@ -6,10 +6,8 @@ from typing import Any
 
 import joblib
 
-from src.calibration import CALIBRATION_METHODS
-from src.calibration import UNCALIBRATED_METHOD
+from src.calibration import CALIBRATION_METHODS, UNCALIBRATED_METHOD
 from src.mart_access import existing_tables
-
 
 REQUIRED_MODEL_ARTIFACT_KEYS = {
     "pipeline",

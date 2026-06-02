@@ -5,23 +5,22 @@ from typing import Any
 import duckdb
 import pandas as pd
 
-from src.calibration import apply_saved_calibration_artifact
-from src.calibration import UNCALIBRATED_METHOD
+from src.calibration import UNCALIBRATED_METHOD, apply_saved_calibration_artifact
 from src.config import manual_review_capacity_rate
-from src.metrics import build_calibration_bin_rows
-from src.metrics import build_probability_metric_rows
-from src.metrics import validate_probabilities
-from src.mart_access import load_labeled_split_frame
-from src.mart_access import require_table_columns
+from src.mart_access import load_labeled_split_frame, require_table_columns
+from src.metrics import (
+    build_calibration_bin_rows,
+    build_probability_metric_rows,
+    validate_probabilities,
+)
 from src.model_artifacts import normalize_split_ids
-from src.model_contracts import EVALUATION_SPLITS
-from src.model_contracts import REPORTING_SPLITS
-from src.modeling import predict_probabilities
-from src.modeling import prediction_frame
-from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
-from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
-from src.runtime import created_at_utc
-from src.runtime import sql_identifier
+from src.model_contracts import EVALUATION_SPLITS, REPORTING_SPLITS
+from src.modeling import predict_probabilities, prediction_frame
+from src.report_contracts import (
+    MODEL_CALIBRATION_BINS_COLUMNS,
+    MODEL_METRICS_SUMMARY_COLUMNS,
+)
+from src.runtime import created_at_utc, sql_identifier
 
 
 def build_probability_quality_overrides(

@@ -9,45 +9,56 @@ import duckdb
 import joblib
 import pandas as pd
 
-from src.cli import add_config_argument
-from src.cli import exit_with_error
-from src.config import DEFAULT_CONFIG_PATH
-from src.config import load_config
-from src.config import data_scope_version
-from src.config import manual_review_capacity_rate
-from src.config import project_random_seed
-from src.data_contracts import DataContractError
-from src.data_contracts import get_model_feature_columns
-from src.data_contracts import validate_data_contracts
-from src.model_contracts import BASELINE_MODEL_ARTIFACT_NAME
-from src.model_contracts import BASELINE_MODEL_TYPE
-from src.model_contracts import BASELINE_MODEL_VERSION
-from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
-from src.model_contracts import select_model_type_by_validation_pr_auc
-from src.modeling import build_baseline_pipeline
-from src.modeling import build_lightgbm_tuning_artifact
-from src.modeling import classify_feature_columns
-from src.modeling import fit_tuned_lightgbm
-from src.modeling import lightgbm_params
-from src.modeling import load_labeled_training_frame
-from src.modeling import predict_probabilities
-from src.modeling import prediction_frame
-from src.modeling import split_labeled_frame
+from src.cli import add_config_argument, exit_with_error
+from src.config import (
+    DEFAULT_CONFIG_PATH,
+    data_scope_version,
+    load_config,
+    manual_review_capacity_rate,
+    project_random_seed,
+)
+from src.data_contracts import (
+    DataContractError,
+    get_model_feature_columns,
+    validate_data_contracts,
+)
 from src.metrics import build_probability_metric_rows
-from src.report_contracts import LIGHTGBM_TUNING_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_COMPARISON_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_RUN_SUMMARY_COLUMNS
-from src.report_contracts import SPLIT_SUMMARY_COLUMNS
-from src.runtime import created_at_utc
-from src.runtime import ensure_directories
-from src.runtime import feature_frame
-from src.runtime import replace_duckdb_table
-from src.runtime import require_existing_path
-from src.runtime import resolve_config_path
-from src.runtime import write_csv
+from src.model_contracts import (
+    BASELINE_MODEL_ARTIFACT_NAME,
+    BASELINE_MODEL_TYPE,
+    BASELINE_MODEL_VERSION,
+    LIGHTGBM_MODEL_ARTIFACT_NAME,
+    LIGHTGBM_MODEL_TYPE,
+    LIGHTGBM_MODEL_VERSION,
+    select_model_type_by_validation_pr_auc,
+)
+from src.modeling import (
+    build_baseline_pipeline,
+    build_lightgbm_tuning_artifact,
+    classify_feature_columns,
+    fit_tuned_lightgbm,
+    lightgbm_params,
+    load_labeled_training_frame,
+    predict_probabilities,
+    prediction_frame,
+    split_labeled_frame,
+)
+from src.report_contracts import (
+    LIGHTGBM_TUNING_SUMMARY_COLUMNS,
+    MODEL_COMPARISON_SUMMARY_COLUMNS,
+    MODEL_METRICS_SUMMARY_COLUMNS,
+    MODEL_RUN_SUMMARY_COLUMNS,
+    SPLIT_SUMMARY_COLUMNS,
+)
+from src.runtime import (
+    created_at_utc,
+    ensure_directories,
+    feature_frame,
+    replace_duckdb_table,
+    require_existing_path,
+    resolve_config_path,
+    write_csv,
+)
 
 
 class TrainingError(RuntimeError):

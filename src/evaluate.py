@@ -8,50 +8,64 @@ from typing import Any
 import duckdb
 import pandas as pd
 
-from src.cli import add_config_argument
-from src.cli import exit_with_error
-from src.config import DEFAULT_CONFIG_PATH
-from src.config import business_assumptions
-from src.config import load_config
-from src.config import manual_review_capacity_rate
-from src.config import threshold_policy
-from src.config import threshold_version
-from src.evaluation_reports import write_business_value_report
-from src.evaluation_reports import write_figures
-from src.evaluation_reports import write_validation_report
-from src.metrics import build_calibration_bin_rows
-from src.metrics import build_probability_metric_rows
-from src.metrics import nullable_mean
-from src.metrics import with_probability_rank_bin
+from src.cli import add_config_argument, exit_with_error
+from src.config import (
+    DEFAULT_CONFIG_PATH,
+    business_assumptions,
+    load_config,
+    manual_review_capacity_rate,
+    threshold_policy,
+    threshold_version,
+)
+from src.evaluation_reports import (
+    write_business_value_report,
+    write_figures,
+    write_validation_report,
+)
 from src.mart_access import load_labeled_split_frames
-from src.model_contracts import BASELINE_MODEL_TYPE
-from src.model_contracts import BASELINE_MODEL_VERSION
-from src.model_contracts import EVALUATION_SPLITS
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
-from src.model_contracts import MODEL_ARTIFACTS
-from src.model_contracts import REPORTING_SPLITS
-from src.model_contracts import select_model_type_by_validation_pr_auc
-from src.model_artifacts import load_model_artifact
-from src.model_artifacts import normalize_split_ids
-from src.model_artifacts import selected_model_types
-from src.modeling import predict_probabilities
-from src.modeling import prediction_frame
-from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
-from src.report_contracts import MODEL_CONFUSION_MATRIX_COLUMNS
-from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
-from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
-from src.runtime import created_at_utc
-from src.runtime import ensure_directories
-from src.runtime import replace_duckdb_table
-from src.runtime import require_existing_path
-from src.runtime import resolve_config_path
-from src.runtime import write_csv
-from src.thresholding import ThresholdingError
-from src.thresholding import build_confusion_matrix_rows
-from src.thresholding import build_threshold_metric_rows
-from src.thresholding import resolve_scenario_thresholds
+from src.metrics import (
+    build_calibration_bin_rows,
+    build_probability_metric_rows,
+    nullable_mean,
+    with_probability_rank_bin,
+)
+from src.model_artifacts import (
+    load_model_artifact,
+    normalize_split_ids,
+    selected_model_types,
+)
+from src.model_contracts import (
+    BASELINE_MODEL_TYPE,
+    BASELINE_MODEL_VERSION,
+    EVALUATION_SPLITS,
+    LIGHTGBM_MODEL_TYPE,
+    LIGHTGBM_MODEL_VERSION,
+    MODEL_ARTIFACTS,
+    REPORTING_SPLITS,
+    select_model_type_by_validation_pr_auc,
+)
+from src.modeling import predict_probabilities, prediction_frame
+from src.report_contracts import (
+    MODEL_CALIBRATION_BINS_COLUMNS,
+    MODEL_CONFUSION_MATRIX_COLUMNS,
+    MODEL_LIFT_BY_DECILE_COLUMNS,
+    MODEL_METRICS_SUMMARY_COLUMNS,
+    MODEL_THRESHOLD_METRICS_COLUMNS,
+)
+from src.runtime import (
+    created_at_utc,
+    ensure_directories,
+    replace_duckdb_table,
+    require_existing_path,
+    resolve_config_path,
+    write_csv,
+)
+from src.thresholding import (
+    ThresholdingError,
+    build_confusion_matrix_rows,
+    build_threshold_metric_rows,
+    resolve_scenario_thresholds,
+)
 
 
 class EvaluationError(RuntimeError):
@@ -341,8 +355,7 @@ def main() -> None:
 
     if args.export_dashboard_data:
         # Keep dashboard export imports local so normal evaluation does not depend on export helpers.
-        from src.dashboard_exports import DashboardExportError
-        from src.dashboard_exports import run_dashboard_export
+        from src.dashboard_exports import DashboardExportError, run_dashboard_export
 
         try:
             run_dashboard_export(

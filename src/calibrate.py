@@ -9,38 +9,43 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from src.calibration import CALIBRATION_FIT_SPLIT
-from src.calibration import CALIBRATION_METHODS
-from src.calibration import apply_calibration_method
-from src.calibration import fit_calibrators
-from src.calibration import select_calibration_method
-from src.cli import add_config_argument
-from src.cli import exit_with_error
-from src.config import DEFAULT_CONFIG_PATH
-from src.config import load_config
-from src.config import manual_review_capacity_rate
-from src.config import project_random_seed
-from src.model_contracts import EVALUATION_SPLITS
-from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
-from src.model_contracts import LIGHTGBM_MODEL_TYPE
-from src.model_contracts import LIGHTGBM_MODEL_VERSION
-from src.model_contracts import REPORTING_SPLITS
-from src.metrics import build_calibration_bin_rows
-from src.metrics import probability_metrics
+from src.calibration import (
+    CALIBRATION_FIT_SPLIT,
+    CALIBRATION_METHODS,
+    apply_calibration_method,
+    fit_calibrators,
+    select_calibration_method,
+)
+from src.cli import add_config_argument, exit_with_error
+from src.config import (
+    DEFAULT_CONFIG_PATH,
+    load_config,
+    manual_review_capacity_rate,
+    project_random_seed,
+)
 from src.mart_access import load_labeled_split_frames
-from src.model_artifacts import load_model_artifact
-from src.model_artifacts import normalize_split_ids
-from src.modeling import predict_probabilities
-from src.modeling import prediction_frame
-from src.report_contracts import MODEL_CALIBRATION_BINS_COMPARISON_COLUMNS
-from src.report_contracts import MODEL_CALIBRATION_COMPARISON_COLUMNS
-from src.runtime import created_at_utc
-from src.runtime import ensure_directories
-from src.runtime import replace_duckdb_table
-from src.runtime import require_existing_path
-from src.runtime import resolve_config_path
-from src.runtime import write_csv
-
+from src.metrics import build_calibration_bin_rows, probability_metrics
+from src.model_artifacts import load_model_artifact, normalize_split_ids
+from src.model_contracts import (
+    EVALUATION_SPLITS,
+    LIGHTGBM_MODEL_ARTIFACT_NAME,
+    LIGHTGBM_MODEL_TYPE,
+    LIGHTGBM_MODEL_VERSION,
+    REPORTING_SPLITS,
+)
+from src.modeling import predict_probabilities, prediction_frame
+from src.report_contracts import (
+    MODEL_CALIBRATION_BINS_COMPARISON_COLUMNS,
+    MODEL_CALIBRATION_COMPARISON_COLUMNS,
+)
+from src.runtime import (
+    created_at_utc,
+    ensure_directories,
+    replace_duckdb_table,
+    require_existing_path,
+    resolve_config_path,
+    write_csv,
+)
 
 CALIBRATION_ARTIFACT_NAME = "lightgbm_credit_risk_calibration.joblib"
 

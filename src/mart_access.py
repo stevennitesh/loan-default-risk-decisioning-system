@@ -6,8 +6,7 @@ import duckdb
 import pandas as pd
 
 from src.metrics import target_class_values
-from src.runtime import sql_identifier
-from src.runtime import sql_literal
+from src.runtime import sql_identifier, sql_literal
 
 
 def fetch_count(

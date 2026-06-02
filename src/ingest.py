@@ -6,19 +6,18 @@ from typing import Any
 
 import duckdb
 
-from src.cli import add_config_argument
-from src.cli import exit_with_error
-from src.config import DEFAULT_CONFIG_PATH
-from src.config import SUPPORTED_SOURCE_FILES
-from src.config import load_config
+from src.cli import add_config_argument, exit_with_error
+from src.config import DEFAULT_CONFIG_PATH, SUPPORTED_SOURCE_FILES, load_config
 from src.mart_access import fetch_count
 from src.report_contracts import INGESTION_SUMMARY_COLUMNS
-from src.runtime import REPO_ROOT
-from src.runtime import created_at_utc
-from src.runtime import ensure_directories
-from src.runtime import resolve_config_path
-from src.runtime import sql_identifier
-from src.runtime import write_csv
+from src.runtime import (
+    REPO_ROOT,
+    created_at_utc,
+    ensure_directories,
+    resolve_config_path,
+    sql_identifier,
+    write_csv,
+)
 
 STAGING_TABLES = {
     "application_train": "stg_application_train",

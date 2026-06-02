@@ -7,14 +7,11 @@ import pandas as pd
 from sklearn.metrics import brier_score_loss
 
 from src.calibration import apply_saved_calibration_artifact
-from src.metrics import pr_auc_or_none
-from src.metrics import roc_auc_or_none
-from src.metrics import validate_probabilities
 from src.mart_access import load_labeled_segment_split_frame
+from src.metrics import pr_auc_or_none, roc_auc_or_none, validate_probabilities
 from src.model_artifacts import normalize_split_ids
 from src.model_contracts import REPORTING_SPLITS
 from src.modeling import predict_probabilities
-
 
 SEGMENT_DIMENSIONS = [
     "CODE_GENDER",

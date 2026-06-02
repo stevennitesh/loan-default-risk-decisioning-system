@@ -4,10 +4,7 @@ from typing import TypeVar
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import brier_score_loss
-from sklearn.metrics import roc_auc_score
-
+from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 
 TError = TypeVar("TError", bound=Exception)
 

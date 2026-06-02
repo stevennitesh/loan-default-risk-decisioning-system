@@ -7,8 +7,7 @@ import pandas as pd
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 
-from src.metrics import target_class_values
-from src.metrics import validate_probabilities
+from src.metrics import target_class_values, validate_probabilities
 
 UNCALIBRATED_METHOD = "uncalibrated"
 SIGMOID_METHOD = "sigmoid"

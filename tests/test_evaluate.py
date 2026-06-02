@@ -6,20 +6,22 @@ import duckdb
 import joblib
 import pytest
 
-from src.evaluate import EvaluationError
-from src.evaluate import run_evaluation
-from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
-from src.report_contracts import MODEL_CONFUSION_MATRIX_COLUMNS
-from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
-from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
-from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
+from src.evaluate import EvaluationError, run_evaluation
+from src.report_contracts import (
+    MODEL_CALIBRATION_BINS_COLUMNS,
+    MODEL_CONFUSION_MATRIX_COLUMNS,
+    MODEL_LIFT_BY_DECILE_COLUMNS,
+    MODEL_METRICS_SUMMARY_COLUMNS,
+    MODEL_THRESHOLD_METRICS_COLUMNS,
+)
 from src.thresholding import SCENARIO_NAMES
 from src.train import run_training
-from tests.helpers import create_training_database
-from tests.helpers import read_csv_rows
-from tests.helpers import table_row_count
-from tests.helpers import table_exists
-
+from tests.helpers import (
+    create_training_database,
+    read_csv_rows,
+    table_exists,
+    table_row_count,
+)
 
 REQUIRED_EVALUATION_METRICS = {
     "roc_auc",
