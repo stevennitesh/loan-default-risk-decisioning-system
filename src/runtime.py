@@ -24,6 +24,16 @@ def resolve_config_path(config: dict[str, Any], path_key: str) -> Path:
     return resolve_project_path(config["paths"][path_key])
 
 
+def require_existing_path(path: Path, label: str, error_cls: type[Exception]) -> None:
+    if not path.exists():
+        raise error_cls(f"{label} not found: {path}")
+
+
+def ensure_directories(*paths: Path) -> None:
+    for path in paths:
+        path.mkdir(parents=True, exist_ok=True)
+
+
 def created_at_utc() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -64,6 +74,14 @@ def write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> 
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def read_csv(path: Path, fieldnames: list[str] | None = None) -> list[dict[str, str]]:
+    with path.open(newline="", encoding="utf-8") as csv_file:
+        reader = csv.DictReader(csv_file)
+        if fieldnames is not None and reader.fieldnames != fieldnames:
+            raise ValueError(f"Unexpected CSV columns for {path}: {reader.fieldnames}")
+        return list(reader)
 
 
 def sql_identifier(identifier: str) -> str:

@@ -189,24 +189,28 @@ def build_confusion_matrix_rows(
                 scenario_thresholds[scenario_name],
             )
             predicted_labels = pd.Series(bands == "high_risk", index=frame.index).astype(int)
-            for true_label in [0, 1]:
-                for predicted_label in [0, 1]:
-                    rows.append(
-                        {
-                            "model_version": model_version,
-                            "split": split_name,
-                            "scenario_name": scenario_name,
-                            "true_label": true_label,
-                            "predicted_label": predicted_label,
-                            "count": int(
-                                (
-                                    (frame["target"] == true_label)
-                                    & (predicted_labels == predicted_label)
-                                ).sum()
-                            ),
-                        }
-                    )
+            rows.extend(
+                {
+                    "model_version": model_version,
+                    "split": split_name,
+                    "scenario_name": scenario_name,
+                    "true_label": true_label,
+                    "predicted_label": predicted_label,
+                    "count": _confusion_count(frame, predicted_labels, true_label, predicted_label),
+                }
+                for true_label in [0, 1]
+                for predicted_label in [0, 1]
+            )
     return rows
+
+
+def _confusion_count(
+    frame: pd.DataFrame,
+    predicted_labels: pd.Series,
+    true_label: int,
+    predicted_label: int,
+) -> int:
+    return int(((frame["target"] == true_label) & (predicted_labels == predicted_label)).sum())
 
 
 def _derive_threshold_pair(

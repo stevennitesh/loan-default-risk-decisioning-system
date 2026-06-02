@@ -17,6 +17,8 @@ from src.feature_experiments import prepare_feature_set_specs
 from src.feature_experiments import run_single_feature_set
 from src.feature_experiments import select_feature_set
 from src.runtime import created_at_utc
+from src.runtime import ensure_directories
+from src.runtime import require_existing_path
 from src.runtime import resolve_config_path
 from src.runtime import write_csv
 from src.modeling import load_labeled_training_frame
@@ -67,8 +69,7 @@ def run_model_stability_experiment(
     model_dir = resolve_config_path(config, "model_dir")
     report_dir = resolve_config_path(config, "report_dir")
 
-    if not duckdb_path.exists():
-        raise ModelStabilityError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", ModelStabilityError)
 
     base_artifact = load_lightgbm_artifact(model_dir, error_cls=ModelStabilityError)
     full_feature_columns = list(base_artifact["feature_columns"])
@@ -128,9 +129,8 @@ def run_model_stability_experiment(
     for row in aggregate_rows:
         row["selected"] = row["feature_set"] == selected_feature_set
 
-    report_dir.mkdir(parents=True, exist_ok=True)
     experiments_dir = report_dir / "experiments"
-    experiments_dir.mkdir(parents=True, exist_ok=True)
+    ensure_directories(report_dir, experiments_dir)
     seed_runs_path = report_dir / seed_runs_name
     summary_path = report_dir / summary_name
     report_path = experiments_dir / report_name
@@ -192,7 +192,7 @@ def aggregate_stability_rows(
 
 
 def select_stability_feature_set(rows: list[dict[str, Any]]) -> str:
-    selected = sorted(rows, key=_stability_selection_key, reverse=True)[0]
+    selected = max(rows, key=_stability_selection_key)
     return str(selected["feature_set"])
 
 

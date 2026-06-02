@@ -65,7 +65,6 @@ def build_segment_performance_rows(
         validate_probabilities(probabilities, f"{split_name} calibrated", error_cls=error_cls)
         split_frame = split_frame.copy()
         split_frame["probability"] = probabilities.astype(float)
-        target_values = split_frame["TARGET"].astype(int)
 
         for segment_name in SEGMENT_DIMENSIONS:
             for segment_value, segment_frame in split_frame.groupby(segment_name, dropna=False, sort=True):
@@ -85,9 +84,6 @@ def build_segment_performance_rows(
                         "brier_score": float(brier_score_loss(segment_targets, segment_probabilities)),
                     }
                 )
-
-        if len(split_frame) != len(target_values):
-            raise error_cls(f"{split_name} segment frame changed size while building summaries")
 
     if not rows:
         raise error_cls("segment_performance_summary must not be empty")

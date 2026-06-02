@@ -44,9 +44,8 @@ def precision_at_rate(
     *,
     error_cls: type[TError] = ValueError,
 ) -> float:
-    count = top_count(len(y_true), rate, error_cls=error_cls)
-    frame = pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
-    return float(frame.sort_values("probability", ascending=False).head(count)["target"].mean())
+    frame = _probability_frame(y_true, probabilities)
+    return float(_top_rate_frame(frame, rate, error_cls)["target"].mean())
 
 
 def recall_at_rate(
@@ -56,9 +55,8 @@ def recall_at_rate(
     *,
     error_cls: type[TError] = ValueError,
 ) -> float:
-    count = top_count(len(y_true), rate, error_cls=error_cls)
-    frame = pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
-    positives_in_top = int(frame.sort_values("probability", ascending=False).head(count)["target"].sum())
+    frame = _probability_frame(y_true, probabilities)
+    positives_in_top = int(_top_rate_frame(frame, rate, error_cls)["target"].sum())
     total_positives = int(frame["target"].sum())
     return float(positives_in_top / total_positives) if total_positives else 0.0
 
@@ -67,6 +65,19 @@ def top_count(row_count: int, rate: float, *, error_cls: type[TError]) -> int:
     if rate <= 0 or rate > 1:
         raise error_cls(f"Selection rate must be in (0, 1], got {rate}")
     return max(1, int(np.ceil(row_count * rate)))
+
+
+def _top_rate_frame(
+    frame: pd.DataFrame,
+    rate: float,
+    error_cls: type[TError],
+) -> pd.DataFrame:
+    count = top_count(len(frame), rate, error_cls=error_cls)
+    return frame.sort_values("probability", ascending=False).head(count)
+
+
+def _probability_frame(y_true: pd.Series, probabilities: np.ndarray) -> pd.DataFrame:
+    return pd.DataFrame({"target": y_true.to_numpy(), "probability": probabilities})
 
 
 def with_probability_rank_bin(frame: pd.DataFrame, column_name: str, *, descending: bool) -> pd.DataFrame:
@@ -86,15 +97,19 @@ def nullable_mean(series: pd.Series) -> float | None:
 
 
 def roc_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
-    if set(targets.astype(int).unique()) != {0, 1}:
+    if not _has_binary_targets(targets):
         return None
     return float(roc_auc_score(targets, probabilities))
 
 
 def pr_auc_or_none(targets: pd.Series, probabilities: np.ndarray) -> float | None:
-    if set(targets.astype(int).unique()) != {0, 1}:
+    if not _has_binary_targets(targets):
         return None
     return float(average_precision_score(targets, probabilities))
+
+
+def _has_binary_targets(targets: pd.Series) -> bool:
+    return set(targets.astype(int).unique()) == {0, 1}
 
 
 def probability_metrics(

@@ -18,6 +18,8 @@ from src.feature_experiments import select_feature_set
 from src.model_artifacts import normalize_split_ids
 from src.model_contracts import EVALUATION_SPLITS
 from src.runtime import created_at_utc
+from src.runtime import ensure_directories
+from src.runtime import require_existing_path
 from src.runtime import resolve_config_path
 from src.runtime import write_csv
 from src.report_contracts import FEATURE_SELECTION_COMPARISON_COLUMNS
@@ -45,8 +47,7 @@ def run_feature_selection_experiment(
     model_dir = resolve_config_path(config, "model_dir")
     report_dir = resolve_config_path(config, "report_dir")
 
-    if not duckdb_path.exists():
-        raise FeatureSelectionError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", FeatureSelectionError)
 
     base_artifact = load_lightgbm_artifact(model_dir, error_cls=FeatureSelectionError)
     full_feature_columns = list(base_artifact["feature_columns"])
@@ -95,9 +96,8 @@ def run_feature_selection_experiment(
     for row in rows:
         row["selected"] = row["feature_set"] == selected_feature_set
 
-    report_dir.mkdir(parents=True, exist_ok=True)
     experiments_dir = report_dir / "experiments"
-    experiments_dir.mkdir(parents=True, exist_ok=True)
+    ensure_directories(report_dir, experiments_dir)
     comparison_path = report_dir / comparison_name
     report_path = experiments_dir / report_name
     selected_features_path = experiments_dir / selected_features_name

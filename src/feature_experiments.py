@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +29,7 @@ from src.modeling import predict_probabilities
 from src.modeling import prediction_frame
 from src.metrics import probability_metrics
 from src.metrics import with_probability_rank_bin
+from src.runtime import read_csv
 from src.thresholding import build_threshold_metric_rows
 from src.thresholding import resolve_scenario_thresholds
 
@@ -165,8 +165,7 @@ def load_feature_importance_rows(
     path = report_dir / "model_feature_importance.csv"
     if not path.exists():
         raise error_cls(f"Missing feature importance report: {path}")
-    with path.open(newline="", encoding="utf-8") as csv_file:
-        return list(csv.DictReader(csv_file))
+    return read_csv(path)
 
 
 def ranked_raw_features(
@@ -345,7 +344,7 @@ def balanced_threshold_rows(
 
 
 def select_feature_set(rows: list[dict[str, Any]]) -> str:
-    selected = sorted(rows, key=feature_set_selection_key, reverse=True)[0]
+    selected = max(rows, key=feature_set_selection_key)
     return str(selected["feature_set"])
 
 

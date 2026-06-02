@@ -12,6 +12,7 @@ from src.mart_access import fetch_count
 from src.report_contracts import INGESTION_SUMMARY_COLUMNS
 from src.runtime import REPO_ROOT
 from src.runtime import created_at_utc
+from src.runtime import ensure_directories
 from src.runtime import resolve_config_path
 from src.runtime import sql_identifier
 from src.runtime import write_csv
@@ -49,9 +50,7 @@ def run_ingestion(config_path: str | Path = "configs/base.yaml") -> list[dict[st
         missing_display = ", ".join(sorted(missing_files))
         raise IngestionError(f"Missing required raw CSV files: {missing_display}")
 
-    parquet_dir.mkdir(parents=True, exist_ok=True)
-    duckdb_path.parent.mkdir(parents=True, exist_ok=True)
-    report_dir.mkdir(parents=True, exist_ok=True)
+    ensure_directories(parquet_dir, duckdb_path.parent, report_dir)
 
     ingestion_created_at = created_at_utc()
     summary_rows: list[dict[str, Any]] = []

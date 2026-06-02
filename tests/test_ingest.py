@@ -5,6 +5,7 @@ import pytest
 
 from src.ingest import IngestionError, run_ingestion
 from src.report_contracts import INGESTION_SUMMARY_COLUMNS
+from src.runtime import ensure_directories
 from tests.helpers import read_csv_rows
 from tests.helpers import read_table_columns
 from tests.helpers import table_names
@@ -94,7 +95,7 @@ def test_ingestion_converts_required_csvs_and_loads_duckdb_staging_without_optio
 
 
 def _write_required_csvs(raw_dir: Path) -> None:
-    raw_dir.mkdir(parents=True, exist_ok=True)
+    ensure_directories(raw_dir)
     csv_contents = {
         "application_train.csv": (
             "SK_ID_CURR,TARGET,AMT_INCOME_TOTAL\n"

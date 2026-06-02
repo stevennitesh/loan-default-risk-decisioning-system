@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 
 import duckdb
@@ -9,14 +8,14 @@ import pandas as pd
 from src.feature_labels import readable_feature_label
 from src.mart_access import existing_tables
 from src.mart_access import table_columns
+from src.runtime import ensure_directories
+from src.runtime import read_csv
 from src.runtime import replace_duckdb_table_from_frame
+from src.runtime import write_csv
 
 
 def read_csv_rows(path: Path, expected_columns: list[str]) -> list[dict[str, str]]:
-    with path.open(newline="", encoding="utf-8") as csv_file:
-        reader = csv.DictReader(csv_file)
-        assert reader.fieldnames == expected_columns
-        return list(reader)
+    return read_csv(path, expected_columns)
 
 
 def table_names(connection: duckdb.DuckDBPyConnection) -> set[str]:
@@ -36,7 +35,7 @@ def read_table_columns(connection: duckdb.DuckDBPyConnection, table_name: str) -
 
 
 def create_training_database(database_path: Path, train_rows: int = 40, test_rows: int = 6) -> None:
-    database_path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_directories(database_path.parent)
     train_records = [
         _mart_record(
             applicant_id=100000 + index,
@@ -216,22 +215,21 @@ def create_training_database(database_path: Path, train_rows: int = 40, test_row
 
 
 def write_feature_importance(path: Path, feature_columns: list[str]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(
-            csv_file,
-            fieldnames=["model_version", "feature_name", "importance_type", "importance_value", "rank"],
-        )
-        writer.writeheader()
-        for rank, feature_name in enumerate(feature_columns, start=1):
-            writer.writerow(
-                {
-                    "model_version": "lightgbm_credit_risk_v1",
-                    "feature_name": readable_feature_label(feature_name),
-                    "importance_type": "mean_abs_shap",
-                    "importance_value": 1 / rank,
-                    "rank": rank,
-                }
-            )
+    fieldnames = ["model_version", "feature_name", "importance_type", "importance_value", "rank"]
+    write_csv(
+        path,
+        fieldnames,
+        [
+            {
+                "model_version": "lightgbm_credit_risk_v1",
+                "feature_name": readable_feature_label(feature_name),
+                "importance_type": "mean_abs_shap",
+                "importance_value": 1 / rank,
+                "rank": rank,
+            }
+            for rank, feature_name in enumerate(feature_columns, start=1)
+        ],
+    )
 
 
 def _mart_record(

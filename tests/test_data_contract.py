@@ -18,9 +18,10 @@ from tests.helpers import read_csv_rows
 def test_data_contract_fails_when_feature_tables_are_missing(staged_feature_fixture) -> None:
     config = load_config(staged_feature_fixture.config_path)
 
-    with duckdb.connect(str(staged_feature_fixture.database_path)) as connection:
-        with pytest.raises(DataContractError) as error:
-            validate_data_contracts(connection, config)
+    with duckdb.connect(str(staged_feature_fixture.database_path)) as connection, pytest.raises(
+        DataContractError
+    ) as error:
+        validate_data_contracts(connection, config)
 
     message = str(error.value)
     assert "Missing required DuckDB tables" in message

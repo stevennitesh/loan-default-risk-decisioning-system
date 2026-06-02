@@ -26,6 +26,7 @@ from src.modeling import predict_probabilities
 from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
 from src.runtime import current_utc_datetime
 from src.runtime import replace_duckdb_table
+from src.runtime import require_existing_path
 from src.runtime import resolve_config_path
 from src.thresholding import assign_risk_bands
 
@@ -46,8 +47,7 @@ def run_scoring(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
 
-    if not duckdb_path.exists():
-        raise ScoringError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", ScoringError)
 
     scored_at = current_utc_datetime()
     with duckdb.connect(str(duckdb_path)) as connection:

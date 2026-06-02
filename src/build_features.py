@@ -21,6 +21,7 @@ from src.data_contracts import validate_data_contracts
 from src.data_contracts import write_contract_reports
 from src.runtime import REPO_ROOT
 from src.runtime import created_at_utc
+from src.runtime import ensure_directories
 from src.runtime import resolve_config_path
 from src.runtime import sql_identifier
 from src.runtime import write_csv
@@ -81,8 +82,7 @@ def run_feature_build(config_path: str | Path = "configs/base.yaml") -> list[dic
     duckdb_path = resolve_config_path(config, "duckdb_path")
     report_dir = resolve_config_path(config, "report_dir")
 
-    report_dir.mkdir(parents=True, exist_ok=True)
-    duckdb_path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_directories(report_dir, duckdb_path.parent)
 
     with duckdb.connect(str(duckdb_path)) as connection:
         _ensure_staging_tables(connection, config)

@@ -14,6 +14,7 @@ from src.mart_access import table_columns
 from src.report_contracts import DATA_INVENTORY_COLUMNS
 from src.report_contracts import FEATURE_INVENTORY_COLUMNS
 from src.runtime import created_at_utc as current_created_at_utc
+from src.runtime import ensure_directories
 from src.runtime import sql_identifier
 from src.runtime import write_csv
 
@@ -238,7 +239,7 @@ def write_contract_reports(
     feature_inventory_rows: list[dict[str, Any]],
 ) -> None:
     report_path = Path(report_dir)
-    report_path.mkdir(parents=True, exist_ok=True)
+    ensure_directories(report_path)
     write_csv(report_path / "data_inventory.csv", DATA_INVENTORY_COLUMNS, data_inventory_rows)
     write_csv(report_path / "feature_inventory.csv", FEATURE_INVENTORY_COLUMNS, feature_inventory_rows)
 

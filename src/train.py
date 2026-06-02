@@ -39,8 +39,10 @@ from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_RUN_SUMMARY_COLUMNS
 from src.report_contracts import SPLIT_SUMMARY_COLUMNS
 from src.runtime import created_at_utc
+from src.runtime import ensure_directories
 from src.runtime import feature_frame
 from src.runtime import replace_duckdb_table
+from src.runtime import require_existing_path
 from src.runtime import resolve_config_path
 from src.runtime import write_csv
 
@@ -62,8 +64,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
     model_dir = resolve_config_path(config, "model_dir")
     report_dir = resolve_config_path(config, "report_dir")
 
-    if not duckdb_path.exists():
-        raise TrainingError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", TrainingError)
 
     created_at = created_at_utc()
     run_id = f"model_training_v1_{created_at.replace('-', '').replace(':', '').replace('Z', '')}"
@@ -166,8 +167,7 @@ def run_training(config_path: str | Path = "configs/base.yaml") -> dict[str, Any
             ),
         ]
 
-        model_dir.mkdir(parents=True, exist_ok=True)
-        report_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directories(model_dir, report_dir)
         # Downstream evaluation, scoring, and explainability depend on these persisted split IDs.
         common_artifact_fields = {
             "run_id": run_id,

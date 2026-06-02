@@ -40,7 +40,9 @@ from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
 from src.runtime import created_at_utc
+from src.runtime import ensure_directories
 from src.runtime import replace_duckdb_table
+from src.runtime import require_existing_path
 from src.runtime import resolve_config_path
 from src.runtime import write_csv
 from src.thresholding import ThresholdingError
@@ -66,8 +68,7 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
     model_dir = resolve_config_path(config, "model_dir")
     report_dir = resolve_config_path(config, "report_dir")
 
-    if not duckdb_path.exists():
-        raise EvaluationError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", EvaluationError)
 
     artifacts = {
         model_type: load_model_artifact(
@@ -130,9 +131,8 @@ def run_evaluation(config_path: str | Path = "configs/base.yaml") -> dict[str, A
             REPORTING_SPLITS,
         )
 
-        report_dir.mkdir(parents=True, exist_ok=True)
         figures_dir = report_dir / "figures"
-        figures_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directories(report_dir, figures_dir)
 
         write_csv(report_dir / "model_metrics_summary.csv", MODEL_METRICS_SUMMARY_COLUMNS, metric_rows)
         write_csv(report_dir / "model_lift_by_decile.csv", MODEL_LIFT_BY_DECILE_COLUMNS, lift_rows)

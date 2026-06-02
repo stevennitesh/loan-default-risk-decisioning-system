@@ -451,30 +451,30 @@ def _create_model_threshold_metrics(
     rows = []
     for split in ["validation", "test"]:
         row_count = split_sizes[split]
-        for scenario in sorted(SCENARIOS):
-            rows.append(
-                {
-                    "model_version": LIGHTGBM_MODEL_VERSION,
-                    "split": split,
-                    "threshold_version": "threshold_v1",
-                    "scenario_name": scenario,
-                    "threshold_low": 0.3,
-                    "threshold_high": 0.7,
-                    "applicant_count": row_count,
-                    "approval_rate": 0.5,
-                    "manual_review_rate": 0.25,
-                    "high_risk_rate": 0.25,
-                    "approved_good_count": row_count // 2,
-                    "approved_bad_count": 0,
-                    "manual_review_count": row_count // 4,
-                    "high_risk_count": row_count - (row_count // 2) - (row_count // 4),
-                    "default_rate_approved": 0.0,
-                    "high_risk_default_capture_rate": 0.5,
-                    "expected_value": 1000.0,
-                    "expected_value_per_applicant": 1000.0 / row_count,
-                    "created_at": "2026-01-01T00:00:00Z",
-                }
-            )
+        rows.extend(
+            {
+                "model_version": LIGHTGBM_MODEL_VERSION,
+                "split": split,
+                "threshold_version": "threshold_v1",
+                "scenario_name": scenario,
+                "threshold_low": 0.3,
+                "threshold_high": 0.7,
+                "applicant_count": row_count,
+                "approval_rate": 0.5,
+                "manual_review_rate": 0.25,
+                "high_risk_rate": 0.25,
+                "approved_good_count": row_count // 2,
+                "approved_bad_count": 0,
+                "manual_review_count": row_count // 4,
+                "high_risk_count": row_count - (row_count // 2) - (row_count // 4),
+                "default_rate_approved": 0.0,
+                "high_risk_default_capture_rate": 0.5,
+                "expected_value": 1000.0,
+                "expected_value_per_applicant": 1000.0 / row_count,
+                "created_at": "2026-01-01T00:00:00Z",
+            }
+            for scenario in sorted(SCENARIOS)
+        )
     _replace_table(connection, "model_threshold_metrics", pd.DataFrame(rows, columns=MODEL_THRESHOLD_METRICS_COLUMNS))
 
 

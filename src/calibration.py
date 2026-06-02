@@ -22,7 +22,7 @@ def fit_calibrators(
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, Any]:
     validate_probabilities(validation_probabilities, "validation calibration input", error_cls=error_cls)
-    target_values = set(int(value) for value in validation_targets)
+    target_values = {int(value) for value in validation_targets}
     if target_values != {0, 1}:
         raise error_cls("Calibration fit split must contain both target classes")
 

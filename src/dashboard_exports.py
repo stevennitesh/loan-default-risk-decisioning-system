@@ -26,7 +26,9 @@ from src.report_contracts import MODEL_LIFT_BY_DECILE_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_THRESHOLD_METRICS_COLUMNS
 from src.report_contracts import SEGMENT_PERFORMANCE_SUMMARY_COLUMNS
+from src.runtime import ensure_directories
 from src.runtime import replace_duckdb_table
+from src.runtime import require_existing_path
 from src.runtime import resolve_config_path
 from src.runtime import resolve_project_path
 from src.runtime import sql_identifier
@@ -88,8 +90,7 @@ def run_dashboard_export(
         else resolve_config_path(config, "dashboard_export_dir")
     )
 
-    if not duckdb_path.exists():
-        raise DashboardExportError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", DashboardExportError)
 
     with duckdb.connect(str(duckdb_path)) as connection:
         require_tables(connection, REQUIRED_SOURCE_TABLES, error_cls=DashboardExportError)
@@ -150,7 +151,7 @@ def run_dashboard_export(
         )
         _validate_export_source_columns(connection)
 
-        resolved_export_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directories(resolved_export_dir)
         row_counts = {}
         for table_name in DASHBOARD_EXPORT_TABLES:
             export_path = resolved_export_dir / f"{table_name}.csv"
@@ -189,8 +190,7 @@ def _export_table(
         """
     ).fetch_df()
     frame = _relabel_model_version(frame, model_version_relabel)
-    frame.to_csv(export_path, index=False)
-    return len(frame)
+    return _export_frame(frame, export_path)
 
 
 def _export_frame(frame: pd.DataFrame, export_path: Path) -> int:

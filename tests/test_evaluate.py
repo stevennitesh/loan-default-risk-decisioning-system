@@ -105,7 +105,7 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
                 for row in metrics_rows
                 if row["model_version"] == model_version and row["split"] == split
             }
-            assert REQUIRED_EVALUATION_METRICS == set(split_metrics)
+            assert set(split_metrics) == REQUIRED_EVALUATION_METRICS
             assert 0 <= split_metrics["min_predicted_probability"] <= 1
             assert 0 <= split_metrics["max_predicted_probability"] <= 1
             assert split_metrics["top_decile_lift"] >= 0

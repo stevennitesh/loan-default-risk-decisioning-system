@@ -9,6 +9,7 @@ from src.report_contracts import MODEL_COMPARISON_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_METRICS_SUMMARY_COLUMNS
 from src.report_contracts import MODEL_RUN_SUMMARY_COLUMNS
 from src.report_contracts import SPLIT_SUMMARY_COLUMNS
+from src.runtime import ensure_directories
 from src.train import TrainingError
 from src.train import run_training
 from tests.helpers import create_training_database
@@ -209,7 +210,7 @@ def test_training_wraps_data_contract_failures(
     project_config_path: Path,
 ) -> None:
     database_path = scratch_path / "db" / "credit_risk.duckdb"
-    database_path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_directories(database_path.parent)
     with duckdb.connect(str(database_path)) as connection:
         connection.execute("CREATE TABLE mart_credit_risk_features (SK_ID_CURR BIGINT)")
 

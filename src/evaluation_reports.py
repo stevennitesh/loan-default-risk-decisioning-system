@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 from typing import Any
 
@@ -12,10 +11,11 @@ from sklearn.metrics import roc_auc_score
 from sklearn.metrics import roc_curve
 
 from src.model_contracts import REPORTING_SPLITS
+from src.runtime import read_csv
 
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 
 
 def write_validation_report(
@@ -227,11 +227,10 @@ def _calibration_comparison_lookup(report_dir: Path) -> dict[tuple[str, str], di
     if not comparison_path.exists():
         return {}
 
-    with comparison_path.open(newline="", encoding="utf-8") as csv_file:
-        return {
-            (row["calibration_method"], row["split"]): row
-            for row in csv.DictReader(csv_file)
-        }
+    return {
+        (row["calibration_method"], row["split"]): row
+        for row in read_csv(comparison_path)
+    }
 
 
 def _write_roc_curve(
@@ -251,9 +250,7 @@ def _write_roc_curve(
     axis.set_ylabel("True positive rate")
     axis.legend()
     axis.grid(True, alpha=0.3)
-    figure.tight_layout()
-    figure.savefig(path, dpi=150)
-    plt.close(figure)
+    _save_figure(path, figure)
 
 
 def _write_pr_curve(
@@ -272,9 +269,7 @@ def _write_pr_curve(
     axis.set_ylabel("Precision")
     axis.legend()
     axis.grid(True, alpha=0.3)
-    figure.tight_layout()
-    figure.savefig(path, dpi=150)
-    plt.close(figure)
+    _save_figure(path, figure)
 
 
 def _write_calibration_curve(
@@ -297,9 +292,7 @@ def _write_calibration_curve(
     axis.set_ylabel("Observed default rate")
     axis.legend()
     axis.grid(True, alpha=0.3)
-    figure.tight_layout()
-    figure.savefig(path, dpi=150)
-    plt.close(figure)
+    _save_figure(path, figure)
 
 
 def _write_lift_chart(
@@ -321,6 +314,10 @@ def _write_lift_chart(
     axis.set_ylabel("Lift")
     axis.legend()
     axis.grid(True, alpha=0.3)
+    _save_figure(path, figure)
+
+
+def _save_figure(path: Path, figure: Any) -> None:
     figure.tight_layout()
     figure.savefig(path, dpi=150)
     plt.close(figure)

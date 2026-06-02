@@ -22,8 +22,10 @@ from src.model_contracts import LIGHTGBM_MODEL_TYPE
 from src.model_contracts import LIGHTGBM_MODEL_VERSION
 from src.model_artifacts import load_model_artifact
 from src.model_artifacts import load_selected_model_type
+from src.runtime import ensure_directories
 from src.runtime import replace_duckdb_table
 from src.runtime import replace_duckdb_table_from_frame
+from src.runtime import require_existing_path
 from src.runtime import resolve_config_path
 from src.runtime import sql_identifier
 from src.runtime import write_csv
@@ -32,7 +34,7 @@ from src.report_contracts import MODEL_FEATURE_IMPORTANCE_COLUMNS
 
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt
 
 
 MAX_SHAP_SUMMARY_ROWS = 5_000
@@ -58,8 +60,7 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
     model_dir = resolve_config_path(config, "model_dir")
     report_dir = resolve_config_path(config, "report_dir")
 
-    if not duckdb_path.exists():
-        raise ExplainabilityError(f"DuckDB database not found: {duckdb_path}")
+    require_existing_path(duckdb_path, "DuckDB database", ExplainabilityError)
 
     excluded_terms = _excluded_output_terms(config)
 
@@ -109,9 +110,8 @@ def run_explain(config_path: str | Path = "configs/base.yaml") -> dict[str, Any]
             "credit_risk_scores reason fields",
         )
 
-        report_dir.mkdir(parents=True, exist_ok=True)
         figures_dir = report_dir / "figures"
-        figures_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directories(report_dir, figures_dir)
         write_csv(
             report_dir / "model_feature_importance.csv",
             MODEL_FEATURE_IMPORTANCE_COLUMNS,
@@ -449,11 +449,7 @@ def _write_shap_summary(
     if len(feature_order):
         colorbar = figure.colorbar(scatter, ax=axis, pad=0.02)
         colorbar.set_label("Transformed feature value")
-    figure.tight_layout()
-    figure.savefig(path, dpi=150, bbox_inches="tight")
-    plt.close(figure)
-    if not path.exists() or path.stat().st_size == 0:
-        raise ExplainabilityError(f"Failed to write SHAP summary figure: {path}")
+    _save_shap_figure(path, figure)
 
 
 def _write_shap_package_summary(
@@ -477,12 +473,16 @@ def _write_shap_package_summary(
         show=False,
     )
     figure = plt.gcf()
+    _save_shap_figure(path, figure)
+    return True
+
+
+def _save_shap_figure(path: Path, figure: Any) -> None:
     figure.tight_layout()
     figure.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(figure)
     if not path.exists() or path.stat().st_size == 0:
         raise ExplainabilityError(f"Failed to write SHAP summary figure: {path}")
-    return True
 
 
 def _summary_sample_indexes(row_count: int, random_seed: int) -> np.ndarray:

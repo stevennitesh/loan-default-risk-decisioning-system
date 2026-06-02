@@ -8,6 +8,8 @@ import duckdb
 import pytest
 import yaml
 
+from src.runtime import ensure_directories
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -127,7 +129,7 @@ def write_config(scratch_path: Path) -> Path:
 
 
 def create_staging_tables(database_path: Path) -> None:
-    database_path.parent.mkdir(parents=True, exist_ok=True)
+    ensure_directories(database_path.parent)
     with duckdb.connect(str(database_path)) as connection:
         connection.execute(
             """
