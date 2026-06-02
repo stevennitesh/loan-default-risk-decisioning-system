@@ -10,6 +10,8 @@ from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import roc_curve
 
+from src.calibration import SIGMOID_METHOD
+from src.calibration import UNCALIBRATED_METHOD
 from src.model_contracts import REPORTING_SPLITS
 from src.runtime import read_csv
 from src.thresholding import BALANCED_SCENARIO
@@ -189,18 +191,18 @@ def _build_post_v1_calibration_section(report_dir: Path) -> str:
     if not row_lookup:
         return ""
     required_keys = [
-        ("uncalibrated", "validation"),
-        ("uncalibrated", "test"),
-        ("sigmoid", "validation"),
-        ("sigmoid", "test"),
+        (UNCALIBRATED_METHOD, "validation"),
+        (UNCALIBRATED_METHOD, "test"),
+        (SIGMOID_METHOD, "validation"),
+        (SIGMOID_METHOD, "test"),
     ]
     if any(key not in row_lookup for key in required_keys):
         return ""
 
-    validation_uncalibrated = row_lookup[("uncalibrated", "validation")]
-    validation_sigmoid = row_lookup[("sigmoid", "validation")]
-    test_uncalibrated = row_lookup[("uncalibrated", "test")]
-    test_sigmoid = row_lookup[("sigmoid", "test")]
+    validation_uncalibrated = row_lookup[(UNCALIBRATED_METHOD, "validation")]
+    validation_sigmoid = row_lookup[(SIGMOID_METHOD, "validation")]
+    test_uncalibrated = row_lookup[(UNCALIBRATED_METHOD, "test")]
+    test_sigmoid = row_lookup[(SIGMOID_METHOD, "test")]
     return f"""Post-v1 Experiment 004 adds a separate sigmoid calibration layer for the Experiment 003 LightGBM model. This is a large improvement in probability quality: held-out test Brier score improves from {float(test_uncalibrated['brier_score']):.6f} to {float(test_sigmoid['brier_score']):.6f}, and held-out test weighted calibration-bin error improves from {float(test_uncalibrated['weighted_calibration_error']):.6f} to {float(test_sigmoid['weighted_calibration_error']):.6f}. PR-AUC, ROC-AUC, top-decile lift, precision at top decile, recall at review capacity, and expected value are unchanged because sigmoid calibration is monotonic.
 
 | Split | Uncalibrated Brier | Sigmoid Brier | Uncalibrated weighted bin error | Sigmoid weighted bin error |
@@ -213,11 +215,11 @@ def _build_business_value_calibration_note(report_dir: Path) -> str:
     row_lookup = _calibration_comparison_lookup(report_dir)
     if not row_lookup:
         return ""
-    if ("uncalibrated", "test") not in row_lookup or ("sigmoid", "test") not in row_lookup:
+    if (UNCALIBRATED_METHOD, "test") not in row_lookup or (SIGMOID_METHOD, "test") not in row_lookup:
         return ""
 
-    test_uncalibrated = row_lookup[("uncalibrated", "test")]
-    test_sigmoid = row_lookup[("sigmoid", "test")]
+    test_uncalibrated = row_lookup[(UNCALIBRATED_METHOD, "test")]
+    test_sigmoid = row_lookup[(SIGMOID_METHOD, "test")]
     return f"""## Calibration Note
 
 Post-v1 Experiment 004 materially improves probability quality with a separate sigmoid calibration layer. Because the current threshold and expected-value workflow is rank-based, sigmoid calibration does not change the action ordering, scenario thresholds, or expected-value metrics shown above. It does improve the interpretability of the model score scale: held-out test Brier score improves from {float(test_uncalibrated['brier_score']):.6f} to {float(test_sigmoid['brier_score']):.6f}, and held-out test weighted calibration-bin error improves from {float(test_uncalibrated['weighted_calibration_error']):.6f} to {float(test_sigmoid['weighted_calibration_error']):.6f}."""

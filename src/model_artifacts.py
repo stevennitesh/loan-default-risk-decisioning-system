@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any
 
 import joblib
 
 from src.calibration import CALIBRATION_METHODS
+from src.calibration import UNCALIBRATED_METHOD
 from src.mart_access import existing_tables
 
 
@@ -98,7 +100,7 @@ def selected_model_types(connection: Any) -> set[str]:
 
 def load_selected_model_type(
     connection: Any,
-    supported_model_types: set[str],
+    supported_model_types: Collection[str],
     *,
     error_cls: type[Exception],
 ) -> str:
@@ -146,7 +148,7 @@ def load_calibration_artifact(
 ) -> dict[str, Any]:
     artifact_path = model_dir / calibration_artifact_name
     if selected_artifact["model_type"] != calibrated_model_type or not artifact_path.exists():
-        return {"selected_method": "uncalibrated", "calibrators": {}}
+        return uncalibrated_calibration_artifact()
 
     calibration_artifact = joblib.load(artifact_path)
     if not isinstance(calibration_artifact, dict):
@@ -165,6 +167,10 @@ def load_calibration_artifact(
     if selected_method not in CALIBRATION_METHODS:
         raise error_cls(f"Unsupported calibration method: {selected_method}")
     calibrators = calibration_artifact["calibrators"]
-    if selected_method != "uncalibrated" and selected_method not in calibrators:
+    if selected_method != UNCALIBRATED_METHOD and selected_method not in calibrators:
         raise error_cls(f"Calibration artifact does not contain selected calibrator: {selected_method}")
     return calibration_artifact
+
+
+def uncalibrated_calibration_artifact() -> dict[str, Any]:
+    return {"selected_method": UNCALIBRATED_METHOD, "calibrators": {}}

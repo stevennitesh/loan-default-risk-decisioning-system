@@ -16,9 +16,11 @@ from src.mart_access import require_tables
 from src.mart_access import table_columns
 from src.model_contracts import LIGHTGBM_MODEL_TYPE
 from src.model_contracts import MODEL_ARTIFACTS
+from src.model_contracts import SUPPORTED_MODEL_TYPES
 from src.model_artifacts import load_calibration_artifact
 from src.model_artifacts import load_selected_model_artifact
 from src.model_artifacts import load_selected_model_type
+from src.model_artifacts import uncalibrated_calibration_artifact
 from src.report_contracts import CREDIT_RISK_SCORE_COLUMNS
 from src.report_contracts import MODEL_CALIBRATION_BINS_COLUMNS
 from src.report_contracts import MODEL_CONFUSION_MATRIX_COLUMNS
@@ -98,7 +100,7 @@ def run_dashboard_export(
         _validate_export_source_columns(connection)
         selected_model_type = load_selected_model_type(
             connection,
-            set(MODEL_ARTIFACTS),
+            SUPPORTED_MODEL_TYPES,
             error_cls=DashboardExportError,
         )
         artifact = load_selected_model_artifact(
@@ -116,7 +118,7 @@ def run_dashboard_export(
                 error_cls=DashboardExportError,
             )
             if use_calibrated_probability_quality
-            else {"selected_method": "uncalibrated", "calibrators": {}}
+            else uncalibrated_calibration_artifact()
         )
         source_model_version = str(artifact["model_version"])
         dashboard_model_version = (

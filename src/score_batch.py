@@ -21,6 +21,7 @@ from src.mart_access import load_labeled_split_frame
 from src.mart_access import require_table
 from src.model_contracts import LIGHTGBM_MODEL_TYPE
 from src.model_contracts import MODEL_ARTIFACTS
+from src.model_contracts import SUPPORTED_MODEL_TYPES
 from src.model_artifacts import load_calibration_artifact
 from src.model_artifacts import load_selected_model_artifact
 from src.model_artifacts import load_selected_model_type
@@ -57,7 +58,7 @@ def run_scoring(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
     with duckdb.connect(str(duckdb_path)) as connection:
         selected_model_type = load_selected_model_type(
             connection,
-            set(MODEL_ARTIFACTS),
+            SUPPORTED_MODEL_TYPES,
             error_cls=ScoringError,
         )
         artifact = load_selected_model_artifact(

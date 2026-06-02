@@ -19,10 +19,10 @@ from src.feature_labels import readable_feature_label
 from src.mart_access import fetch_count
 from src.mart_access import require_table
 from src.mart_access import require_table_columns
-from src.model_contracts import BASELINE_MODEL_TYPE
 from src.model_contracts import LIGHTGBM_MODEL_ARTIFACT_NAME
 from src.model_contracts import LIGHTGBM_MODEL_TYPE
 from src.model_contracts import LIGHTGBM_MODEL_VERSION
+from src.model_contracts import SUPPORTED_MODEL_TYPES
 from src.model_artifacts import load_model_artifact
 from src.model_artifacts import load_selected_model_type
 from src.runtime import ensure_directories
@@ -70,7 +70,7 @@ def run_explain(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
     with duckdb.connect(str(duckdb_path)) as connection:
         selected_model_type = load_selected_model_type(
             connection,
-            {BASELINE_MODEL_TYPE, LIGHTGBM_MODEL_TYPE},
+            SUPPORTED_MODEL_TYPES,
             error_cls=ExplainabilityError,
         )
         if selected_model_type != LIGHTGBM_MODEL_TYPE:

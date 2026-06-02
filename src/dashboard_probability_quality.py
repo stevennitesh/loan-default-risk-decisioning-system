@@ -6,6 +6,7 @@ import duckdb
 import pandas as pd
 
 from src.calibration import apply_saved_calibration_artifact
+from src.calibration import UNCALIBRATED_METHOD
 from src.config import manual_review_capacity_rate
 from src.metrics import build_calibration_bin_rows
 from src.metrics import build_probability_metric_rows
@@ -31,7 +32,7 @@ def build_probability_quality_overrides(
     dashboard_model_version: str,
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, pd.DataFrame]:
-    if calibration_artifact["selected_method"] == "uncalibrated":
+    if calibration_artifact["selected_method"] == UNCALIBRATED_METHOD:
         return {}
 
     prediction_frames = _build_calibrated_prediction_frames(

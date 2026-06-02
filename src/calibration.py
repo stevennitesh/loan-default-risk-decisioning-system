@@ -10,7 +10,10 @@ from sklearn.linear_model import LogisticRegression
 from src.metrics import target_class_values
 from src.metrics import validate_probabilities
 
-CALIBRATION_METHODS = ("uncalibrated", "sigmoid", "isotonic")
+UNCALIBRATED_METHOD = "uncalibrated"
+SIGMOID_METHOD = "sigmoid"
+ISOTONIC_METHOD = "isotonic"
+CALIBRATION_METHODS = (UNCALIBRATED_METHOD, SIGMOID_METHOD, ISOTONIC_METHOD)
 CALIBRATION_FIT_SPLIT = "validation"
 CALIBRATION_MIN_BRIER_IMPROVEMENT = 0.0005
 SIGMOID_SIMPLICITY_TOLERANCE = 0.0005
@@ -33,8 +36,8 @@ def fit_calibrators(
     isotonic = IsotonicRegression(out_of_bounds="clip")
     isotonic.fit(validation_probabilities, validation_targets.astype(int))
     return {
-        "sigmoid": sigmoid,
-        "isotonic": isotonic,
+        SIGMOID_METHOD: sigmoid,
+        ISOTONIC_METHOD: isotonic,
     }
 
 
@@ -65,14 +68,14 @@ def apply_calibration_to_probabilities(
     error_cls: type[Exception] = ValueError,
     label: str | None = None,
 ) -> np.ndarray:
-    if method == "uncalibrated":
+    if method == UNCALIBRATED_METHOD:
         adjusted_probabilities = probabilities
-    elif method == "sigmoid":
-        adjusted_probabilities = calibrators["sigmoid"].predict_proba(
+    elif method == SIGMOID_METHOD:
+        adjusted_probabilities = calibrators[SIGMOID_METHOD].predict_proba(
             logit_features(probabilities),
         )[:, 1]
-    elif method == "isotonic":
-        adjusted_probabilities = calibrators["isotonic"].predict(probabilities)
+    elif method == ISOTONIC_METHOD:
+        adjusted_probabilities = calibrators[ISOTONIC_METHOD].predict(probabilities)
     else:
         raise error_cls(f"Unknown calibration method: {method}")
 
@@ -110,17 +113,17 @@ def select_calibration_method(
     if missing_methods:
         raise error_cls(f"Missing calibration comparison rows for: {sorted(missing_methods)}")
 
-    uncalibrated_brier = by_method["uncalibrated"]
+    uncalibrated_brier = by_method[UNCALIBRATED_METHOD]
     best_method = min(by_method, key=by_method.get)
     best_brier = by_method[best_method]
 
     if uncalibrated_brier - best_brier < CALIBRATION_MIN_BRIER_IMPROVEMENT:
-        return "uncalibrated"
+        return UNCALIBRATED_METHOD
     if (
-        "sigmoid" in by_method
-        and by_method["sigmoid"] - best_brier <= SIGMOID_SIMPLICITY_TOLERANCE
+        SIGMOID_METHOD in by_method
+        and by_method[SIGMOID_METHOD] - best_brier <= SIGMOID_SIMPLICITY_TOLERANCE
     ):
-        return "sigmoid"
+        return SIGMOID_METHOD
     return best_method
 
 
