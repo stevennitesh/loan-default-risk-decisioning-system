@@ -22,7 +22,7 @@ The source pattern was informed by public educational references including:
 - [NoxMoon Home Credit repository](https://github.com/NoxMoon/home-credit-default-risk)
 - [Oskird Kaggle Home Credit solution repository](https://github.com/oskird/Kaggle-Home-Credit-Default-Risk-Solution)
 
-The recruiter-facing framing should be: "I studied public solution patterns to identify plausible financial mechanisms, then rebuilt a narrow, testable version in SQL and evaluated whether it improved my validation metrics." It should not be framed as a leaderboard replication.
+The concise framing should be: "I studied public solution patterns to identify plausible financial mechanisms, then rebuilt a narrow, testable version in SQL and evaluated whether it improved my validation metrics." It should not be framed as a leaderboard replication.
 
 ## Hypothesis
 

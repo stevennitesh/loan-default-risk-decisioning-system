@@ -10,7 +10,7 @@
 
 ## 1. Purpose
 
-This document turns the project specification into an executable build plan. The goal is to produce a recruiter-facing financial ML project that demonstrates:
+This document turns the project specification into an executable build plan. The goal is to produce a portfolio financial ML project that demonstrates:
 
 - SQL-first feature engineering;
 - reproducible Python training and evaluation;
@@ -571,7 +571,7 @@ reports/dashboard_data/
 ## Milestone 11 — Power BI Dashboard
 
 ### Objective
-Build the recruiter-facing dashboard screenshot.
+Build the polished dashboard screenshot.
 
 ### Page 1: Decisioning Overview
 
@@ -612,10 +612,10 @@ powerbi/screenshots/model_validation_appendix.png
 
 ---
 
-## Milestone 12 — Documentation and Recruiter Polish
+## Milestone 12 — Documentation and Portfolio Polish
 
 ### Objective
-Package the project for a recruiter or hiring manager.
+Package the project for review.
 
 ### Tasks
 
@@ -745,7 +745,7 @@ Completed post-v1 additions:
 
 ## 9. Immediate Next Actions
 
-1. Keep the recruiter-facing README aligned with the current runnable pipeline and curated artifacts.
+1. Keep the README aligned with the current runnable pipeline and curated artifacts.
 2. Preserve the v1 and post-v1 command contracts in the Makefile as the main review interface.
 3. Use focused tests and validation reports to guard feature grain, leakage controls, scoring schema, and dashboard exports.
 4. Defer optional production extensions until the portfolio decision-support workflow remains easy to rerun and review.

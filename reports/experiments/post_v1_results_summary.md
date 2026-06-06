@@ -30,4 +30,4 @@ Experiment 011 remains important because it records the source-informed research
 
 Experiments 013 and 014 tested whether the project could simplify the active feature surface. The evidence does not support promoting a smaller model: `top_152` is close, but the full 168-feature setup has better repeated-seed validation aggregates across the main ranking, calibration, lift, recall, and expected-value metrics. This is a reasonable stopping point for post-v1 feature engineering.
 
-The active 168-feature model story is packaged in `reports/experiments/v1_to_post_v1_model_diff.md` as the concise recruiter-facing comparison of v1 versus the best post-v1 candidate. The remaining high-ROI work is final artifact consistency and presentation polish, not more feature expansion.
+The active 168-feature model story is packaged in `reports/experiments/v1_to_post_v1_model_diff.md` as the concise comparison of v1 versus the best post-v1 candidate. The remaining high-ROI work is final artifact consistency and presentation polish, not more feature expansion.

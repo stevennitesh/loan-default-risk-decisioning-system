@@ -11,13 +11,13 @@
 
 This project builds an end-to-end financial decisioning pipeline that predicts loan default risk, assigns applicants to risk-based action bands, writes batch predictions back to a database table, and visualizes threshold tradeoffs in Power BI.
 
-The goal is **not** to build a production underwriting system. The goal is to demonstrate applied financial-services machine learning: SQL feature engineering, reproducible Python modeling, rigorous evaluation, explainability, business-value analysis, batch scoring, testing, and recruiter-readable documentation.
+The goal is **not** to build a production underwriting system. The goal is to demonstrate applied financial-services machine learning: SQL feature engineering, reproducible Python modeling, rigorous evaluation, explainability, business-value analysis, batch scoring, testing, and clear documentation.
 
 **One-line portfolio summary:**
 
 > Built a reproducible loan default risk decisioning pipeline using public credit application data, SQL feature engineering, LightGBM modeling, SHAP explainability, batch scoring, and Power BI threshold analysis.
 
-**Recruiter-facing claim:**
+**Portfolio claim:**
 
 > This project simulates a credit-risk decision-support workflow. It converts public loan-application data into applicant-level risk scores, evaluates the model with imbalanced-class and business metrics, and shows how threshold choices affect approval volume, default capture, manual review load, and expected value.
 
@@ -40,7 +40,7 @@ These decisions are fixed for v1. Post-v1 work is limited to the comparison scop
 | Scoring demo population | `application_test` plus labeled holdout test split | Separates model evaluation from production-like scoring |
 | Primary metrics | PR-AUC, ROC-AUC, Brier score, top-decile lift, expected value | Better than accuracy for imbalanced financial outcomes |
 | Threshold policy | Approve / Review / High-risk action bands | Makes the model operational rather than notebook-only |
-| Dashboard scope | One polished executive page first; validation appendix second | Prioritizes a clean recruiter screenshot |
+| Dashboard scope | One polished executive page first; validation appendix second | Prioritizes a clean dashboard screenshot |
 | Sensitive-variable posture | Exclude direct demographic and protected-status-like fields from v1 model features, including `CODE_GENDER`, direct age-derived fields, and marital/family-status fields; retain them only in a separate diagnostic layer if inspected | Avoids casual use of legally or ethically sensitive variables in a credit-related model while preserving limited model-risk diagnostics. |
 | Production framing | Decision-support simulation, not automated underwriting | Avoids overclaiming compliance readiness |
 | API | Out of scope for v1 | Batch scoring is the implementation priority |
@@ -88,7 +88,7 @@ Power BI threshold and value analysis
 7. Choose decision thresholds using validation data and explicit business assumptions.
 8. Score applicants in batch and write predictions to DuckDB.
 9. Generate SHAP-based global feature importance and applicant-level reason-code-style outputs.
-10. Export Power BI-ready tables and build a recruiter-readable dashboard.
+10. Export Power BI-ready tables and build a business-readable dashboard.
 11. Add tests for data contracts, feature logic, scoring schema, threshold logic, and expected-value math.
 12. Publish a README and model card that explain the system, results, limitations, and run instructions.
 
@@ -796,7 +796,7 @@ These are explanatory artifacts, not legally compliant adverse-action notices.
 
 ### 18.1 Page 1: Decisioning Overview
 
-This is the recruiter-facing page.
+This is the executive overview page.
 
 | Visual | Purpose |
 |---|---|
@@ -825,7 +825,7 @@ Optional but recommended after page 1 is polished.
 
 ### 18.3 Dashboard design rule
 
-The main dashboard should be understandable from a screenshot. Avoid making recruiters click through multiple slicers to understand the project.
+The main dashboard should be understandable from a screenshot. Avoid making readers click through multiple slicers to understand the project.
 
 ---
 
@@ -1027,7 +1027,7 @@ The model card should be brief but concrete. It should make clear that this is a
 
 ---
 
-## 24. Recruiter-Facing README Requirements
+## 24. Portfolio README Requirements
 
 The README should answer these questions within two minutes:
 
@@ -1073,7 +1073,7 @@ Required README artifacts:
 | Deliverable | Description |
 |---|---|
 | `docs/spec/PROJECT_SPEC.md` | Technical plan and build contract |
-| `README.md` | Recruiter-facing summary and run instructions |
+| `README.md` | Portfolio summary and run instructions |
 | `configs/base.yaml` | Paths, split parameters, model settings, business assumptions |
 | SQL feature pipeline | Reproducible SQL scripts for feature extraction |
 | Training pipeline | Logistic regression baseline and LightGBM model |
@@ -1177,7 +1177,7 @@ Acceptance for milestone 1:
 
 ## 29. Success Standard
 
-This project succeeds if a recruiter or hiring manager can quickly see that the work demonstrates:
+This project succeeds if a reader can quickly see that the work demonstrates:
 
 - financial-services ML framing;
 - SQL-based feature engineering;

@@ -1,6 +1,6 @@
 # V1 to Best Post-v1 Model Diff
 
-## Recruiter Summary
+## Executive Summary
 
 The v1 model was a complete end-to-end decision-support baseline: SQL feature mart, LightGBM training, threshold analysis, SHAP explainability, batch scoring, and Power BI outputs. Post-v1 work did not change the project into a leaderboard exercise. It used controlled experiments to answer a narrower question:
 
@@ -64,7 +64,7 @@ The post-v1 work shows a real learning loop:
 - We kept caveats visible: calibration-bin error is not perfect, expected-value assumptions are illustrative, and this is not a production underwriting model.
 - We stopped feature expansion once the cleanup experiment showed that further complexity was not justified for this project.
 
-The best recruiter-friendly takeaway is:
+The best concise takeaway is:
 
 > I built a complete v1 credit-risk decision-support pipeline, then improved it through a validation-first experiment trail. The final post-v1 candidate uses calibrated LightGBM scores and recent repayment behavior features, improving PR-AUC, Brier score, lift, review-capacity recall, and expected value while preserving clear documentation of what worked, what did not, and why feature engineering stopped.
 

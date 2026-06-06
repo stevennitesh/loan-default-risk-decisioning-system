@@ -251,7 +251,7 @@ loan-default-risk-decisioning-system/
 | [reports/model_card.md](reports/model_card.md) | Intended use, limitations, validation summary, and model-risk framing. |
 | [reports/README.md](reports/README.md) | Explains committed experiment evidence versus regenerated local outputs. |
 | [reports/experiments/](reports/experiments/) | Post-v1 experiment reports and comparison log. |
-| [reports/experiments/v1_to_post_v1_model_diff.md](reports/experiments/v1_to_post_v1_model_diff.md) | Recruiter-friendly v1 to best post-v1 improvement summary. |
+| [reports/experiments/v1_to_post_v1_model_diff.md](reports/experiments/v1_to_post_v1_model_diff.md) | Concise v1 to best post-v1 improvement summary. |
 | [configs/v1.yaml](configs/v1.yaml) | Reproducible frozen-v1 pipeline scope. |
 | [configs/post_v1.yaml](configs/post_v1.yaml) | Reproducible best post-v1 pipeline scope. |
 | [powerbi/dashboard.pbix](powerbi/dashboard.pbix) | v1 Power BI dashboard file. |

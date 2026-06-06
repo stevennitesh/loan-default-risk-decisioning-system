@@ -26,7 +26,7 @@ action readiness.
 
 Before changing code or docs, read the file that owns the task's contract:
 
-- `README.md`: recruiter-facing story, run interface, dashboard narrative.
+- `README.md`: portfolio story, run interface, dashboard narrative.
 - `docs/spec/PROJECT_SPEC.md`: scope, non-goals, public contracts, acceptance
   criteria, model-risk posture.
 - `docs/implementation/IMPLEMENTATION_PLAN.md`: command-to-artifact

@@ -361,7 +361,7 @@ Explainability artifacts support interpretation and debugging without overclaimi
 - Lift chart matches `model_lift_by_decile`.
 - Confusion matrix matches selected threshold scenario.
 - Dashboard distinguishes evaluation population from unlabeled scoring demo where relevant.
-- Dashboard screenshot supports the recruiter story.
+- Dashboard screenshot supports the project story.
 
 **Pass condition:**
 
@@ -406,7 +406,7 @@ The primary model should be selected using a balanced view of:
 | Top-decile lift | Business value of ranking |
 | Brier/calibration | Probability-like score quality |
 | Threshold expected value | Decision usefulness |
-| Simplicity | Recruiter readability and reproducibility |
+| Simplicity | Readability and reproducibility |
 | Explainability | SHAP and reason-code quality |
 | Stability | Similar validation/test behavior |
 
@@ -560,4 +560,4 @@ For portfolio v1, the model is considered adequately validated when:
 - dashboard outputs reconcile to validation tables;
 - the README does not overclaim production, compliance, or underwriting readiness.
 
-The validation standard is deliberately professional but scoped: strong enough for recruiters, not presented as production model-risk governance.
+The validation standard is deliberately professional but scoped: strong enough for portfolio review, not presented as production model-risk governance.
