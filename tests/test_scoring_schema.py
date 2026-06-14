@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import duckdb
@@ -22,10 +23,6 @@ from tests.helpers import (
 
 VALID_RISK_BANDS = {"low_risk", "medium_risk", "high_risk"}
 VALID_ACTIONS = {"approve", "manual_review", "high_priority_review"}
-
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:X does not have valid feature names.*:UserWarning"
-)
 
 
 def test_scoring_fails_clearly_without_model_selection(
@@ -182,6 +179,7 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
             )
             == 0
         )
+
         assert (
             query_value(
                 connection,
@@ -312,3 +310,22 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
             )
             == 0
         )
+
+
+def test_scoring_keeps_lightgbm_feature_metadata_named(
+    scratch_path: Path,
+    project_config_path: Path,
+) -> None:
+    database_path = scratch_path / "db" / "credit_risk.duckdb"
+    create_training_database(database_path, train_rows=80, test_rows=12)
+    run_training(project_config_path)
+    run_evaluation(project_config_path)
+    run_calibration_experiment(project_config_path)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error",
+            message="X does not have valid feature names.*",
+            category=UserWarning,
+        )
+        run_scoring(project_config_path)

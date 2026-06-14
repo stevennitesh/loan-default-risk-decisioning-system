@@ -6,6 +6,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMClassifier
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
@@ -109,6 +110,33 @@ def classify_feature_columns(
     return numeric_features, categorical_features
 
 
+class LightGBMFeatureNameSanitizer(BaseEstimator, TransformerMixin):
+    """Rename transformed model features to LightGBM-safe stable names."""
+
+    def fit(
+        self, transformed_features: Any, y: Any = None
+    ) -> "LightGBMFeatureNameSanitizer":
+        column_count = int(transformed_features.shape[1])
+        self.feature_names_out_ = [f"feature_{index}" for index in range(column_count)]
+        return self
+
+    def transform(self, transformed_features: Any) -> pd.DataFrame:
+        frame = (
+            transformed_features.copy()
+            if hasattr(transformed_features, "columns")
+            else pd.DataFrame(transformed_features)
+        )
+        if frame.shape[1] != len(self.feature_names_out_):
+            raise ValueError(
+                "Transformed feature count changed between LightGBM fit and predict"
+            )
+        frame.columns = self.feature_names_out_
+        return frame
+
+    def get_feature_names_out(self, input_features: Any = None) -> np.ndarray:
+        return np.asarray(self.feature_names_out_, dtype=object)
+
+
 def build_baseline_pipeline(
     config: dict[str, Any],
     numeric_features: list[str],
@@ -198,7 +226,7 @@ def build_lightgbm_pipeline(
                         ),
                         (
                             "encoder",
-                            OneHotEncoder(handle_unknown="ignore", sparse_output=True),
+                            OneHotEncoder(handle_unknown="ignore", sparse_output=False),
                         ),
                     ]
                 ),
@@ -206,10 +234,12 @@ def build_lightgbm_pipeline(
             ),
         ]
     )
+    preprocessor.set_output(transform="pandas")
     classifier = LGBMClassifier(**lightgbm_params)
     return Pipeline(
         steps=[
             ("preprocessor", preprocessor),
+            ("feature_name_sanitizer", LightGBMFeatureNameSanitizer()),
             ("classifier", classifier),
         ]
     )

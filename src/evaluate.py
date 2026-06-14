@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -70,13 +69,6 @@ from src.thresholding import (
 
 class EvaluationError(RuntimeError):
     """Raised when model evaluation cannot satisfy the Milestone 6 contract."""
-
-
-warnings.filterwarnings(
-    "ignore",
-    message="X does not have valid feature names.*",
-    category=UserWarning,
-)
 
 
 def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
