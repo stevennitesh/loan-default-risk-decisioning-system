@@ -244,6 +244,7 @@ def _transform_features(
     if not hasattr(pipeline, "named_steps"):
         raise ExplainabilityError("LightGBM artifact pipeline must expose named_steps")
     preprocessor = pipeline.named_steps.get("preprocessor")
+    feature_name_sanitizer = pipeline.named_steps.get("feature_name_sanitizer")
     classifier = pipeline.named_steps.get("classifier")
     if preprocessor is None or classifier is None:
         raise ExplainabilityError(
@@ -264,6 +265,8 @@ def _transform_features(
         raise ExplainabilityError(
             "LightGBM preprocessor produced no transformed feature names"
         )
+    if feature_name_sanitizer is not None:
+        transformed = feature_name_sanitizer.transform(transformed)
     return transformed, transformed_feature_names, classifier
 
 
@@ -477,7 +480,7 @@ def _write_shap_summary(
     """Write SHAP summary plot, falling back to a local matplotlib version."""
     sample_indexes = _summary_sample_indexes(shap_values.shape[0], random_seed)
     sampled_shap_values = shap_values[sample_indexes]
-    sampled_features = _to_dense(transformed_features[sample_indexes])
+    sampled_features = _to_dense(_sample_rows(transformed_features, sample_indexes))
     if _write_shap_package_summary(
         path, sampled_features, sampled_shap_values, feature_labels
     ):
@@ -569,6 +572,13 @@ def _to_dense(matrix: Any) -> np.ndarray:
     if hasattr(matrix, "toarray"):
         return np.asarray(matrix.toarray())
     return np.asarray(matrix)
+
+
+def _sample_rows(matrix: Any, row_indexes: np.ndarray) -> Any:
+    """Return positional rows from array-like or pandas transformed features."""
+    if hasattr(matrix, "iloc"):
+        return matrix.iloc[row_indexes]
+    return matrix[row_indexes]
 
 
 def _validate_explanation_texts(

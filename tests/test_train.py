@@ -1,9 +1,12 @@
 from pathlib import Path
+import warnings
 
 import duckdb
 import joblib
+import pandas as pd
 import pytest
 
+from src.modeling import build_lightgbm_pipeline
 from src.report_contracts import (
     LIGHTGBM_TUNING_SUMMARY_COLUMNS,
     MODEL_COMPARISON_SUMMARY_COLUMNS,
@@ -41,10 +44,6 @@ FORBIDDEN_FEATURES = {
     "CNT_CHILDREN",
     "CNT_FAM_MEMBERS",
 }
-
-pytestmark = pytest.mark.filterwarnings(
-    "ignore:X does not have valid feature names.*:UserWarning"
-)
 
 
 def test_training_fails_clearly_without_duckdb_database(
@@ -253,3 +252,49 @@ def test_training_wraps_data_contract_failures(
     assert not (
         scratch_path / "models" / "logistic_regression_baseline.joblib"
     ).exists()
+
+
+def test_lightgbm_pipeline_sanitizes_transformed_feature_names() -> None:
+    frame = pd.DataFrame(
+        {
+            "numeric_feature": [0.1, 0.4, 0.2, 0.8, 0.9, 0.3, 0.7, 0.6],
+            "category_feature": [
+                "Trade: type 7",
+                'Business "Entity"',
+                "School [private]",
+                "Other, services",
+                "Industry {type}",
+                "Trade: type 7",
+                "Other, services",
+                'Business "Entity"',
+            ],
+        }
+    )
+    target = pd.Series([0, 1, 0, 1, 1, 0, 1, 0])
+    pipeline = build_lightgbm_pipeline(
+        ["numeric_feature"],
+        ["category_feature"],
+        {
+            "objective": "binary",
+            "n_estimators": 5,
+            "min_child_samples": 1,
+            "random_state": 42,
+            "verbosity": -1,
+        },
+    )
+
+    pipeline.fit(frame, target)
+
+    classifier = pipeline.named_steps["classifier"]
+    assert all(
+        feature_name.startswith("feature_")
+        for feature_name in classifier.feature_names_in_
+    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error",
+            message="X does not have valid feature names.*",
+            category=UserWarning,
+        )
+        probabilities = pipeline.predict_proba(frame)[:, 1]
+    assert len(probabilities) == len(frame)
