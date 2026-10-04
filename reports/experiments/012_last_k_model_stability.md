@@ -1,5 +1,7 @@
 # Experiment 012 - Last-K Temporal Model Stability
 
+> Historical experiment record. The results, conclusions, and next actions below describe the original exploration, not a current work queue or independent-test certification. Read [archive interpretation](README.md#archive-interpretation) and [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status) for the assessment reuse, calibration, feature, and policy limits. Numeric evidence is preserved.
+
 ## Purpose
 
 Check whether the Experiment 011 last-k temporal feature setup holds up across repeated split/training seeds before promoting it over the 152-feature recency-deterioration candidate from Experiment 010.

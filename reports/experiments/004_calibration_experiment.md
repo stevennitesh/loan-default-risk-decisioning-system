@@ -1,5 +1,7 @@
 # Experiment 004: Probability Calibration
 
+> Historical experiment record. The results, conclusions, and next actions below describe the original exploration, not a current work queue or independent-test certification. Read [archive interpretation](README.md#archive-interpretation) and [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status) for the assessment reuse, calibration, feature, and policy limits. Numeric evidence is preserved.
+
 ## Purpose
 
 Test whether post-hoc calibration can improve the probability-quality story for the current best post-v1 feature set without giving up the ranking gains from Experiment 003.

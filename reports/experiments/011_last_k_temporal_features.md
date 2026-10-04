@@ -1,14 +1,22 @@
 # Experiment 011 - Last-K Temporal Behavior Features
 
+> Historical experiment record. The results, conclusions, and next actions below describe the original exploration, not a current work queue or independent-test certification. Read [archive interpretation](README.md#archive-interpretation) and [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status) for the assessment reuse, calibration, feature, and policy limits. Numeric evidence is preserved.
+
 ## Change Tested
 
-Added one source-informed SQL feature family, `f_last_k_temporal_features`, with 16 recent-payment-history signals from the last few observed months or installments:
+Added one source-informed SQL feature family, `f_last_k_temporal_features`, with
+16 recent-payment-history signals from the three most recent account-month
+records or installment records:
 
-- installments last-3 late-payment, underpayment, delay, and payment-ratio features;
-- installments last-payment delay and payment-ratio features;
-- POS-cash last-3 delinquency, future-installment, and deterioration features;
+- three most recent installment records for late-payment, underpayment, delay,
+  and payment-ratio features;
+- most recent installment record for delay and payment-ratio features;
+- three most recent POS-cash account-month records for delinquency,
+  future-installment, and deterioration features;
 - POS-cash last-loan delinquency feature;
-- credit-card last-3 utilization, payment-to-minimum, drawing-count, delinquency, and utilization-delta features.
+- three most recent credit-card account-month records for utilization,
+  payment-to-minimum, drawing-count, delinquency, and utilization-delta
+  features.
 
 The features are joined into `mart_credit_risk_features` at one row per `SK_ID_CURR` and `source_population`.
 

@@ -1,5 +1,7 @@
 # Experiment 000: v1 Baseline
 
+> Historical experiment record. The results, conclusions, and next actions below describe the original exploration, not a current work queue or independent-test certification. Read [archive interpretation](README.md#archive-interpretation) and [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status) for the assessment reuse, calibration, feature, and policy limits. Numeric evidence is preserved.
+
 ## Purpose
 
 Freeze the completed v1 model and reporting metrics before post-v1 feature engineering, calibration, or model-family changes begin.

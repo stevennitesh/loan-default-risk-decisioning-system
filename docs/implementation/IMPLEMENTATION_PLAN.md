@@ -1,10 +1,10 @@
 # Loan Default Risk Decisioning System — Implementation Plan
 
 **Version:** 0.1  
-**Status:** Implemented build plan with frozen v1 and post-v1 comparison
+**Status:** Historical build record and current command map; methodology repairs pending
 **Owner:** Steven  
-**Last updated:** 2026-06-01
-**Aligned spec:** `docs/spec/PROJECT_SPEC.md` / v0.3.1 final portfolio contract
+**Last updated:** 2026-10-03
+**Aligned spec:** [PROJECT_SPEC.md](../spec/PROJECT_SPEC.md)
 
 ---
 
@@ -22,6 +22,8 @@ This document turns the project specification into an executable build plan. The
 
 The project should read as an applied financial decisioning system, not a notebook-only Kaggle exercise.
 
+The audience is recruiters and hiring managers. Milestones below preserve the original build sequence and intended gates; they are not an unexecuted setup queue or evidence that every correctness gate now passes. For current methodological limits, see [current evidence status](../validation/VALIDATION_PLAN.md#current-evidence-status). The separate [remediation plan](PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) proposes repairs that have not been implemented.
+
 ---
 
 ## 2. Locked v1 Scope
@@ -33,11 +35,11 @@ The project should read as an applied financial decisioning system, not a notebo
 | Storage | Parquet |
 | Primary model | LightGBM |
 | Baseline model | Logistic regression |
-| Modeling grain | One row per `SK_ID_CURR` |
+| Modeling grain | One row per `(SK_ID_CURR, source_population)` |
 | v1 source tables | `application_train`, `application_test`, `bureau`, `previous_application`, `installments_payments` |
 | Post-v1 comparison source tables | `bureau_balance`, `POS_CASH_balance`, `credit_card_balance` |
 | Dashboard scope | One polished executive page first |
-| API | Deferred unless core project is complete |
+| API | Out of scope unless the user explicitly changes the brief |
 | Model framing | Decision-support simulation, not automated underwriting |
 
 ---
@@ -51,7 +53,7 @@ The project should read as an applied financial decisioning system, not a notebo
    Python should orchestrate, train, evaluate, score, and export. SQL should build the applicant-level feature mart.
 
 3. **The feature mart must have one row per applicant.**  
-   Any join that expands `SK_ID_CURR` is a build failure.
+   Any join that expands `(SK_ID_CURR, source_population)` is a build failure.
 
 4. **Evaluation and scoring populations stay separate.**  
    Model metrics come only from labeled splits of `application_train`. Kaggle `application_test` is used only for production-like scoring demonstration.
@@ -76,7 +78,7 @@ Create the project structure and reproducibility interface before writing modeli
 
 ### Tasks
 
-- Create repository: `loan-default-decisioning`.
+- Original setup task: create the repository; the current directory is `loan-default-risk-decisioning-system`. The skeleton below records the initial design, not an exhaustive current file inventory.
 - Add `.gitignore` for:
   - raw data;
   - DuckDB files;
@@ -587,7 +589,7 @@ Required visuals:
 - approval/default tradeoff;
 - top model drivers.
 
-### Optional Page 2: Validation Appendix
+### Page 2: Model Validation Appendix (implemented in both saved reports)
 
 - ROC curve;
 - precision-recall curve;
@@ -651,9 +653,11 @@ The README answers these questions quickly:
 
 ## 5. Command-to-Artifact Map
 
+The Makefile owns command behavior. Bare step targets use `configs/base.yaml` (post-v1 feature scope with separate default paths). Pass `CONFIG=configs/v1.yaml` or `CONFIG=configs/post_v1.yaml` consistently for scoped step runs. Dashboard and pipeline targets use their explicit `CONFIG_V1`/`CONFIG_POST_V1` scopes. On Windows without `python3`, pass `PYTHON=python`; Make does not automatically choose `.venv/Scripts/python.exe`.
+
 | Command | Primary outputs |
 |---|---|
-| `make setup` | environment setup |
+| `make setup` | dependency installation into the selected interpreter; does not create a virtual environment |
 | `make ingest` | Parquet files, DuckDB staging tables, ingestion summary |
 | `make features` | SQL feature tables, `mart_credit_risk_features`, feature profile |
 | `make train` | model artifacts, model run summary |
@@ -661,11 +665,13 @@ The README answers these questions quickly:
 | `make score` | `credit_risk_scores` |
 | `make calibrate` | calibration comparison tables and selected calibration artifact |
 | `make explain` | SHAP feature importance and reason-code-style outputs |
-| `make dashboard-data` | Power BI-ready exports |
-| `make dashboard-data-post-v1` | calibrated post-v1 Power BI-ready exports |
-| `make pipeline-v1` | frozen v1 end-to-end rebuild |
+| `make dashboard-data` | exports existing v1 tables and recomputes segment diagnostics; no retraining |
+| `make dashboard-data-post-v1` | exports post-v1 tables with recomputed calibrated probability-quality metrics and diagnostics; no retraining |
+| `make pipeline-v1` | v1-scoped end-to-end regeneration; not a guarantee of exact historical metrics |
 | `make pipeline-post-v1` | post-v1 calibrated comparison rebuild |
 | `make test` | passing pytest suite |
+
+`make lint` and `make format-check` are the other required local/CI gates. Full pipelines require downloaded raw data and overwrite generated artifacts; they do not update curated CSV snapshots, PBIX visuals, or screenshots. Runtime paths in the milestone examples are illustrative defaults; scoped paths come from the config. Exact report schemas are owned by [src/report_contracts.py](../../src/report_contracts.py).
 
 ---
 
@@ -700,7 +706,7 @@ segment_performance_summary
 
 ## 7. Definition of Done for v1
 
-v1 is complete when:
+The historical build was delivered around the following implementation requirements. A corrected evidence release additionally needs the pending validation gates; current artifact presence is not sufficient:
 
 - raw v1 Kaggle CSV files convert to Parquet;
 - DuckDB staging tables load successfully;
@@ -748,4 +754,5 @@ Completed post-v1 additions:
 1. Keep the README aligned with the current runnable pipeline and curated artifacts.
 2. Preserve the v1 and post-v1 command contracts in the Makefile as the main review interface.
 3. Use focused tests and validation reports to guard feature grain, leakage controls, scoring schema, and dashboard exports.
-4. Defer optional production extensions until the portfolio decision-support workflow remains easy to rerun and review.
+4. Keep production extensions out of scope unless explicitly requested.
+5. Treat correctness repair as proposed work. Implement and verify each authorized repair before changing historical metrics or calling a new release validated.

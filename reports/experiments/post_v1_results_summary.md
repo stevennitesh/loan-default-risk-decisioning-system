@@ -1,6 +1,8 @@
 # Post-v1 Experiment Summary
 
-This file summarizes the post-v1 model-improvement trail. Selection decisions use validation results only; held-out test results are reported after the decision as a generalization check.
+This file summarizes the historical post-v1 exploration. Formal sorting used validation metrics, but repeated-seed runs reused original test applicants in fitting, SHAP-ranked selection consumed reporting populations, and calibration fit/selection shared validation rows. The recorded improvements are exploratory comparisons, not independent final-test evidence. See [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status).
+
+The table's decisions and next actions describe the original experiment sequence, not a current execution queue. PR-AUC means average precision; recall means top-score capture; EV means retrospective utility units. Recorded numbers remain unchanged.
 
 | ID | Change | Validation result | Decision |
 |---|---|---|---|
@@ -18,16 +20,16 @@ This file summarizes the post-v1 model-improvement trail. Selection decisions us
 | 012 | Last-k temporal model stability | Repeated-seed validation PR-AUC, PR-AUC stability, ROC-AUC, calibrated Brier, lift, precision, recall, and EV improved versus the promoted 152-feature recency setup; weighted calibration error worsened slightly. | Promote as leading post-v1 candidate, with calibration-bin caveat. |
 | 013 | Feature cleanup top-N comparison | Smaller SHAP-ranked surfaces did not beat the full 168-feature setup by the validation ranking rule; `top_152` was closest and improved one-shot validation EV. | Do not promote from one-shot cleanup; run focused stability for `top_152`. |
 | 014 | Feature cleanup stability | `top_152` won two of three individual seeds, but full 168 had better mean validation PR-AUC, lower variance, Brier, lift, recall, calibration-bin error, and EV. | Keep 168-feature active candidate; stop feature expansion for this project. |
-| 015 | Final pipeline freeze | Frozen dashboard artifacts report validation PR-AUC `0.272184`, ROC-AUC `0.778732`, Brier `0.066500`, lift `3.659805`, recall `0.366004`, and balanced EV/applicant `577.24`. | Use this row for final dashboard/docs alignment; do not rerun the pipeline. |
+| 015 | Historical pipeline snapshot | Curated dashboard snapshot reports validation PR-AUC `0.272184`, ROC-AUC `0.778732`, Brier `0.066500`, lift `3.659805`, recall `0.366004`, and balanced EV/applicant `577.24`. | Preserve this numeric snapshot; a deliberate regeneration must identify new artifacts and must not silently overwrite historical evidence. |
 
-## Current Read
+## Historical Interpretation
 
-The best fully supported post-v1 story is now the 168-feature last-k temporal model with sigmoid calibration. Experiment 012 clears the repeated-seed validation check by the existing validation-first selection rule: mean validation PR-AUC, PR-AUC stability, ROC-AUC, calibrated Brier, top-decile lift, precision, recall, and balanced expected value all improve versus the promoted 152-feature recency setup. Experiment 015 records the final frozen single-run artifacts used by the dashboard and final docs.
+The historical selection retained the 168-feature last-k record-window model with sigmoid calibration. Experiment 012 records improvements in mean validation ranking, PR-AUC variability, Brier, lift, precision, capture, and utility versus the prior 152-feature setup. These summaries compare the historical procedures; they do not close the assessment-boundary or calibration-selection gaps. Row 015 records the curated final single-run snapshot, not necessarily today's local generated bundle.
 
-This is not a clean win on every metric. Mean validation weighted calibration error is slightly worse (`0.002915` vs `0.002870`), and mean held-out test weighted calibration error is also slightly worse. Brier score improves, so this is a calibration-bin caveat rather than a broad probability-quality failure. Under the current ranking/calibration/business-value rule, the last-k temporal model becomes the leading post-v1 candidate.
+Mean validation weighted calibration error is slightly worse (`0.002915` vs `0.002870`), and mean historical test weighted calibration error is also slightly worse. Brier score improves in the recorded comparison. The original ranking rule selected the last-k setup; utility and calibration-bin behavior were additional reported tradeoffs, not evidence that the pending calibration-assessment gate passed.
 
 Experiment 011 remains important because it records the source-informed research framing: public solution research suggested recent temporal behavior is a useful mechanism, but the implementation is this project's own compact SQL feature family, evaluated through the existing validation-first process.
 
-Experiments 013 and 014 tested whether the project could simplify the active feature surface. The evidence does not support promoting a smaller model: `top_152` is close, but the full 168-feature setup has better repeated-seed validation aggregates across the main ranking, calibration, lift, recall, and expected-value metrics. This is a reasonable stopping point for post-v1 feature engineering.
+Experiments 013 and 014 tested simplification. The full 168-feature setup won the historical mean-validation rule, while `top_152` was close. This explains the saved feature scope; it is not a final choice under the proposed corrected protocol.
 
-The active 168-feature model story is packaged in `reports/experiments/v1_to_post_v1_model_diff.md` as the concise comparison of v1 versus the best post-v1 candidate. The remaining high-ROI work is final artifact consistency and presentation polish, not more feature expansion.
+The concise [v1/post-v1 comparison](v1_to_post_v1_model_diff.md) preserves the experiment story. Current priorities are correctness repair, artifact reconciliation, and presentation within the existing local scope; the [remediation plan](../../docs/implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) remains a proposal. Feature expansion alone would not resolve the identified gaps.

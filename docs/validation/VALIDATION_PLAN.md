@@ -1,10 +1,10 @@
 # Loan Default Risk Decisioning System — Validation Plan
 
 **Version:** 0.1  
-**Status:** Implemented validation plan for portfolio decision-support reporting
+**Status:** Validation requirements and historical evidence; correctness gaps remain open
 **Owner:** Steven  
-**Aligned spec:** `docs/spec/PROJECT_SPEC.md` v0.3.1
-**Last updated:** 2026-06-01
+**Aligned spec:** [PROJECT_SPEC.md](../spec/PROJECT_SPEC.md)
+**Last updated:** 2026-10-03
 
 ---
 
@@ -21,6 +21,34 @@ Validation asks:
 > Are the model and decisioning outputs reasonable, useful, stable, and honestly represented?
 
 This project is not a production underwriting model and does not claim regulatory approval. Validation is designed to show professional model-risk awareness and avoid naive credit-model claims.
+
+## Current Evidence Status
+
+As of 2026-10-03, the local pipeline is implemented and the repository preserves historical v1/post-v1 experiments for recruiter and hiring-manager review. This is not a certification that every gate below passes. The gates are requirements; report presence and passing fixture tests alone do not establish scientific correctness.
+
+| Area | Verified current behavior and evidence limit | Required repair or assessment |
+|---|---|---|
+| Assessment populations | [Repeated-seed stability](../../src/model_stability.py) re-splits all labeled applicants; original seed-42 test applicants enter training/validation under other seeds. Test results were also repeatedly observed. | Treat saved test results as historical comparisons. Enforce a development/assessment boundary before new adaptive selection; the exact protocol in the remediation plan remains a proposal. |
+| Feature selection | [SHAP export](../../src/explain.py) aggregates holdout and Kaggle scoring populations; [feature experiments](../../src/feature_experiments.py) consume that ranking. | Generate selection importance within development fitting data. Post-selection reporting SHAP can remain an interpretation aid. |
+| Calibration | [Calibration fitting and selection](../../src/calibrate.py) share validation rows. [Method selection](../../src/calibration.py) can prefer sigmoid even when its individual gain is below the configured minimum. | Separate calibration fitting from method assessment; apply eligibility to each method before preference. Do not present fit-set calibration gains as independent evidence. |
+| SQL feature meaning | [Installment aggregation](../../sql/05_feature_installments.sql) repeats owed amounts across split-payment rows and evaluates underpayment per payment row. [Last-k features](../../sql/05d_feature_last_k_temporal.sql) rank POS/card account records, not distinct applicant months. | Resolve obligation identity/version semantics and normalize split payments; label record windows accurately or implement distinct-month windows. Review missing-value handling and pre-application availability. No actual future-data leakage has been established by this audit. |
+| Ranking vs policy | [Recall-at-capacity](../../src/metrics.py) measures capture among the highest scores. [Threshold scenarios](../../src/thresholding.py) use fixed validation quantiles; they do not enforce a hard capacity on a new population. | Separate ranking capture from actual queue capture and test capacity under ties and distribution shifts before claiming constrained review. |
+| Action vs utility | [Scoring](../../src/score_batch.py) labels the high band `high_priority_review`, while the utility formula charges only the middle review band and gives the high band no disposition/value. | Reconcile action meaning, review cost, and disposition before calling the scenario an operational policy. Legacy expected-value fields are retrospective utility units, not measured currency profit. |
+| Artifact integrity | [Artifact loading](../../src/model_artifacts.py) does not reject cross-split ID overlap and binds calibration by a reusable model-version string rather than exact fitted-run identity. | Reject invalid split manifests and bind dependent artifacts to the fitted parent. Dashboard display aliases are not release identifiers. |
+| Training controls | [LightGBM presets](../../src/modeling.py) specify `subsample`, but leave `subsample_freq` at zero, disabling row bagging. | Reconcile configured tuning claims with effective fitted parameters before rerunning comparisons. |
+| Reporting and reproduction | [Dashboard export](../../src/dashboard_exports.py) recomputes segment diagnostics and can replace selected-model probability metrics with calibrated values. Local generated bundles differ from curated snapshots; dependencies have lower bounds, not a lock. | Preserve snapshot lineage, distinguish raw/calibrated score views, and reconcile one deliberately generated bundle with PBIX visuals. Exact historical numerical reproduction is not currently certified. |
+
+The [remediation plan](../implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) proposes a concrete repair sequence. None of its new population protocol, policy, lineage machinery, or proposed commands is implemented by this documentation update. Preserve historical results; do not silently replace them with locally regenerated metrics.
+
+Terminology for current documentation:
+
+- **PR-AUC** is the legacy name for scikit-learn average precision, not trapezoidal PR-curve area.
+- **Recall at manual review capacity** is the legacy top-score ranking metric; use **top-10% default capture** for its 10% presentation, distinct from the middle review band.
+- **Brier score** measures overall probability quality; it does not establish calibration on its own.
+- **Expected value** is the legacy name for retrospective scenario utility using `1000`, `5000`, and `50` weights. No reviewer effectiveness or real loan economics is estimated.
+- **Held-out test** is a saved within-run split label. Across this experiment history it is a reused comparison population, not an independent final lockbox.
+
+Historical metric sources are curated [experiment-log](../../reports/experiments/experiment_log.csv) rows `000` and `015` and the numbered reports. Runtime outputs, PBIX snapshots, and screenshots must be identified separately; their existence does not prove mutual reconciliation.
 
 ---
 
@@ -55,6 +83,8 @@ Validation does not cover:
 
 ## 3. Validation Artifacts
 
+Runtime report paths below are relative to the configured `reports_dir`. Scoped runs use `reports/v1/` or `reports/post_v1/`; bare step commands use the separate defaults in `configs/base.yaml`. Exact exported columns are owned by [src/report_contracts.py](../../src/report_contracts.py), not the abbreviated descriptions here.
+
 | Artifact | Purpose |
 |---|---|
 | `reports/validation_report.md` | Main model validation summary |
@@ -82,7 +112,7 @@ Validation does not cover:
 - Confirm target values are binary and non-null for labeled training rows.
 - Confirm unlabeled Kaggle test rows do not have `TARGET`.
 - Confirm positive-class rate.
-- Confirm one row per `SK_ID_CURR` in the feature mart.
+- Confirm one row per `(SK_ID_CURR, source_population)` in the feature mart.
 - Confirm major feature groups have plausible missingness rates.
 - Confirm no forbidden model fields appear in the model feature list.
 - Confirm no obvious target leakage fields exist.
@@ -112,7 +142,7 @@ The data is suitable for baseline modeling, or issues are documented with mitiga
 - Split proportions match config.
 - Positive-class rate is similar across splits.
 - Preprocessing is fit only on the appropriate training data.
-- Calibration and threshold selection are not fit on final test data.
+- Calibration and threshold selection are not fit on held-out test data.
 - `application_test` is not used for performance evaluation.
 
 **Required outputs:**
@@ -125,6 +155,8 @@ model_run_summary split metadata
 **Pass condition:**
 
 Splits are valid and leakage controls are documented.
+
+Current gap: ordinary split generation is disjoint within a run, but saved-artifact loading lacks a cross-split overlap check and repeated-seed experiments do not preserve a common assessment boundary. This gate is not satisfied across the historical experiment trail.
 
 ---
 
@@ -175,7 +207,7 @@ The baseline is stable enough to serve as a comparison point. If baseline perfor
 | PR-AUC | Does the model handle the minority default/difficulty class well? |
 | Brier score | Are scores usable as probability-like outputs? |
 | Top-decile lift | Does the model concentrate risk in the highest-score group? |
-| Recall at review capacity | Can the model support constrained manual review? |
+| Top-score capture at a reference rate | Does the ranking concentrate observed positives? This does not measure actual review-band capture. |
 | Calibration bins | Do predicted rates match observed rates reasonably? |
 
 **Pass condition:**
@@ -193,7 +225,8 @@ LightGBM becomes the primary model only if it improves the decisioning story. If
 - Compare uncalibrated LightGBM scores against calibrated alternatives if implemented.
 - Evaluate Brier score.
 - Inspect calibration bins.
-- Confirm calibration is fit on validation/calibration data, not final test.
+- Confirm calibration is fit on validation/calibration data, not held-out test.
+- Assess fitted calibrators on rows not used to fit them; test each candidate's minimum-improvement eligibility before applying a preference rule.
 - Confirm calibration does not materially reduce ranking usefulness.
 
 **Calibration candidates:**
@@ -206,6 +239,8 @@ LightGBM becomes the primary model only if it improves the decisioning story. If
 
 The selected score representation is documented. If uncalibrated scores are used, state that they are treated primarily as risk scores, not perfect probabilities.
 
+Current post-v1 fitting/selection shares validation data; documentation of sigmoid gains does not satisfy independent method assessment.
+
 ---
 
 ### Gate 6 — Threshold and Business-Value Validation
@@ -214,9 +249,9 @@ The selected score representation is documented. If uncalibrated scores are used
 
 **Checks:**
 
-- Threshold grid is evaluated on validation data.
+- Validation-derived threshold scenarios are evaluated on validation data.
 - Growth-oriented, balanced, and risk-averse scenarios are defined.
-- Manual review capacity is respected or clearly reported.
+- Report actual middle-review and high-priority-review volumes separately. Fixed quantiles are not a hard capacity guarantee.
 - Expected-value assumptions are explicit and configurable.
 - Threshold choices are fixed before test-set reporting.
 - Business-value tables reconcile to confusion matrix/action counts.
@@ -239,56 +274,55 @@ approval_rate
 manual_review_rate
 high_risk_rate
 default_rate_approved
-default_capture_rate
+high_risk_default_capture_rate
 expected_value
 ```
 
 **Pass condition:**
 
-At least three threshold scenarios are reported, and the selected balanced scenario is defensible under the stated assumptions.
+At least three predefined threshold scenarios are reported with counts, utility units, and action assumptions. "Balanced" is the displayed reference scenario, not an optimized policy. Capacity enforcement and the high-priority-review cost/disposition mismatch remain open.
 
 ---
 
-### Gate 7 — Final Test-Set Validation
+### Gate 7 — Held-Out Comparison and Generalization Validation
 
-**When:** After model and thresholds are fixed using training/validation only.
+**When:** After each experiment decision is fixed using training/validation only.
 
 **Checks:**
 
-- Final metrics are computed once on held-out test data.
-- Test-set results are not used to retune the model.
-- Test-set lift and threshold behavior are compared to validation behavior.
+- Held-out test metrics may be observed across documented post-v1 experiments
+  as comparison and generalization evidence.
+- Held-out test results are not used in the formal model, feature, calibrator,
+  or threshold selection rules.
+- Held-out test lift and threshold behavior are compared to validation behavior.
 - Differences between validation and test are documented.
 
 **Required outputs:**
 
 ```text
-final model_metrics_summary rows for test split
-final model_lift_by_decile rows for test split
-final model_threshold_metrics rows for test split
+model_metrics_summary rows for held-out test split
+model_lift_by_decile rows for held-out test split
+model_threshold_metrics rows for held-out test split
 ```
 
 **Pass condition:**
 
-Test-set results are reasonably consistent with validation results, or gaps are explained honestly.
+Held-out test results are reasonably consistent with validation results, or
+gaps are explained honestly. Because this set has been observed across post-v1
+experiments, it is a comparison/generalization set rather than a completely
+untouched final lockbox.
+
+The limitation goes beyond repeated observation: original test applicants enter fitting under the stability seeds, and reporting-population SHAP importance feeds feature selection. Similar validation/test metrics therefore do not demonstrate independent generalization.
 
 ---
 
 ### Gate 8 — Segment and Model-Risk Diagnostics
 
-**When:** After final scoring and test-set evaluation.
+**When:** After final scoring and held-out comparison-set evaluation.
 
 **Purpose:** Show model-risk awareness without claiming fair-lending compliance.
 
-**Diagnostic segments:**
-
-- income band;
-- loan amount band;
-- contract type;
-- application type where available;
-- broad age band only if retained in a separate diagnostic layer;
-- gender only if retained in a separate diagnostic layer and framed carefully;
-- missingness groups for major feature families.
+**Implemented diagnostic segments:** `CODE_GENDER`, `NAME_FAMILY_STATUS`, `applicant_age_band`, `CNT_CHILDREN`, and `CNT_FAM_MEMBERS`, as defined in [src/dashboard_segments.py](../../src/dashboard_segments.py). These fields are excluded from model fitting. Income, loan-amount, contract-type, and missingness-group segment exports are possible extensions, not current outputs.
 
 **Checks by segment:**
 
@@ -397,7 +431,9 @@ Accuracy should not be the lead metric because the target is imbalanced.
 
 ## 6. Model Selection Criteria
 
-The primary model should be selected using a balanced view of:
+The implemented baseline-versus-LightGBM family choice uses validation average precision. LightGBM candidate tuning first excludes degenerate score distributions, then sorts by validation PR-AUC, top-decile lift, top-score capture, ROC-AUC, and lower Brier score. Expected value is not the model-selection objective.
+
+The following are broader review considerations, not additional implemented selection rules:
 
 | Criterion | Why it matters |
 |---|---|
@@ -408,9 +444,9 @@ The primary model should be selected using a balanced view of:
 | Threshold expected value | Decision usefulness |
 | Simplicity | Readability and reproducibility |
 | Explainability | SHAP and reason-code quality |
-| Stability | Similar validation/test behavior |
+| Stability | Development-fold consistency; historical test similarity alone is insufficient |
 
-A model with slightly lower AUC but better calibration, cleaner threshold behavior, and clearer explanations may be preferred.
+A different formal selection rule would require an explicit protocol change before viewing comparison outcomes.
 
 ---
 
@@ -440,7 +476,7 @@ business_assumptions:
 
 Use:
 
-> Under illustrative assumptions, the balanced threshold scenario produced the strongest tradeoff between approval volume, default capture, review workload, and expected value.
+> The predefined balanced scenario illustrates approval, review, high-risk volume, and retrospective utility under stated weights. It is not a proven optimal policy or a hard review-capacity allocation.
 
 Avoid:
 
@@ -501,7 +537,7 @@ The model card should explicitly state:
 ## Business-Value Analysis
 ## Segment Diagnostics
 ## Explainability Review
-## Final Test-Set Results
+## Held-Out Comparison-Set Results
 ## Limitations
 ## Recommendation for Portfolio v1
 ```
@@ -510,7 +546,7 @@ The model card should explicitly state:
 
 ## 10. Minimum Release Standard
 
-The frozen v1 release standard remains satisfied while these checks stay true:
+This records the historical artifact checklist, not a current validation sign-off. Checked items below indicate reported artifacts or implemented paths; unresolved correctness gates follow.
 
 - [x] data/target validation is documented;
 - [x] train/validation/test split summary is documented;
@@ -521,12 +557,22 @@ The frozen v1 release standard remains satisfied while these checks stay true:
 - [x] lift-by-decile table exists;
 - [x] threshold scenarios exist;
 - [x] business-value assumptions are explicit;
-- [x] final test-set metrics are reported after thresholds are fixed;
+- [x] historical test metrics are reported with each experiment;
 - [x] segment diagnostics are included;
 - [x] SHAP/global driver outputs are reviewed;
 - [x] scoring output is validated;
-- [x] dashboard screenshot reconciles to exported metrics;
+- [ ] current generated bundle, report narrative, PBIX visuals, and screenshots reconcile to one identified run;
 - [x] README limitations are clear.
+
+Pending correctness requirements:
+
+- [ ] assessment applicants remain outside adaptive fitting and selection across runs;
+- [ ] feature selection importance is confined to development data;
+- [ ] calibration fitting and method assessment are separated, with per-method eligibility;
+- [ ] installment obligations, observation windows, missingness, and availability semantics are verified;
+- [ ] actual action queues and utility assumptions agree, with tested capacity semantics;
+- [ ] split manifests and dependent artifacts identify and validate the exact fitted parent;
+- [ ] effective tuning parameters and a controlled reproduction are verified.
 
 ---
 
@@ -547,13 +593,14 @@ The frozen v1 release standard remains satisfied while these checks stay true:
 
 ## 12. Definition of Validated
 
-For portfolio v1, the model is considered adequately validated when:
+For a corrected portfolio release, the model can be called adequately validated only when the pending requirements above and the following reporting requirements are met. The historical release is not currently certified against this standard:
 
 - the data, target, and split strategy are documented;
 - baseline and LightGBM results are compared honestly;
 - metrics are appropriate for imbalanced financial outcomes;
 - calibration and lift are evaluated;
-- thresholds are chosen on validation data and reported on final test data;
+- thresholds are derived from validation data and reported on the held-out
+  comparison/generalization set;
 - expected-value assumptions are explicit and configurable;
 - segment diagnostics and limitations are included;
 - explanations are plausible and do not expose excluded fields;

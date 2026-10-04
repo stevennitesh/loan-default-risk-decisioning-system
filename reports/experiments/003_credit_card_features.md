@@ -1,5 +1,7 @@
 # Experiment 003: Credit Card Features
 
+> Historical experiment record. The results, conclusions, and next actions below describe the original exploration, not a current work queue or independent-test certification. Read [archive interpretation](README.md#archive-interpretation) and [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status) for the assessment reuse, calibration, feature, and policy limits. Numeric evidence is preserved.
+
 ## Purpose
 
 Test whether monthly credit-card balance and payment behavior improves the post-v1 decisioning model.

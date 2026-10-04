@@ -1,4 +1,4 @@
-# Model Card: Loan Default Risk Decisioning v1
+# Model Card: Historical V1 and Post-v1 Credit-Risk Portfolio
 
 ## Model Summary
 
@@ -13,6 +13,10 @@
 | Production readiness | Not production-ready |
 
 This model card preserves the frozen v1 baseline and summarizes the post-v1 improvement path. Scores are used to demonstrate threshold tradeoffs, batch scoring, explainability, and Power BI reporting. v1 scores should be treated as ranking scores, not fitted calibrated default probabilities.
+
+**Evidence status (2026-10-03):** this is a resume portfolio for recruiters and hiring managers. The metrics below preserve historical experiments; they are not an independent final-test certification or live local metrics. Original test applicants entered fitting in repeated-seed runs, reporting-population SHAP fed feature selection, and post-v1 calibration fitting/selection shared validation rows. [Current evidence status](../docs/validation/VALIDATION_PLAN.md#current-evidence-status) owns these and the remaining feature, policy, and artifact limitations. The [remediation plan](../docs/implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) remains proposed work.
+
+Legacy PR-AUC means average precision; recall at 10% review capacity means top-10% default capture, not actual middle-review recall. Expected-value fields contain retrospective utility units. "Held-out test" retains the saved within-run split label, but it is a reused comparison population across the historical experiment trail.
 
 ## Intended Use
 
@@ -48,7 +52,7 @@ Metrics are computed only from labeled splits of `application_train`. Kaggle `ap
 
 ## Feature Scope
 
-Feature engineering is SQL-first and produces one row per `SK_ID_CURR` in `mart_credit_risk_features`.
+Feature engineering is SQL-first and produces one row per `(SK_ID_CURR, source_population)` in `mart_credit_risk_features`.
 
 Feature groups include:
 
@@ -60,7 +64,7 @@ Feature groups include:
 
 Identifiers, target fields, and v1 demographic/protected-status-like exclusions are removed from the model feature list. Excluded diagnostic fields may be inspected separately for limitation checks, but they are not model drivers.
 
-The active post-v1 candidate extends this feature scope with monthly bureau-balance, POS-cash, credit-card, recency-deterioration, and last-k temporal repayment behavior features.
+The historically selected post-v1 candidate extends this scope with bureau-balance, POS-cash, credit-card, recency-deterioration, and last-k behavior features. POS/card last-k windows count account records, not distinct applicant months. Installment payment-row aggregation currently repeats obligation amounts for split payments; obligation identity, missingness, and availability require verification before stronger feature claims.
 
 ## Training and Selection
 
@@ -69,11 +73,11 @@ The pipeline trains:
 1. logistic regression baseline;
 2. tuned LightGBM primary model.
 
-LightGBM tuning is bounded and validation-only. Candidate selection uses a non-degenerate score-distribution guard, then ranks by PR-AUC, top-decile lift, recall at manual-review capacity, ROC-AUC, and Brier score. Final test metrics are reported after model and threshold choices are fixed.
+LightGBM tuning uses validation metrics with a non-degenerate score guard, then ranks by PR-AUC, top-decile lift, top-score capture, ROC-AUC, and lower Brier score. The baseline-versus-LightGBM family choice uses validation PR-AUC. Test reporting follows within-run selection, but the cross-run reuse described above prevents an independent final-test claim. Configured row subsampling is ineffective while `subsample_freq` remains zero.
 
 No Platt/sigmoid or isotonic calibration layer is fitted in v1. Brier score and calibration bins are reported to evaluate score quality, but they do not make the raw LightGBM scores calibrated probabilities.
 
-Post-v1 fits a separate sigmoid calibration layer on the validation split for the selected LightGBM model. This materially improves probability-quality metrics while preserving rank metrics, and it is documented as an experiment artifact rather than a production probability-of-default model.
+Post-v1 historically selected a sigmoid calibration layer fitted on validation rows. The same rows assess and select the calibration method, so the recorded fit-set probability-quality gain needs independent assessment. The method preference logic also needs a per-candidate minimum-gain fix. Sigmoid preserves ranking in these historical outputs.
 
 | Post-v1 calibration result | Uncalibrated | Sigmoid calibrated | Difference |
 |---|---:|---:|---:|
@@ -84,11 +88,11 @@ Post-v1 fits a separate sigmoid calibration layer on the validation split for th
 
 Batch scoring and dashboard exports now retain both `raw_risk_score` and `calibrated_risk_score`, with `calibration_method` documenting the applied sigmoid layer. The original `score` column remains the rank-policy score used by the current threshold workflow. Post-v1 dashboard exports relabel the selected model as `lightgbm_credit_risk_post_v1` so the improved comparison bundle is distinct from frozen v1.
 
-Post-v1 Experiments 005-014 form a validation-first learning trail rather than a leaderboard replication. The sequence tested simplification, repeated-seed stability, risk-pressure interactions, recency deterioration, source-informed last-k temporal repayment behavior, and final cleanup. Experiment 012 promotes the 168-feature last-k temporal setup after repeated-seed validation improved mean PR-AUC, PR-AUC stability, ROC-AUC, calibrated Brier, lift, precision, recall, and balanced expected value versus the prior 152-feature candidate. Experiments 013 and 014 then tested whether a smaller SHAP-ranked surface could preserve those gains; it could not, so feature expansion stops at the 168-feature candidate.
+Post-v1 Experiments 005-014 record simplification, repeated-seed stability, pressure interactions, recency, last-k record behavior, and cleanup. Experiment 012 historically promoted the 168-feature setup under its validation ranking rule. Experiments 013 and 014 did not select a smaller SHAP-ranked surface by mean validation PR-AUC. Those decisions explain the saved feature scope; they do not close the methodology gaps or establish a permanently optimal feature set.
 
-The post-v1 caveat is calibration-bin behavior: weighted calibration error worsens slightly versus the prior post-v1 candidate, even though Brier improves. The full v1-to-post-v1 summary is in `reports/experiments/v1_to_post_v1_model_diff.md`.
+The historical comparison also records slightly worse weighted calibration-bin error versus the prior candidate despite lower Brier. This is an additional caveat alongside the assessment, selection, feature, and policy limits above. See [the historical comparison](experiments/v1_to_post_v1_model_diff.md).
 
-Frozen v1 selected candidate from `reports/v1/lightgbm_tuning_summary.csv`:
+Historical v1 selected candidate recorded in [experiment 000](experiments/000_v1_baseline.md). The regenerated `reports/v1/lightgbm_tuning_summary.csv` is a separate local artifact and may differ:
 
 | Candidate | PR-AUC | ROC-AUC | Brier | Top-decile lift | Recall at 10% review capacity |
 |---|---:|---:|---:|---:|---:|
@@ -125,7 +129,7 @@ Post-v1 improvement summary:
 | Validation recall at 10% review capacity | 0.349087 | 0.366004 | +0.016917 |
 | Validation balanced EV / applicant | 571.52 | 577.24 | +5.72 |
 
-The post-v1 values summarize the frozen final dashboard export for the promoted 168-feature candidate. Held-out test remains a post-selection generalization check and is reported in `reports/experiments/v1_to_post_v1_model_diff.md`.
+The post-v1 values preserve the curated final dashboard snapshot for the historically selected 168-feature candidate. They may differ from current generated local artifacts. Historical test comparisons are reported in [the model comparison](experiments/v1_to_post_v1_model_diff.md); their reuse prevents independent generalization claims.
 
 ## Threshold Policy
 
@@ -135,9 +139,11 @@ Scores are mapped to simulated actions:
 |---:|---|---|
 | `< T_low` | Low risk | Approve |
 | `T_low` to `< T_high` | Medium risk | Manual review |
-| `>= T_high` | High risk | Decline or high-priority review |
+| `>= T_high` | High risk | High-priority review |
 
 Thresholds are selected from validation scores and applied unchanged to the held-out labeled test split.
+
+The quantile scenarios do not enforce a hard review capacity. "Balanced" is the displayed reference, not an optimized policy. The current utility formula charges only the middle review band while the high band is labeled high-priority review; its cost/disposition is not modeled. Top-score capture and actual middle-review capture are different quantities.
 
 The thresholds below are cutoffs on uncalibrated model scores. They are valid for rank-based scenario comparison in this project, but they should not be interpreted as calibrated default-probability thresholds.
 
@@ -156,7 +162,7 @@ Expected value is illustrative and not a claim about real Home Credit economics.
 | Expected margin per good approved loan | 1000 |
 | Expected loss per bad approved loan | 5000 |
 | Manual review cost | 50 |
-| Manual review capacity | 10% of applicants |
+| Review-rate scenario reference (not a hard cap) | 10% of applicants |
 
 These values are utility weights for scenario comparison, not calibrated loan-level economics. The `1000` good-loan margin and `5000` bad-loan loss encode a simple 5:1 penalty ratio so approval, review, and high-risk threshold choices can be compared in a readable v1 dashboard. They do not estimate actual interest income, funding cost, exposure at default, recovery, loss given default, servicing cost, or loan term.
 
@@ -193,27 +199,24 @@ SHAP outputs are not adverse-action notices and should not be presented as legal
 
 ## Reproducibility
 
-Primary commands:
-
-```bash
-make ingest
-make features
-make train
-make evaluate
-make score
-make dashboard-data
-make dashboard-data-post-v1
-make test
-```
-
-The dashboard comparison bundles are reproducible from the current codebase with two explicit scopes:
+Use the explicit scoped pipeline commands to regenerate local outputs from downloaded data:
 
 ```bash
 make pipeline-v1
 make pipeline-post-v1
 ```
 
+Check the code with synthetic fixtures, without raw Kaggle data:
+
+```bash
+make lint
+make format-check
+make test
+```
+
 `configs/v1.yaml` writes frozen-v1 artifacts under `models/v1`, `reports/v1`, and `reports/dashboard_data`. `configs/post_v1.yaml` writes post-v1 artifacts under `models/post_v1`, `reports/post_v1`, and `reports/dashboard_data_post_v1`.
+
+See [the README run guide](../README.md#how-to-run) for dependency installation, explicit step configs, and the Windows `PYTHON=python` override. Export-only targets do not retrain, but can recompute probability-quality/segment views. Dependencies are unlocked; exact historical numbers and screenshot reconciliation are not certified. Model-version names, including the post-v1 dashboard display alias, do not guarantee exact fitted-run lineage.
 
 Key generated artifacts:
 

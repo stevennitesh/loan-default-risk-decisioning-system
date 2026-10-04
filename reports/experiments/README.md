@@ -4,6 +4,14 @@ This folder tracks post-v1 model and feature experiments against the frozen v1 b
 
 The goal is not to make every change look successful. The goal is to preserve a clear, comparable trail showing which modifications improved the decisioning story and which did not.
 
+## Archive Interpretation
+
+Reports `000`–`014` and log row `015` are historical experiment records. Their original conclusions and next actions describe the exploration at the time; they are not a current work queue or an independent-test certification. The [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status) owns the known limitations and pending gates. The [remediation plan](../../docs/implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) is proposed work, not implemented methodology.
+
+Original test applicants enter fitting under the repeated stability seeds; SHAP-ranked selection consumes holdout/Kaggle scoring importance; calibration fitting and selection share validation rows. Formal validation-based sorting therefore does not establish independent assessment across the experiment trail. Keep recorded numbers, but qualify claims of generalization and calibration.
+
+Legacy PR-AUC means average precision, recall at 10% review capacity means highest-score default capture, and EV means retrospective utility units. Last-k POS/card features rank account records, not distinct applicant months. "Frozen" denotes preserved snapshots; local regenerated artifacts may differ.
+
 ## Baseline
 
 The frozen v1 baseline is recorded in:
@@ -27,19 +35,21 @@ Avoid bundling multiple feature families into one first pass. If a combined run 
 
 ## Required Report Fields
 
-Each experiment report should include:
+For future experiments, use [the template](experiment_template.md) and record:
 
 - experiment ID and short name;
 - change tested;
 - hypothesis;
 - files or tables changed;
 - validation metrics;
-- held-out test metrics;
+- assessment metrics with the actual population role and reuse history;
 - business-value metrics for the balanced scenario;
 - feature-count change;
 - top SHAP driver changes;
 - conclusion: improve, no clear improvement, or worse;
 - next action.
+
+Also identify the config, code/input snapshot, exact model/calibrator artifacts, score representation, split memberships and sample counts, effective fitted parameters, and fitting/selection/assessment roles. Mark missing identity or evidence explicitly. Compare only compatible protocols; an old snapshot is historical context, not an automatic baseline for a corrected experiment.
 
 ## Metrics To Compare
 
@@ -63,7 +73,7 @@ Do not optimize on accuracy. Accuracy is not a useful headline metric for this i
 
 ## Selection Discipline
 
-Model and threshold choices must be made using training/validation data only. Held-out test metrics are for final reporting after the experiment choice is fixed.
+Model and threshold choices must be made using development fitting/selection evidence only. The existing test population is historical comparison; do not call it untouched or use its outcomes to select new candidates. The new assessment protocol has not yet been implemented.
 
 Do not promote or demote an experiment because held-out test looks better or worse than the validation-selected choice. If held-out test diverges materially from validation, record the gap as a stability/generalization signal and improve the model-generation method in a follow-up experiment.
 

@@ -1,17 +1,21 @@
 # Loan Default Risk Decisioning System
 
-**Version:** 0.3.1 final portfolio contract
-**Status:** Implemented v1 contract with post-v1 comparison
+**Version:** 0.3.1 (context reconciled 2026-10-03; behavior unchanged)
+**Status:** Implemented local pipeline contract; historical comparison and open validation gaps
 **Owner:** Steven  
-**Last updated:** 2026-06-01
+**Last updated:** 2026-10-03
 
 ---
 
 ## 1. Executive Summary
 
-This project builds an end-to-end financial decisioning pipeline that predicts loan default risk, assigns applicants to risk-based action bands, writes batch predictions back to a database table, and visualizes threshold tradeoffs in Power BI.
+This resume portfolio presents an end-to-end financial ML workflow to recruiters and hiring managers: it ranks observed repayment-difficulty risk, assigns simulated action bands, writes batch predictions to DuckDB, and visualizes scenario tradeoffs in Power BI.
 
-The goal is **not** to build a production underwriting system. The goal is to demonstrate applied financial-services machine learning: SQL feature engineering, reproducible Python modeling, rigorous evaluation, explainability, business-value analysis, batch scoring, testing, and clear documentation.
+The goal is to demonstrate SQL feature engineering, configured Python modeling, imbalanced-outcome evaluation, interpretation, scenario utility, batch scoring, testing, and clear documentation. This is a decision-support simulation, not a production underwriting system.
+
+### Contract and evidence status
+
+This document owns scope and intended public behavior. Implemented paths and historical artifact checklists do not certify methodological correctness. [Current evidence status](../validation/VALIDATION_PLAN.md#current-evidence-status) owns the verified limitations: reused assessment applicants, reporting-population SHAP selection, shared calibration fit/selection data, installment/window semantics, capacity/action utility mismatch, and artifact/reproduction gaps. The [remediation plan](../implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) proposes repairs; it does not describe implemented behavior. Do not adopt its new evaluation protocol, policy, or commands implicitly.
 
 **One-line portfolio summary:**
 
@@ -25,7 +29,7 @@ The goal is **not** to build a production underwriting system. The goal is to de
 
 ## 2. Locked v1 Scope
 
-These decisions are fixed for v1. Post-v1 work is limited to the comparison scope documented below; production extensions remain stretch goals.
+These decisions define the local portfolio scope. Post-v1 work uses the comparison sources below; production extensions require an explicit scope change.
 
 | Area | v1 decision | Build implication |
 |---|---|---|
@@ -85,7 +89,8 @@ Power BI threshold and value analysis
 4. Use SQL to create applicant-level feature tables and a final feature mart.
 5. Train a logistic regression baseline and a LightGBM model.
 6. Evaluate ranking quality, class-imbalance behavior, calibration, lift, threshold outcomes, and expected business value.
-7. Choose decision thresholds using validation data and explicit business assumptions.
+7. Derive decision thresholds from validation-score quantiles and review-capacity
+   scenarios, then evaluate those scenarios under explicit business assumptions.
 8. Score applicants in batch and write predictions to DuckDB.
 9. Generate SHAP-based global feature importance and applicant-level reason-code-style outputs.
 10. Export Power BI-ready tables and build a business-readable dashboard.
@@ -140,7 +145,7 @@ This project will not:
 The modeling table uses one row per current loan application, keyed by:
 
 ```text
-SK_ID_CURR
+(SK_ID_CURR, source_population)
 ```
 
 ### Target definition
@@ -157,8 +162,8 @@ The positive class is expected to be relatively rare. Accuracy will not be used 
 | Population | Source | Has `TARGET`? | Purpose |
 |---|---|---:|---|
 | Training split | `application_train` feature mart rows | Yes | Fit preprocessing and model |
-| Validation split | `application_train` feature mart rows | Yes | Tune thresholds, calibration, and model choices |
-| Test split | `application_train` feature mart rows | Yes | Final labeled performance report |
+| Validation split | `application_train` feature mart rows | Yes | Derive threshold scenarios and select calibration and model choices |
+| Test split | `application_train` feature mart rows | Yes | Within-run reporting; historical comparison across reused experiments |
 | Kaggle test scoring population | `application_test` feature mart rows | No | Production-like batch scoring demo only |
 
 **Rule:** Do not report model performance on `application_test.csv` because it has no labels. It can be used only for score distribution, risk-band volume, and production-like scoring demonstration.
@@ -195,7 +200,7 @@ Power BI dashboard
 
 ### Database choice
 
-v1 uses **DuckDB only**. Postgres can be added later as an optional extension if the project needs a server-backed database demonstration.
+The local portfolio uses **DuckDB only**. Postgres or any server-backed demonstration requires an explicit change to the project scope.
 
 ---
 
@@ -265,6 +270,9 @@ Post-v1 comparison adds:
 | `f_bureau_balance_agg` | Monthly external-credit delinquency/status summaries |
 | `f_pos_cash_agg` | POS/cash status and delinquency aggregates |
 | `f_credit_card_agg` | Utilization, balance, drawdown, and delinquency aggregates |
+| `f_risk_pressure_features` | Configured cross-source pressure interactions |
+| `f_recency_deterioration_features` | Recent-versus-older record behavior summaries |
+| `f_last_k_temporal_features` | Last-k record and last-loan summaries; POS/card windows are not distinct applicant months |
 
 ### 8.4 Feature categories
 
@@ -296,7 +304,7 @@ Excluded demographic and protected-status-like fields may be retained only in a 
 
 ## 9. Data Leakage and Validation Controls
 
-The project will enforce these controls:
+These are required controls. Current per-run pipeline checks implement several of them; cross-run selection and persisted-artifact gaps remain open as described in the validation owner:
 
 - `TARGET` is never used as a feature.
 - `SK_ID_CURR` is used only as an identifier, not as a model feature.
@@ -308,7 +316,8 @@ The project will enforce these controls:
 - Batch scoring uses the same feature columns and preprocessing transformations as training.
 - Labeled holdout predictions are used for evaluation.
 - Unlabeled Kaggle test predictions are used only for production-like scoring demonstration.
-- All threshold choices are made on validation data before final test reporting.
+- All threshold scenarios are derived from validation-score quantiles before
+  held-out test reporting.
 
 ---
 
@@ -374,36 +383,26 @@ Purpose:
 LightGBM Classifier
 ```
 
-Selection criteria:
-
-- validation PR-AUC;
-- validation ROC-AUC;
-- top-decile lift;
-- calibration quality;
-- inference speed;
-- implementation simplicity;
-- SHAP compatibility.
+Implemented family selection compares validation average precision (legacy PR-AUC). LightGBM tuning filters degenerate scores, then sorts by validation PR-AUC, top-decile lift, top-score capture, ROC-AUC, and lower Brier score. Expected value, inference speed, simplicity, and SHAP compatibility are review considerations, not additional automatic selection criteria. Verify effective parameters: configured `subsample` currently has no row-bagging effect because `subsample_freq` is zero.
 
 ### 11.4 Imbalance handling
 
 Initial imbalance strategy:
 
 1. Use LightGBM class weighting or `scale_pos_weight` as the first option.
-2. Tune thresholds separately from model fitting.
+2. Derive threshold scenarios separately from model fitting.
 3. Evaluate PR-AUC, lift, and recall at review capacity.
-4. Add SMOTE/undersampling only as an experiment, not as the default.
-
-SMOTE will be retained only if it improves validation results and does not degrade calibration or business-value analysis.
+4. Resampling is not implemented as part of the selected pipeline; a future experiment would need separate development-only evidence.
 
 ### 11.5 Calibration
 
-Calibration candidates for future or post-v1 experiments:
+Implemented calibration options:
 
 - uncalibrated LightGBM risk scores, the v1 default;
 - Platt scaling;
 - isotonic regression.
 
-For v1, calibration is evaluated with Brier score and calibration curves on validation/test data. Platt or isotonic calibration requires a separate implemented experiment before it can be described as fitted calibration.
+v1 does not fit a calibration layer. Post-v1 compares sigmoid and isotonic layers against raw scores and historically selected sigmoid. Fitting and method selection currently share validation data, and per-method minimum-gain eligibility needs repair. Recorded improvements are exploratory probability-quality evidence, not independent calibration certification.
 
 ---
 
@@ -414,13 +413,13 @@ For v1, calibration is evaluated with Brier score and calibration curves on vali
 | Metric | Why it matters |
 |---|---|
 | ROC-AUC | General ranking quality |
-| PR-AUC | Better for imbalanced binary outcomes |
-| Brier score | Probability calibration quality |
+| PR-AUC (average precision) | Ranking quality for the imbalanced outcome; not trapezoidal PR-curve area |
+| Brier score | Overall probability quality; inspect calibration bins separately |
 | Precision at top decile | Risk concentration in highest-score group |
-| Recall at review capacity | Operational usefulness when review resources are limited |
+| Recall at review capacity (legacy name) | Capture among the highest scores at a reference rate, not actual middle-review capture |
 | Lift by decile | Business-friendly ranking evaluation |
 | Confusion matrix by threshold | Decision impact at selected cutoffs |
-| Expected business value | Connects model output to financial tradeoffs |
+| Expected business value (legacy name) | Retrospective scenario utility under explicit weights, not actual profit |
 
 Accuracy may be reported in an appendix but will not be the headline result.
 
@@ -439,22 +438,28 @@ For each decile:
 
 ### 12.3 Threshold analysis
 
-Thresholds are evaluated on validation data and finalized before test reporting.
+Thresholds are derived from validation-score quantiles that encode approval,
+reference review-rate, and high-risk volume scenarios. Scenario outcomes are
+then evaluated on validation data under the illustrative business assumptions
+before held-out test reporting. Expected value is an evaluation output, not the
+threshold optimization rule.
 
-The threshold grid will produce:
+Fixed validation quantiles do not guarantee a hard review limit on a new population or under ties. Current high-band action labels and review costing also differ; do not claim an operationally constrained policy until they agree.
+
+The threshold scenario analysis will produce:
 
 - approval rate;
 - review rate;
 - high-risk action rate;
 - default rate among approved applicants;
-- default capture rate in review/high-risk bands;
+- high-risk default capture rate; actual middle-review capture is not the legacy top-score capture metric;
 - confusion matrix counts;
 - expected value;
 - manual review volume.
 
 ### 12.4 Test-set reporting
 
-The final README reports test-set results only after threshold/model choices are fixed on training/validation data.
+Within a run, test metrics are reported after validation-based choices. Across the historical experiments the original test applicants were reused in fitting and reporting-population SHAP fed selection, so the README must describe these values as historical comparisons, not an independent final test.
 
 ### 12.5 Reporting rule
 
@@ -475,9 +480,12 @@ Do not mix these in one metric table.
 |---:|---|---|
 | `< T_low` | Low risk | Approve |
 | `T_low` to `< T_high` | Medium risk | Manual review |
-| `>= T_high` | High risk | Decline or high-priority review |
+| `>= T_high` | High risk | High-priority review |
 
-The selected `T_low` and `T_high` values will come from validation-set threshold analysis.
+The selected `T_low` and `T_high` values come from validation-score quantiles
+for the configured capacity scenarios. Expected value and other business
+outcomes are used to interpret the resulting scenarios, not to optimize the
+cutoffs.
 
 ### 13.2 Starting business assumptions
 
@@ -485,10 +493,10 @@ These assumptions are illustrative and configurable in `configs/base.yaml`.
 
 | Assumption | Starting value |
 |---|---:|
-| Expected margin per good approved loan | `$1,000` |
-| Expected loss per bad approved loan | `$5,000` |
-| Manual review cost | `$50` |
-| Manual review capacity | `10%` of applicants |
+| Expected margin per good approved loan | `1000` utility units |
+| Expected loss per bad approved loan | `5000` utility units |
+| Manual review cost | `50` utility units |
+| Review-rate scenario reference | `10%` of applicants; not an enforced cap |
 
 ### 13.3 Expected-value formula
 
@@ -510,6 +518,8 @@ Expected Value =
 ---
 
 ## 14. Configuration Contract
+
+The YAML below is an illustrative v1-shaped example, not the authoritative runnable config. Use [configs/v1.yaml](../../configs/v1.yaml) or [configs/post_v1.yaml](../../configs/post_v1.yaml) for scoped runs. [configs/base.yaml](../../configs/base.yaml) defaults to post-v1 feature scope with separate output paths. Do not copy this abbreviated example over an active config.
 
 The project should centralize tunable assumptions and paths in:
 
@@ -595,7 +605,8 @@ threshold_policy:
       threshold_high: null
 ```
 
-Threshold values are initially null and filled after validation-set threshold analysis.
+Threshold values are initially null and filled from validation-score quantiles
+for the configured capacity scenarios.
 
 ---
 
@@ -613,13 +624,13 @@ v1 will score two populations:
 ### 15.2 Scoring command
 
 ```bash
-make score
+make score CONFIG=configs/v1.yaml
 ```
 
 Equivalent module command:
 
 ```bash
-python -m src.score_batch --config configs/base.yaml
+python -m src.score_batch --config configs/v1.yaml
 ```
 
 ### 15.3 Prediction table
@@ -630,6 +641,9 @@ CREATE TABLE credit_risk_scores (
     scoring_population VARCHAR,
     observed_target INTEGER,
     score DOUBLE,
+    raw_risk_score DOUBLE,
+    calibrated_risk_score DOUBLE,
+    calibration_method VARCHAR,
     score_decile INTEGER,
     risk_band VARCHAR,
     recommended_action VARCHAR,
@@ -648,12 +662,15 @@ Notes:
 - `scoring_population` must distinguish at least `holdout_test` and `kaggle_test`.
 - `score` must be in `[0, 1]`.
 - `score_decile` is calculated separately within the relevant scoring population.
+- `score`/`raw_risk_score` drive the existing rank policy. `calibrated_risk_score` is a separate score view, with `calibration_method` identifying its treatment. Exact column order is owned by [src/report_contracts.py](../../src/report_contracts.py), with SQL in [07_create_score_tables.sql](../../sql/07_create_score_tables.sql).
 
 ---
 
 ## 16. Dashboard Output Table Contracts
 
 Power BI should read from the CSV export directories generated by `make dashboard-data` and `make dashboard-data-post-v1`.
+
+The tables below describe field meaning, not a duplicate exhaustive schema. [src/report_contracts.py](../../src/report_contracts.py) owns exact columns; [src/dashboard_exports.py](../../src/dashboard_exports.py) owns the eight exported tables. `model_run_summary` is a database/runtime report and is not part of that eight-file dashboard bundle. Post-v1 export recomputes calibrated selected-model probability metrics and segment diagnostics; raw evaluation rows and calibrated dashboard rows are different score views.
 
 ### 16.1 `model_run_summary`
 
@@ -754,7 +771,7 @@ For confusion-matrix display, the high-risk action can be treated as the positiv
 |---|---|
 | `model_version` | Model identifier |
 | `split` | `validation` or `test` |
-| `segment_name` | Segment dimension, e.g. income band |
+| `segment_name` | Implemented diagnostic dimension, e.g. `applicant_age_band` |
 | `segment_value` | Segment bucket |
 | `applicant_count` | Rows in segment |
 | `observed_default_rate` | Segment default rate |
@@ -773,7 +790,7 @@ SHAP will be used for global and local model explanation.
 
 - top features by mean absolute SHAP value;
 - SHAP summary plot;
-- selected feature dependence plots;
+- feature dependence plots are an optional extension, not a current generated output;
 - exported `model_feature_importance` table.
 
 ### Local outputs
@@ -806,13 +823,13 @@ This is the executive overview page.
 | Threshold scenario selector | Growth, balanced, risk-averse |
 | Confusion matrix | Shows classification tradeoffs |
 | Lift chart | Shows risk concentration by decile |
-| Expected value by threshold | Shows business-optimal region |
+| Expected value by threshold scenario | Shows illustrative business tradeoffs across the validation-derived scenarios |
 | Approval/default tradeoff | Shows risk-growth balance |
 | Top model drivers | Shows explainability |
 
 ### 18.2 Page 2: Model Validation Appendix
 
-Optional but recommended after page 1 is polished.
+Both saved PBIX reports include this page. The visual tables describe design intent; they are not proof that every listed chart is present or numerically reconciled. Existing screenshots show the historical post-v1 report.
 
 | Visual | Purpose |
 |---|---|
@@ -833,13 +850,7 @@ The main dashboard should be understandable from a screenshot. Avoid making read
 
 This project should acknowledge credit-model risk without pretending to complete a regulatory review.
 
-v1 diagnostics:
-
-- performance by income band;
-- performance by loan amount band;
-- performance by application/contract type;
-- missingness by major feature group;
-- optional age-band, gender, and marital/family-status diagnostics if clearly framed as diagnostic-only and excluded from model training.
+Implemented dashboard segment diagnostics are `CODE_GENDER`, `NAME_FAMILY_STATUS`, `applicant_age_band`, `CNT_CHILDREN`, and `CNT_FAM_MEMBERS`, as owned by [src/dashboard_segments.py](../../src/dashboard_segments.py). Income, loan-amount, contract-type, and missingness-group segment exports are possible extensions, not current outputs. Missingness is also recorded separately in feature inventory reports.
 
 Sensitive or legally risky fields should not be used casually as model drivers. If demographic or protected-status-like fields are inspected, they should live in a separate diagnostic layer, not in the model feature matrix. The README must frame any such analysis as a diagnostic limitation check, not a deployment approval or fair-lending certification.
 
@@ -878,91 +889,30 @@ Required test expectations:
 
 ## 21. Repository Structure
 
-```text
-loan-default-decisioning/
-│
-├── README.md
-├── Makefile
-├── Dockerfile
-├── requirements.txt
-│
-├── configs/
-│   └── base.yaml
-│
-├── docs/
-│   ├── spec/
-│   │   └── PROJECT_SPEC.md
-│   ├── implementation/
-│   │   └── IMPLEMENTATION_PLAN.md
-│   ├── testing/
-│   │   └── TESTING_PLAN.md
-│   └── validation/
-│       └── VALIDATION_PLAN.md
-│
-├── data/
-│   ├── raw/                 # ignored by git
-│   ├── parquet/             # ignored by git
-│   ├── db/                  # ignored by git
-│   └── sample/
-│
-├── sql/
-│   ├── 02_feature_applicant.sql
-│   ├── 03_feature_bureau.sql
-│   ├── 03b_feature_bureau_balance.sql
-│   ├── 04_feature_previous_applications.sql
-│   ├── 04b_feature_pos_cash.sql
-│   ├── 04c_feature_credit_card.sql
-│   ├── 05_feature_installments.sql
-│   ├── 05b_feature_risk_pressure.sql
-│   ├── 05c_feature_recency_deterioration.sql
-│   ├── 05d_feature_last_k_temporal.sql
-│   ├── 06_build_feature_mart.sql
-│   ├── 06_build_feature_mart_v1.sql
-│   └── 07_create_score_tables.sql
-│
-├── src/
-│   ├── __init__.py
-│   ├── config.py
-│   ├── ingest.py
-│   ├── build_features.py
-│   ├── train.py
-│   ├── evaluate.py
-│   ├── score_batch.py
-│   ├── explain.py
-│   └── thresholding.py
-│
-├── tests/
-│   ├── test_data_contract.py
-│   ├── test_feature_sql.py
-│   ├── test_train.py
-│   ├── test_evaluate.py
-│   ├── test_scoring_schema.py
-│   ├── test_dashboard_exports.py
-│   └── test_powerbi_artifacts.py
-│
-├── reports/
-│   ├── figures/
-│   ├── model_card.md
-│   ├── business_value_analysis.md
-│   └── validation_report.md
-│
-├── powerbi/
-│   ├── dashboard.pbix
-│   ├── dashboard_post_v1.pbix
-│   └── screenshots/
-│
-└── models/
-    └── .gitkeep
-```
+Use [the README repository guide](../../README.md#repository-guide) for the maintained layout. The main ownership boundaries are:
+
+- `configs/v1.yaml` and `configs/post_v1.yaml`: explicit feature/output scopes; `configs/base.yaml` supplies separate defaults.
+- `sql/`: source aggregation and mart construction; `src/`: orchestration, modeling, metrics, scoring, interpretation, and exports.
+- `tests/`: synthetic fixture checks; no downloaded sample dataset is required.
+- `docs/spec/`, `docs/implementation/`, `docs/testing/`, and `docs/validation/`: scope, build history/proposals, checks, and evidence requirements.
+- `data/`, `models/`, and scoped runtime reports: local generated artifacts, ignored by Git.
+- `reports/experiments/` and `reports/model_card.md`: curated historical evidence and its interpretation.
+- `powerbi/`: saved report binaries and historical screenshots.
+
+The active agent reading path is [AGENTS.md](../../AGENTS.md). Domain and accepted architecture decisions remain at their existing owners; there is no mandatory separate engineering contract, domain template, ADR tree, or bootstrap record.
 
 ---
 
 ## 22. Reproducibility Interface
 
+The [Makefile](../../Makefile) owns the interface. See [the README run guide](../../README.md#how-to-run) for explicit scopes and Windows `PYTHON=python`. `make setup` installs into the selected interpreter; it does not create an environment. Scoped pipelines regenerate local artifacts from raw Kaggle data; they do not guarantee exact historical metrics or refresh PBIX visuals. Export targets use existing artifacts without retraining and can recompute probability-quality/segment views. Dependencies are currently unlocked.
+
 Required commands:
 
 ```bash
 make setup
+make lint
+make format-check
 make ingest
 make features
 make train
@@ -1004,7 +954,7 @@ The repo should include:
 reports/model_card.md
 ```
 
-Required sections:
+Required information (headings may vary):
 
 ```text
 Intended Use
@@ -1040,7 +990,7 @@ The README should answer these questions within two minutes:
 7. What are the limitations?
 8. How can someone run or inspect the project?
 
-Required README sections:
+Required README information (headings may vary):
 
 ```text
 Overview
@@ -1084,18 +1034,18 @@ Required README artifacts:
 | Power BI dashboard | Business-facing threshold and model-performance dashboard |
 | `reports/model_card.md` | Model purpose, metrics, thresholds, limitations |
 | Tests | Unit tests for feature, scoring, and business logic |
-| Dockerfile | Reproducible runtime environment |
+| Dockerfile | Python 3.12 test container; defaults to `make test`, dependencies are not locked |
 
 ---
 
 ## 26. Implemented Acceptance Criteria
 
-The frozen v1 portfolio contract is complete when these remain true:
+This is a historical implementation inventory, not current validation sign-off. Checked items record implemented paths and curated artifacts. Current acceptance also requires the pending correctness gates in the validation owner:
 
 - [x] `make ingest` converts raw Kaggle CSV files to Parquet and creates DuckDB staging tables.
 - [x] `make features` builds a one-row-per-applicant `mart_credit_risk_features` table.
 - [x] Feature mart includes application, bureau, previous-application, and installment features.
-- [x] Feature mart and model feature list exclude target, identifiers, and v1 demographic/protected-status-like exclusions.
+- [x] Model feature list excludes target, identifiers, and demographic/protected-status-like exclusions. The mart retains its identifier, population, and labeled target for joins/evaluation; diagnostics remain separate.
 - [x] `make train` trains a logistic regression baseline and a LightGBM model.
 - [x] Model artifact includes feature list, preprocessing details, model version, and run metadata.
 - [x] `make evaluate` exports ROC-AUC, PR-AUC, Brier score, lift by decile, calibration bins, and confusion matrix by threshold.
@@ -1109,7 +1059,7 @@ The frozen v1 portfolio contract is complete when these remain true:
 - [x] `make test` passes tests for data contracts, scoring, thresholding, and expected-value logic.
 - [x] README includes final metrics, architecture diagram, dashboard screenshot, limitations, and run instructions.
 - [x] `reports/model_card.md` exists and clearly states intended use, non-use, metrics, thresholds, and limitations.
-- [x] The repo can be run from a clean environment using documented commands.
+- [ ] A controlled clean reproduction and exact artifact/dashboard reconciliation are verified; unlocked dependencies and differing local snapshots currently limit this claim.
 
 ---
 

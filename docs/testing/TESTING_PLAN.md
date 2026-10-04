@@ -1,10 +1,10 @@
 # Loan Default Risk Decisioning System — Testing Plan
 
 **Version:** 0.1  
-**Status:** Implemented testing plan for frozen v1 and post-v1 comparison
+**Status:** Existing fixture coverage and required checks; missing correctness regressions identified
 **Owner:** Steven  
-**Aligned spec:** `docs/spec/PROJECT_SPEC.md` v0.3.1
-**Last updated:** 2026-06-01
+**Aligned spec:** [PROJECT_SPEC.md](../spec/PROJECT_SPEC.md)
+**Last updated:** 2026-10-03
 
 ---
 
@@ -13,6 +13,8 @@
 This testing plan defines how the project will verify that the data pipeline, feature engineering, model scoring, threshold policy, expected-value calculations, and dashboard exports behave correctly.
 
 Testing is not the same as model validation. This plan checks whether the system was implemented correctly. The validation plan checks whether the model and decisioning outputs are credible.
+
+This document records current coverage and intended test requirements, not proof that every requirement below has a regression test. Passing fixtures do not certify scientific correctness. See [current evidence status](../validation/VALIDATION_PLAN.md#current-evidence-status) and the missing regression cases below before describing the portfolio as validated.
 
 ---
 
@@ -104,6 +106,9 @@ sample_application_test
 sample_bureau
 sample_previous_application
 sample_installments_payments
+sample_bureau_balance
+sample_pos_cash_balance
+sample_credit_card_balance
 ```
 
 ### 5.3 Fixture requirements
@@ -162,8 +167,8 @@ Test expectations:
 
 Test expectations:
 
-- `mart_credit_risk_features` has one row per `SK_ID_CURR`;
-- no duplicate applicant IDs;
+- `mart_credit_risk_features` has one row per `(SK_ID_CURR, source_population)`;
+- no duplicate keys within a source population;
 - labeled rows retain `TARGET`;
 - unlabeled rows do not invent target values;
 - joins do not multiply application rows.
@@ -229,6 +234,8 @@ CNT_FAM_MEMBERS if classified as diagnostic-only
 
 The exact list should come from `configs/base.yaml`.
 
+For a scoped run, read the exclusion groups from that run's config (`configs/v1.yaml` or `configs/post_v1.yaml`); do not assume a separate default config owns its fitted feature list.
+
 ### 8.2 Diagnostic-only separation
 
 Test expectations:
@@ -246,6 +253,8 @@ Test expectations:
 - encoders, imputers, scalers, and calibrators are fit only on the appropriate split;
 - validation/test labels are not used in training transformations;
 - thresholds are selected on validation, not final test.
+
+Missing protections: loading a saved split manifest does not currently reject cross-split overlap; repeated-seed runs reuse original test applicants in fitting; SHAP-ranked selection uses reporting-population importance. Add regressions at those actual boundaries when implementing repairs. Calibration fit/assessment separation is also required before claiming independent method selection.
 
 ---
 
@@ -293,15 +302,15 @@ Given `T_low` and `T_high`:
 | `< T_low` | Low risk | Approve |
 | `= T_low` | Medium risk | Manual review |
 | between thresholds | Medium risk | Manual review |
-| `= T_high` | High risk | Decline or high-priority review |
-| `> T_high` | High risk | Decline or high-priority review |
+| `= T_high` | High risk | High-priority review |
+| `> T_high` | High risk | High-priority review |
 
 Test expectations:
 
 - `T_low < T_high`;
 - every score receives exactly one band;
 - null scores fail explicitly or are assigned to a configured error band;
-- action labels match config.
+- action labels match the implemented `ACTION_LABELS` in `src/score_batch.py`.
 
 ### 10.2 Scenario tests
 
@@ -311,6 +320,8 @@ Test expectations:
 - thresholds are valid for each scenario;
 - scenario names are exported cleanly;
 - scenario outputs reconcile with confusion matrix and expected-value calculations.
+
+These tests cover legacy quantile scenarios. They do not establish hard queue capacity under tied scores or distribution shift, or equivalence between top-score ranking capture and middle-review capture.
 
 ---
 
@@ -350,19 +361,24 @@ For each threshold scenario:
 
 ### 12.1 `credit_risk_scores` schema
 
-Required columns:
+Exact order and required columns are owned by `CREDIT_RISK_SCORE_COLUMNS` in [src/report_contracts.py](../../src/report_contracts.py):
 
 ```text
 applicant_id
+scoring_population
+observed_target
 score
+raw_risk_score
+calibrated_risk_score
+calibration_method
+score_decile
 risk_band
 recommended_action
 threshold_version
+model_version
 top_reason_1
 top_reason_2
 top_reason_3
-model_version
-scoring_population
 scored_at
 ```
 
@@ -433,6 +449,8 @@ Test expectations:
 - decile counts reconcile to evaluation population;
 - metric values match evaluation outputs.
 
+For post-v1, distinguish calibrated dashboard probability metrics from raw runtime evaluation metrics rather than requiring them to be numerically identical. Export schemas are owned by `src/report_contracts.py`. PBIX file/page checks do not verify displayed numbers or a Power BI refresh.
+
 ---
 
 ## 15. CLI and Pipeline Smoke Tests
@@ -451,11 +469,11 @@ make score
 make dashboard-data
 ```
 
-For CI, use synthetic fixture data instead of the full Kaggle dataset.
+Full-data commands require downloaded Kaggle files. CI runs pytest's synthetic integration paths, not the full-data Make pipeline. Use explicit scoped configs as documented in the README; bare step commands use the separate base-config paths.
 
-### 15.2 Suggested CI behavior
+### 15.2 Implemented CI behavior
 
-A lightweight GitHub Actions workflow should run the checked-in test suite:
+The checked-in GitHub Actions workflow uses Python 3.12 and runs:
 
 ```bash
 make setup
@@ -486,7 +504,7 @@ Recommended order during development:
 
 ## 17. Minimum Test Suite for v1 Release
 
-Implemented v1 test coverage tracks these release gates:
+Existing fixture coverage includes the following checks. These are implementation checks, not a model-validation sign-off:
 
 - [x] config parses and required sections exist;
 - [x] feature mart has one row per applicant;
@@ -499,11 +517,25 @@ Implemented v1 test coverage tracks these release gates:
 - [x] dashboard export files exist and are readable;
 - [x] SHAP/reason-code outputs exclude diagnostic-only fields.
 
+Required regressions for proposed correctness repairs (not currently complete):
+
+- [ ] split overlap and invalid identifier manifests fail on artifact load;
+- [ ] assessment IDs remain outside all adaptive fitting and selection paths;
+- [ ] selection importance excludes reporting populations;
+- [ ] a fully paid obligation split across payment rows is not underpaid or double-counted; version changes and unknown amounts are explicit;
+- [ ] last-k windows distinguish records from distinct applicant months, with availability and missingness cases;
+- [ ] calibration candidates meet their own minimum gain and are assessed outside calibration-fitting rows;
+- [ ] ties, empty/small batches, and distribution shifts obey any newly implemented capacity rule, with actual review capture separate from top-score capture;
+- [ ] action disposition and review costing reconcile, including the high band;
+- [ ] calibration, thresholds, and exports reject a mismatched fitted parent;
+- [ ] raw/calibrated metrics and dashboard display filters reconcile to one identified bundle;
+- [ ] effective LightGBM row-bagging parameters match the intended experiment.
+
 ---
 
 ## 18. Definition of Tested
 
-The project is considered adequately tested for v1 when:
+The following are required checks for the existing local pipeline. Completing them alone does not close the missing regressions or pending scientific gates above:
 
 - all core `pytest` tests pass;
 - sample or fixture-based tests can run without the full Kaggle dataset;

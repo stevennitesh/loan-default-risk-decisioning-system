@@ -1,123 +1,41 @@
 # AGENTS.md
 
-Repo-specific guidance for coding agents working in this project. Global agent
-instructions cover general workflow, safety, verification, reporting, and skill
-selection; this file only adds project context and repo contracts.
+## Project
 
-## Project Identity
+Resume portfolio for recruiters and hiring managers, using public Home Credit
+data in a local SQL/DuckDB/Python/Power BI decision-support pipeline. Keep work
+within that scope; production extensions require an explicit scope change.
+Do not claim underwriting, compliance, fair-lending, or adverse-action readiness.
 
-This is an applied financial ML decision-support portfolio project built around
-the public Home Credit dataset. Treat it as a reproducible analytics and ML
-pipeline, not a Kaggle notebook exercise and not a production underwriting
-system.
+## Core Constraints
 
-The intended story is:
+- SQL owns feature extraction; Python owns orchestration, modeling, scoring,
+  interpretation, and exports.
+- Preserve one mart row per `(SK_ID_CURR, source_population)` and keep labeled
+  evaluation separate from unlabeled Kaggle scoring.
+- Exclude identifiers, `TARGET`, and direct demographic/protected-status-like
+  fields from model features; diagnostics remain separate.
+- Historical test results are comparisons, not an untouched lockbox or selection
+  evidence. Plans and historical next actions do not start work.
 
-- raw Kaggle CSVs become Parquet files;
-- Parquet files load into DuckDB staging tables;
-- SQL builds applicant-level feature tables and a one-row-per-applicant mart;
-- Python trains, evaluates, calibrates, scores, explains, and exports reports;
-- Power BI consumes explicit dashboard export tables.
+## Load Context For The Task
 
-Do not claim production credit-decision, compliance, fair-lending, or adverse
-action readiness.
+Before the decision or edit it governs, load the matching owner below and follow
+its relevant sections and source links. These are conditional routes, not a
+read-all checklist. Resolve source/test/contract disagreements before rewriting
+accepted behavior or claims.
 
-## First Files To Read
-
-Before changing code or docs, read the file that owns the task's contract:
-
-- `README.md`: portfolio story, run interface, dashboard narrative.
-- `docs/spec/PROJECT_SPEC.md`: scope, non-goals, public contracts, acceptance
-  criteria, model-risk posture.
-- `docs/implementation/IMPLEMENTATION_PLAN.md`: command-to-artifact
-  expectations and build sequence.
-- `docs/testing/TESTING_PLAN.md`: fixture strategy, required checks, CI
-  expectations.
-- `docs/validation/VALIDATION_PLAN.md`: model and reporting validation gates.
-- `reports/README.md`: which report artifacts are intentionally committed
-  versus regenerated locally.
-
-If docs disagree with source or tests, identify the stale side before editing.
-The more specific contract for the touched behavior should win.
-
-## Pipeline Invariants
-
-- SQL owns feature extraction. Python owns orchestration, training, evaluation,
-  calibration, scoring, explainability, and exports.
-- Preserve one row per `SK_ID_CURR` and `source_population` in
-  `mart_credit_risk_features`; join expansion is a build failure.
-- Keep evaluation and scoring populations separate. Metrics come only from
-  labeled `application_train` splits. Kaggle `application_test` is for
-  production-like batch scoring demonstration, not validation metrics.
-- Do not let identifiers, `TARGET`, or direct demographic/protected-status-like
-  fields into model features. Diagnostic fields stay in
-  `segment_diagnostics`.
-- Select models, thresholds, feature sets, and calibrators from validation
-  evidence. Held-out test metrics are post-selection generalization checks.
-- Do not headline accuracy for this imbalanced credit-risk use case. Prefer
-  PR-AUC, ROC-AUC, Brier score, top-decile lift, recall at review capacity,
-  calibration, and expected-value tradeoffs.
-- SHAP outputs are interpretation/debugging aids only. Do not present them as
-  legally compliant adverse-action notices.
-
-## Scope Boundaries
-
-Keep v1 and post-v1 comparison work focused on the existing local pipeline.
-Do not add APIs, Postgres, Spark, MLflow, deep learning, broad fairness tooling,
-or heavy hyperparameter search unless the user explicitly changes scope.
-
-Prefer repo-native commands, checks, SQL, fixtures, and existing helper modules
-over new frameworks or new service boundaries.
-
-## Commands
-
-Use the Makefile as the primary interface:
-
-```bash
-make setup
-make lint
-make format-check
-make test
-make ingest
-make features
-make train
-make evaluate
-make score
-make dashboard-data
-make dashboard-data-post-v1
-make pipeline-v1
-make pipeline-post-v1
-```
-
-Notes:
-
-- `make lint`, `make format-check`, and `make test` are the default local and
-  CI quality gates.
-- Full pipeline targets require local Kaggle raw CSVs under `data/raw/`.
-- Tests use synthetic fixtures and should not require full Kaggle data.
-- The Docker image is a test container; its default command is `make test`.
-
-## Artifacts And Git Hygiene
-
-Keep raw Kaggle data, DuckDB files, Parquet files, model binaries, generated
-runtime reports, generated figures, and dashboard CSV exports out of Git unless
-a curated artifact is explicitly part of the portfolio evidence.
-
-Committed portfolio evidence currently includes curated experiment summaries,
-selected comparison CSVs, `reports/model_card.md`, Power BI files/screenshots,
-and documentation. Runtime output directories are preserved with `.gitkeep`
-files where needed.
-
-Use `.tmp/` for scratch work and local experiment debris.
-
-## Review Priorities
-
-When reviewing or changing this repo, treat these as blocking risks:
-
-- target leakage or threshold selection on test data;
-- duplicate applicant rows or broken feature grain;
-- mixing labeled evaluation populations with unlabeled scoring populations;
-- stale README/report claims that contradict committed experiment evidence;
-- dashboard exports that bypass `src/report_contracts.py` schemas;
-- generated artifacts accidentally committed outside the curated evidence set;
-- Docker, CI, or Makefile drift from the repo's documented command interface.
+| When the task involves | Load |
+|---|---|
+| Portfolio story, presentation, or running the project | [README.md](README.md); its run guide owns config scopes and the Windows interpreter override. |
+| Domain meaning, scope, architecture, SQL features, or population contracts | [Project spec](docs/spec/PROJECT_SPEC.md); read the sections governing the change. |
+| Training, calibration, scoring, experiments, metrics, or result claims | [Current evidence status](docs/validation/VALIDATION_PLAN.md#current-evidence-status), then the relevant validation gates. |
+| Orchestration, config, or command behavior | [Makefile](Makefile), the applicable file in `configs/`, and the [command-to-artifact map](docs/implementation/IMPLEMENTATION_PLAN.md#5-command-to-artifact-map). |
+| Report or dashboard export schemas | [src/report_contracts.py](src/report_contracts.py); exact columns belong here. |
+| Code verification, fixtures, or CI | [Testing plan](docs/testing/TESTING_PLAN.md) and [run guide](README.md#how-to-run) for host/interpreter setup; default gates are `make lint`, `make format-check`, and `make test`. |
+| Container behavior | [Dockerfile](Dockerfile); testing expectations remain in the testing plan. |
+| Generated artifacts, curated evidence, or Git inclusion | [Reports policy](reports/README.md); use `.tmp/` for scratch work. |
+| Power BI reports, visuals, screenshots, or refresh | [Power BI guide](powerbi/README.md). |
+| Interpreting or recording experiments | [Experiment guide](reports/experiments/README.md); preserve historical numbers and identify new evidence separately. |
+| Explicitly requested remediation work | [Remediation proposal](docs/implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md); proposed methodology and commands are not implemented. |
+| An assigned issue or other tracker-backed work | [Tracker guide](docs/agents/issue-tracker.md), then its linked label mapping. Ordinary coding requires no issue. |

@@ -1,5 +1,7 @@
 # Experiment 005: Feature Selection
 
+> Historical experiment record. The results, conclusions, and next actions below describe the original exploration, not a current work queue or independent-test certification. Read [archive interpretation](README.md#archive-interpretation) and [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status) for the assessment reuse, calibration, feature, and policy limits. Numeric evidence is preserved.
+
 ## Purpose
 
 Compare top-N feature subsets against the full post-v1 feature set to see whether the model can keep most of the ranking and calibration gains with a cleaner feature surface.

@@ -18,6 +18,14 @@ The committed experiment reports and selected CSV snapshots preserve the post-v1
 
 These artifacts should change only when the corresponding experiment result is intentionally refreshed and the linked narrative is updated in the same change.
 
+These are historical exploratory snapshots, not a validation sign-off. Numbered reports retain their original conclusions and next actions as history. Rows `000` and `015` in `experiment_log.csv` supply the curated v1/post-v1 comparison; earlier rows describe intermediate runs. Interpret them with [current evidence status](../docs/validation/VALIDATION_PLAN.md#current-evidence-status), especially the reused assessment population, SHAP selection, calibration, feature semantics, and policy limitations.
+
+"Frozen" means the snapshot is preserved, not that it is an untouched test set or an exactly reproducible release. PR-AUC means average precision; recall-at-capacity means highest-score capture; expected-value fields use utility units. Preserve numeric evidence when correcting its interpretation. A new corrected evaluation should identify its protocol and artifacts separately rather than rewrite the historical experiment trail.
+
 ## Regenerated Runtime Outputs
 
 Standard pipeline outputs such as `model_metrics_summary.csv`, `model_threshold_metrics.csv`, dashboard CSV bundles, figures, and DuckDB/model artifacts are generated locally and ignored by Git. Rebuild them with the Makefile targets documented in the root README.
+
+Scoped runtime reports live under `reports/v1/` and `reports/post_v1/`; the base config has separate default paths. Generated validation/business-value prose describes the implemented legacy calculations and may retain labels qualified by the current validation owner. Do not treat generated wording as an override of those limitations. Dashboard export can recompute calibrated probability-quality and segment tables, so raw runtime metrics and dashboard metrics are different views.
+
+Power BI files and screenshots under `powerbi/` are curated snapshots. Opening them does not require retraining. Their schemas/pages are tested, but visual reconciliation to a newly generated bundle requires a deliberate refresh and inspection. See [the Power BI guide](../powerbi/README.md).

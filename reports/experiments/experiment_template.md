@@ -1,72 +1,59 @@
 # Experiment NNN: Short Name
 
-## Purpose
+## Question and hypothesis
 
-State the single change being tested and why it might improve the model or decisioning story.
+State the one change being tested, its mechanism, and what evidence could reject the hypothesis. Read [archive interpretation](README.md#archive-interpretation) and [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status) before choosing a baseline or assessment population.
 
-## Hypothesis
+## Run identity and evidence status
 
-Example:
+- Date, experiment/config/code/input snapshot:
+- Baseline run and comparison compatibility:
+- Saved model, feature list, calibration, policy, and export identities (state unavailable identity explicitly):
+- Effective fitted parameters and feature count:
+- Fitting, feature-selection, calibration-fitting, method-selection, and assessment populations; memberships/counts, seeds, and any prior reuse:
+- Score representation for each metric (raw or calibrated):
+- Proposed, executed, or historical status; command used and generated artifact locations:
 
-> Adding monthly bureau delinquency status features will improve PR-AUC and top-decile lift because recent delinquency patterns should improve ranking of repayment-difficulty risk.
+Do not label the existing comparison population an untouched final test. Record any protocol change before viewing its outcomes. Proposed remediation machinery is not yet implemented.
 
-## Change Tested
+## Change tested
 
-- Source tables changed:
-- SQL feature tables changed:
-- Python/modeling files changed:
-- Config changes:
+- Source/SQL feature meaning, including grain, time availability, and missingness:
+- Python/model/config changes:
+- Controls and unchanged assumptions:
 
-## Validation Metrics
+## Metric comparison
 
-| Metric | v1 baseline | Experiment | Difference |
-|---|---:|---:|---:|
-| PR-AUC | 0.260173 |  |  |
-| ROC-AUC | 0.770420 |  |  |
-| Brier score | 0.171640 |  |  |
-| Top-decile lift | 3.490643 |  |  |
-| Precision at top decile | 0.281812 |  |  |
-| Recall at 10% review capacity | 0.349087 |  |  |
+Populate from identified compatible runs; leave unavailable results blank with a reason. Do not copy historical baseline values into a new protocol automatically.
 
-## Held-Out Test Metrics
+| Population role / score kind | Metric | Baseline | Experiment | Difference |
+|---|---|---:|---:|---:|
+| Selection | Average precision (legacy PR-AUC) | | | |
+| Selection | ROC-AUC | | | |
+| Selection | Brier score | | | |
+| Selection | Top-decile lift | | | |
+| Selection | Top-score capture at declared rate | | | |
+| Assessment or historical comparison (specify) | Average precision | | | |
+| Assessment or historical comparison (specify) | Brier score | | | |
 
-| Metric | v1 baseline | Experiment | Difference |
-|---|---:|---:|---:|
-| PR-AUC | 0.258236 |  |  |
-| ROC-AUC | 0.770385 |  |  |
-| Brier score | 0.171245 |  |  |
-| Top-decile lift | 3.482588 |  |  |
-| Precision at top decile | 0.281162 |  |  |
-| Recall at 10% review capacity | 0.348281 |  |  |
+Report fitting-set calibration separately from method assessment. Distinguish fold/seed variability from sampling uncertainty and independent evaluation. Explain incompatible populations or missing evidence before interpreting a difference.
 
-## Balanced Scenario Metrics
+## Policy and utility comparison
 
-| Metric | v1 baseline | Experiment | Difference |
-|---|---:|---:|---:|
-| Validation EV / applicant | 571.52 |  |  |
-| Test EV / applicant | 572.03 |  |  |
-| Validation high-risk default capture | 0.3491 |  |  |
-| Test high-risk default capture | 0.3539 |  |  |
+- Scenario, thresholds, action definitions, evaluated population/count:
+- Approval, middle-review, and high-priority/high-risk counts and rates:
+- Actual queue capture versus top-score ranking capture:
+- Capacity meaning and any overflow (fixed quantiles do not enforce a hard cap):
+- Utility weights/units and which actions are costed; disposition assumptions:
+- Retrospective utility per applicant; no real-profit claim:
 
-## Feature Exploration Notes
+## Feature and interpretation checks
 
-- Feature count change:
-- Largest missingness risks:
-- Top new SHAP drivers:
-- SHAP rank changes:
-- Any excluded/protected-status-like feature risk:
+- Split-payment obligations, record/month windows, unknown values, and availability assumptions:
+- Excluded identifiers, target, and diagnostic-only fields:
+- Feature-selection importance population versus post-selection reporting SHAP:
+- Missingness, top drivers, and instability:
 
-## Conclusion
+## Conclusion and next action
 
-Choose one:
-
-- Improved
-- No clear improvement
-- Worse
-- Inconclusive
-
-Explain the evidence in one paragraph.
-
-## Next Action
-
-State the next single experiment or cleanup action.
+State improved, no clear improvement, worse, or inconclusive relative to the declared compatible selection evidence. Include limitations and assessment reuse. Explain what this adds to the portfolio story. A proposed next action is not authorization or completed implementation.

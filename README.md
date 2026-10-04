@@ -8,13 +8,15 @@ This is a portfolio project, not a production underwriting system. The goal is t
 
 Built a complete credit-risk decision-support workflow: raw public Kaggle CSVs become a DuckDB feature mart, trained LightGBM models, validation-driven threshold scenarios, scored applicant tables, SHAP interpretation outputs, and Power BI dashboard exports.
 
-The frozen v1 pipeline is complete and reproducible. Post-v1 experiments promoted a calibrated 168-feature LightGBM candidate that improves held-out test PR-AUC from `0.258236` to `0.269925`, Brier score from `0.171245` to `0.066460`, and balanced expected value per applicant from `572.03` to `581.58`.
+Historical experiment snapshots compare a 68-feature v1 model with a 168-feature post-v1 LightGBM model with sigmoid calibration. They record test PR-AUC increasing from `0.258236` to `0.269925` and Brier score decreasing from `0.171245` to `0.066460`. These are exploratory comparison results: repeated-seed runs reused original test applicants in fitting, SHAP-ranked selection used reporting populations, and calibration fitting and selection shared validation data. They do not establish an independent final-test improvement.
+
+The strongest portfolio contribution is the complete SQL-to-dashboard workflow and a documented experiment trail, including unsuccessful simplification attempts and identified correctness gaps. [Current evidence status](docs/validation/VALIDATION_PLAN.md#current-evidence-status) explains those gaps; the [remediation plan](docs/implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) proposes repairs that have not been implemented.
 
 ## Two-Minute Review Path
 
 1. Review the dashboard screenshots below for the business-facing output.
 2. Scan the Key Results section for model and decisioning outcomes.
-3. Read [V1 to Best Post-v1 Model Diff](reports/experiments/v1_to_post_v1_model_diff.md) for the experiment story and final tradeoffs.
+3. Read [V1 to Post-v1 Comparison](reports/experiments/v1_to_post_v1_model_diff.md) for the experiment story, then [current evidence status](docs/validation/VALIDATION_PLAN.md#current-evidence-status) for what remains unverified.
 
 ## Project Snapshot
 
@@ -24,13 +26,15 @@ The frozen v1 pipeline is complete and reproducible. Post-v1 experiments promote
 | Dataset | Home Credit Default Risk public Kaggle dataset. |
 | Core build | CSV to Parquet to DuckDB staging to SQL feature mart to model training, evaluation, scoring, and dashboard exports. |
 | Modeling | Logistic regression baseline and LightGBM primary model. |
-| Evaluation focus | PR-AUC, ROC-AUC, Brier score, top-decile lift, recall at review capacity, calibration, and expected-value tradeoffs. |
+| Evaluation focus | Average precision (legacy PR-AUC), ROC-AUC, Brier score, lift, top-ranked default capture, calibration, and scenario utility. |
 | Reporting | Power BI dashboard backed by explicit exported table contracts. |
-| Status | Frozen v1 pipeline plus post-v1 calibrated 168-feature LightGBM comparison. |
+| Status | Runnable local pipeline; curated historical v1/post-v1 comparison; methodology repairs pending. |
 
 ## Dashboard Preview
 
 The Power BI report turns model outputs into an executive decisioning view: portfolio mix, risk-band actions, threshold tradeoffs, model validation, calibration, lift, and top drivers.
+
+Both screenshots below show the historical **post-v1** report. Their currency-formatted expected-value labels represent utility weights, and their "held-out" and review-capacity labels require the qualifications above. Saved screenshots are portfolio snapshots; a local rerun can produce different values. See the [Power BI guide](powerbi/README.md) before refreshing or interpreting them.
 
 ![Decisioning overview](powerbi/screenshots/decisioning_overview.png)
 
@@ -43,9 +47,9 @@ The validation appendix surfaces model-quality checks such as PR-AUC, ROC-AUC, l
 ## What This Demonstrates
 
 - SQL-first feature engineering over relational application, bureau, prior-application, and repayment-history tables.
-- Reproducible local pipeline with Makefile commands, configs, DuckDB, and generated artifacts.
+- Configured local pipeline with Makefile commands, DuckDB, and generated artifacts; exact historical numeric reproduction is not certified.
 - Imbalanced-class model evaluation without relying on accuracy as the headline metric.
-- Validation-only threshold selection for simulated approve / review / high-risk policy bands.
+- Validation-quantile threshold scenarios for simulated approve / review / high-priority-review bands.
 - Expected-value analysis that connects model scores to business tradeoffs.
 - SHAP-based model interpretation with clear limits on adverse-action and compliance claims.
 - Power BI-ready export contracts instead of ad hoc notebook outputs.
@@ -53,7 +57,9 @@ The validation appendix surfaces model-quality checks such as PR-AUC, ROC-AUC, l
 
 ## Key Results
 
-Frozen v1 selected model: `lightgbm_credit_risk_v1`.
+The values below preserve curated historical snapshots from [the experiment log](reports/experiments/experiment_log.csv), rows `000` and `015`. They are not live metrics from your current local artifacts. "Held-out test" retains the original split label and means historical comparison here. PR-AUC is scikit-learn average precision; "top-10% default capture" is the legacy `recall_at_manual_review_capacity` ranking metric, not recall within the middle manual-review band. EV columns are retrospective scenario utility per applicant.
+
+Historical v1 selected model: `lightgbm_credit_risk_v1`.
 
 | Outcome | Result |
 |---|---:|
@@ -61,10 +67,10 @@ Frozen v1 selected model: `lightgbm_credit_risk_v1`.
 | Held-out test ROC-AUC | 0.770385 |
 | Held-out test Brier score | 0.171245 |
 | Held-out test top-decile lift | 3.482588 |
-| Held-out test recall at 10% review capacity | 0.348281 |
+| Historical test top-10% default capture | 0.348281 |
 | Validation PR-AUC improvement over logistic regression | +0.015556 |
 
-Post-v1, the best experimental candidate is a 168-feature last-k temporal LightGBM model with sigmoid calibration. The combined feature and calibration candidate improves held-out test PR-AUC from `0.258236` to `0.269925`; sigmoid calibration is the main probability-quality gain, reducing the post-v1 candidate's uncalibrated held-out test Brier score from `0.173301` to `0.066460` while preserving its rank metrics.
+The historical post-v1 selection retained 168 features and sigmoid calibration. Its recorded test Brier score falls from an uncalibrated `0.173301` to `0.066460`, with unchanged ranking under the sigmoid transform. Independent calibration assessment and corrected feature semantics are still needed before claiming a verified probability model.
 
 | Post-v1 improvement | Frozen v1 | Best post-v1 | Difference |
 |---|---:|---:|---:|
@@ -73,16 +79,16 @@ Post-v1, the best experimental candidate is a 168-feature last-k temporal LightG
 | Validation ROC-AUC | 0.770420 | 0.778732 | +0.008312 |
 | Validation Brier score | 0.171640 | 0.066500 | -0.105139 |
 | Validation top-decile lift | 3.490643 | 3.659805 | +0.169162 |
-| Validation recall at 10% review capacity | 0.349087 | 0.366004 | +0.016917 |
-| Validation balanced EV / applicant | 571.52 | 577.24 | +5.72 |
+| Validation top-10% default capture | 0.349087 | 0.366004 | +0.016917 |
+| Validation balanced utility / applicant | 571.52 | 577.24 | +5.72 |
 | Held-out test PR-AUC | 0.258236 | 0.269925 | +0.011689 |
 | Held-out test ROC-AUC | 0.770385 | 0.780208 | +0.009823 |
 | Held-out test Brier score | 0.171245 | 0.066460 | -0.104786 |
 | Held-out test top-decile lift | 3.482588 | 3.600733 | +0.118145 |
-| Held-out test recall at 10% review capacity | 0.348281 | 0.360097 | +0.011815 |
-| Held-out test balanced EV / applicant | 572.03 | 581.58 | +9.55 |
+| Historical test top-10% default capture | 0.348281 | 0.360097 | +0.011815 |
+| Historical test balanced utility / applicant | 572.03 | 581.58 | +9.55 |
 
-The experiment trail did not support a simple "more features always win" story. Calibration gave the cleanest probability-quality gain, recent repayment behavior was the strongest feature-engineering direction, and feature cleanup experiments did not justify dropping the final 16 promoted features.
+Within the historical comparisons, calibration gave the largest recorded probability-quality change and recent-record features were promising. Cleanup did not win the mean-validation ranking rule. Correcting the assessment and feature semantics is necessary before treating those findings as verified improvements.
 
 For the concise validation trail, see [V1 to Best Post-v1 Model Diff](reports/experiments/v1_to_post_v1_model_diff.md).
 
@@ -113,9 +119,11 @@ Model scores are converted into simulated business actions:
 |---:|---|---|
 | `< T_low` | Low risk | Approve |
 | `T_low` to `< T_high` | Medium risk | Manual review |
-| `>= T_high` | High risk | Decline or high-priority review |
+| `>= T_high` | High risk | High-priority review |
 
 The selected v1 balanced scenario uses validation-derived score cutoffs. These are ranking-policy cutoffs, not calibrated probability-of-default cutoffs.
+
+"Balanced" is a predefined display scenario, not a proven optimum. The 10% setting is a reference for quantile scenarios and ranking metrics, not an enforced queue limit. The current utility formula charges only the middle manual-review band; it does not cost the high-priority-review band or model its disposition. This action/value mismatch is an open correctness issue.
 
 | Scenario | `T_low` | `T_high` | Test approval rate | Test review rate | Test high-risk rate | Test EV / applicant |
 |---|---:|---:|---:|---:|---:|---:|
@@ -135,7 +143,7 @@ Expected value =
 | Expected margin per good approved loan | 1000 |
 | Expected loss per bad approved loan | 5000 |
 | Manual review cost | 50 |
-| Manual review capacity | 10% of applicants |
+| Review-rate scenario reference (not a hard cap) | 10% of applicants |
 
 ## Dataset
 
@@ -198,28 +206,39 @@ For a quick review:
 
 Raw Kaggle data is not committed. Download the dataset separately and place the CSV files in `data/raw/`.
 
-To rebuild the frozen v1 and post-v1 dashboard comparison bundles:
+To check the code without downloading data (Python 3.12 and Make):
 
 ```bash
 make setup
-make pipeline-v1
-make pipeline-post-v1
+make lint
+make format-check
 make test
 ```
 
-For a single active config run, use the step-by-step targets:
+`make setup` installs dependencies into the selected interpreter; it does not create a virtual environment. On Windows where `python3` is unavailable, append `PYTHON=python` to Make commands, for example `make test PYTHON=python`. The Docker image defaults to `make test` and is a test container.
+
+To regenerate scoped local artifacts with the downloaded data:
 
 ```bash
-make ingest
-make features
-make train
-make evaluate
-make calibrate
-make score
-make explain
+make pipeline-v1
+make pipeline-post-v1
 ```
 
-Power BI consumes CSV exports from `reports/dashboard_data/` for v1 and `reports/dashboard_data_post_v1/` for the post-v1 comparison bundle. Refresh only those CSV bundles with `make dashboard-data` and `make dashboard-data-post-v1` after the upstream artifacts already exist.
+These commands overwrite generated local outputs. They do not refresh committed snapshots, screenshots, or PBIX visuals. Dependencies are not locked, and current local artifacts can differ from the historical metrics above.
+
+For step-by-step post-v1 work, pass the same config at every step:
+
+```bash
+make ingest CONFIG=configs/post_v1.yaml
+make features CONFIG=configs/post_v1.yaml
+make train CONFIG=configs/post_v1.yaml
+make evaluate CONFIG=configs/post_v1.yaml
+make calibrate CONFIG=configs/post_v1.yaml
+make score CONFIG=configs/post_v1.yaml
+make explain CONFIG=configs/post_v1.yaml
+```
+
+Bare step targets use `configs/base.yaml`, a post-v1 feature scope with separate default output paths. For v1, use `CONFIG=configs/v1.yaml` and omit calibration. Power BI consumes `reports/dashboard_data/` for v1 and `reports/dashboard_data_post_v1/` for post-v1. `make dashboard-data` and `make dashboard-data-post-v1` export from existing scoped artifacts without retraining; export also recomputes segment diagnostics and, for post-v1, calibrated probability-quality metrics.
 
 ## Repository Guide
 
@@ -252,8 +271,8 @@ loan-default-risk-decisioning-system/
 | [reports/README.md](reports/README.md) | Explains committed experiment evidence versus regenerated local outputs. |
 | [reports/experiments/](reports/experiments/) | Post-v1 experiment reports and comparison log. |
 | [reports/experiments/v1_to_post_v1_model_diff.md](reports/experiments/v1_to_post_v1_model_diff.md) | Concise v1 to best post-v1 improvement summary. |
-| [configs/v1.yaml](configs/v1.yaml) | Reproducible frozen-v1 pipeline scope. |
-| [configs/post_v1.yaml](configs/post_v1.yaml) | Reproducible best post-v1 pipeline scope. |
+| [configs/v1.yaml](configs/v1.yaml) | v1 feature scope and local regeneration paths. |
+| [configs/post_v1.yaml](configs/post_v1.yaml) | Historical post-v1 feature scope and local regeneration paths. |
 | [powerbi/dashboard.pbix](powerbi/dashboard.pbix) | v1 Power BI dashboard file. |
 | [powerbi/dashboard_post_v1.pbix](powerbi/dashboard_post_v1.pbix) | Post-v1 comparison Power BI dashboard file. |
 
@@ -261,8 +280,8 @@ loan-default-risk-decisioning-system/
 
 This is a portfolio decision-support simulation, not an automated underwriting system.
 
-The target is a proxy for observed repayment difficulty, not a complete loss/default framework. Expected value is illustrative and depends on simplified assumptions. The model is validated on a static public dataset and does not include production monitoring, adverse-action controls, fair-lending review, compliance approval, or model governance.
+The target is a proxy for observed repayment difficulty, not a complete loss/default framework. Expected value uses illustrative utility weights. Evaluation uses a static public dataset with the unresolved selection and assessment boundaries described above. Installment aggregation currently counts payment rows rather than normalized obligations, last-k POS/card features count account records rather than distinct applicant months, and historical-availability and missing-value semantics need review. See [current evidence status](docs/validation/VALIDATION_PLAN.md#current-evidence-status) for the source-backed limits.
 
 Direct demographic and protected-status-like fields are excluded from v1 model features. If age, gender, marital status, or family-status-like fields are inspected, they are retained only in a separate diagnostic layer for limitation checks, not model training or deployment approval.
 
-Post-v1 experiments added richer monthly history tables such as `bureau_balance`, `POS_CASH_balance`, and `credit_card_balance`, plus recency and last-k temporal feature candidates. Deeper monitoring, fairness review, drift checks, and deployment interfaces remain future work outside this portfolio v1/post-v1 scope.
+Post-v1 experiments added `bureau_balance`, `POS_CASH_balance`, and `credit_card_balance`, plus recency and last-k feature candidates. The next proposed work is correctness repair and evidence reconciliation within this local portfolio. Monitoring infrastructure, regulatory review, and deployment interfaces are outside its scope.

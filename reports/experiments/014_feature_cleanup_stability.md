@@ -1,5 +1,7 @@
 # Experiment 014 - Feature Cleanup Stability
 
+> Historical experiment record. The results, conclusions, and next actions below describe the original exploration, not a current work queue or independent-test certification. Read [archive interpretation](README.md#archive-interpretation) and [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status) for the assessment reuse, calibration, feature, and policy limits. Numeric evidence is preserved.
+
 ## Purpose
 
 Check whether the closest cleanup candidate from Experiment 013, `top_152`, is stable enough to replace the full 168-feature last-k temporal setup.

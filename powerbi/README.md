@@ -1,6 +1,6 @@
 # Power BI Dashboard
 
-This folder contains the curated Power BI portfolio dashboard for the loan default risk decisioning project.
+This folder contains curated Power BI snapshots for recruiters and hiring managers reviewing the local credit-risk portfolio. Read [current evidence status](../docs/validation/VALIDATION_PLAN.md#current-evidence-status) alongside the visuals; saved reports are not an independent model-validation sign-off.
 
 ## Data Source
 
@@ -10,17 +10,17 @@ The frozen v1 dashboard should load only the CSV bundle in:
 reports/dashboard_data/
 ```
 
-Refresh the bundle before opening or refreshing the report:
+The saved report can be inspected without rebuilding. To deliberately regenerate the local v1 bundle from downloaded Kaggle data:
 
 ```bash
 make pipeline-v1
 ```
 
-That command rebuilds the v1 artifacts from `configs/v1.yaml` and exports the v1 dashboard CSVs. If the upstream v1 artifacts already exist, `make dashboard-data` refreshes only the v1 CSV bundle.
+That command overwrites generated v1 artifacts from `configs/v1.yaml` and exports dashboard CSVs. If upstream v1 artifacts exist, `make dashboard-data` exports without retraining and recomputes segment diagnostics. Neither command refreshes PBIX visuals or committed screenshots. On Windows where `python3` is unavailable, append `PYTHON=python`.
 
 `credit_risk_scores.csv` currently has 16 columns. If Power Query generated a fixed `Columns=13` CSV import step from an older refresh, update it to 16 columns or remove the fixed column-count argument so Power BI reads `top_reason_1`, `top_reason_2`, and `top_reason_3`.
 
-`model_metrics_summary.csv` keeps the baseline and LightGBM rows. The Model Metrics visual must not use plain `Max of metric_value` for every row because Brier score is lower-is-better. Use a measure like this in the matrix values:
+`model_metrics_summary.csv` keeps baseline and LightGBM rows. Filter a metric visual to exactly one `model_version` and one `split` before aggregation. The legacy measure below includes lower-is-better Brier handling, but using it across models/splits would mix the best values into a fictitious model. Once the filters identify one row per metric, MIN and MAX return that same row:
 
 ```DAX
 Metric Display Value =
@@ -33,7 +33,9 @@ RETURN
     )
 ```
 
-The v1 bundle remains raw and uncalibrated, with the selected model identified as `lightgbm_credit_risk_v1`. The post-v1 bundle identifies the improved selected model as `lightgbm_credit_risk_post_v1` and applies the selected calibration artifact to probability-quality views: `model_metrics_summary`, `model_calibration_bins`, and `segment_performance_summary`. Rank-policy views such as lift, threshold scenarios, risk bands, and recommended actions remain based on the raw rank score because the calibrated sigmoid layer is monotonic and does not change applicant ordering.
+The v1 bundle remains raw and uncalibrated, with the selected model displayed as `lightgbm_credit_risk_v1`. The post-v1 bundle uses the display alias `lightgbm_credit_risk_post_v1` and recomputes selected-model probability-quality views using the calibration artifact: `model_metrics_summary`, `model_calibration_bins`, and `segment_performance_summary`. The display alias is not an exact fitted-run identity. Raw runtime reports can differ from these calibrated views.
+
+Lift, threshold scenarios, risk bands, and actions use the raw rank score. The historical selected sigmoid transform preserves ordering; do not generalize that result to every calibrator or to policy-capacity guarantees. `score` and `raw_risk_score` carry the policy score; `calibrated_risk_score` and `calibration_method` describe the separate probability-quality view.
 
 The post-v1 comparison dashboard uses the same CSV filenames and schemas in:
 
@@ -47,7 +49,7 @@ Refresh that bundle with:
 make pipeline-post-v1
 ```
 
-If the upstream post-v1 artifacts already exist, `make dashboard-data-post-v1` refreshes only the post-v1 CSV bundle.
+If upstream post-v1 artifacts exist, `make dashboard-data-post-v1` exports without retraining, recomputing calibrated probability-quality metrics and segment diagnostics. It does not update curated historical metrics or screenshots. Exact historical numeric reproduction is not certified with the current unlocked dependencies.
 
 The post-v1 report is maintained as `powerbi/dashboard_post_v1.pbix`. Its CSV folder/data-source path should remain `reports/dashboard_data_post_v1/`, while table names, columns, pages, visuals, and slicers stay aligned with the v1 report so the two dashboards remain directly comparable.
 
@@ -74,8 +76,19 @@ powerbi/screenshots/decisioning_overview.png
 powerbi/screenshots/model_validation_appendix.png
 ```
 
-The overview screenshot should be readable without interacting with slicers. Use the held-out labeled `test` split and keep the `balanced` threshold scenario visually highlighted.
+The two existing screenshots show the historical **post-v1** report, not a separate v1 preview. For a future screenshot refresh, use an identified labeled evaluation run, a single model/split filter, and the `balanced` display scenario. Record the input bundle before replacing the snapshots and verify displayed values against that bundle.
+
+Tests check artifact presence and report page structure, not visual or numeric reconciliation. A current local export can differ from these saved snapshots; do not claim a live refresh was verified from the file tests alone.
 
 ## Dashboard Framing
 
 The dashboard is a portfolio decision-support simulation, not a production underwriting system. Segment diagnostics are diagnostic-only, excluded from model training, and not a fairness certification. Reason-code-style fields are interpretability artifacts, not adverse-action notices.
+
+Legacy visual labels require these qualifications:
+
+- "Held-out test" is the saved within-run split label; historical stability runs reused those applicants in fitting.
+- PR-AUC is average precision. Recall at review capacity measures highest-score capture, not capture in the middle manual-review band.
+- The 10% setting is a scenario reference, not an enforced queue cap. The high band is labeled high-priority review but is not charged review cost by the current utility formula.
+- Currency-formatted EV cards show illustrative utility units, not dollars of measured profit. Calibration fitting and selection share validation data.
+
+These labels remain embedded in the saved PBIX/screenshots. Updating this guide does not certify that their visuals have been repaired or refreshed.
