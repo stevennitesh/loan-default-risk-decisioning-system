@@ -1,26 +1,24 @@
-# Bounded joint-CV tuning evidence, 2026-10-04
+# Current model-selection assessment, 2026-10-04
 
-Completed protocol `nested_inner_cv_v3`, assessment `b45cb7fb871d4322bfdbb52e6e8d1d38`
-and sampled shuffled-label control `706d7db1cbf5487aa96261cc4b5d9ab9`. Search, seed roles and
-probability criteria were frozen before new outer results. No outer result promoted
-a model, family, surface or seed. The prior r2 report and its source/config/evidence
-identities remain preserved; 155 protected files matched their pre-edit hashes.
+**Current completed procedure.** Start with [the case study](../portfolio/case_study.md) for the engineering story. The [earlier repaired assessment](../correctness_20261004/assessment_report.md) was completed on the same date under a different protocol; its values remain separate.
 
-| Workflow | Average precision | ROC AUC | Brier | Log loss |
+Search, seed roles and probability criteria were fixed before assessment results. No outer result promoted a model, family, surface or seed. The prior report and its source/config/evidence identities remain preserved; 155 protected files matched their pre-edit hashes.
+
+| Model / input scope | Average precision | ROC AUC | Brier score | Log loss |
 |---|---:|---:|---:|---:|
-| application_only | 0.231021 | 0.748056 | 0.068423 | 0.248987 |
-| history_selected | 0.265862 | 0.775862 | 0.066655 | 0.240720 |
-| logistic_tuned | 0.251083 | 0.766675 | 0.067396 | 0.243982 |
-| training_prevalence | 0.080728 | 0.500000 | 0.074211 | 0.280544 |
+| Application fields only · LightGBM | 0.231021 | 0.748056 | 0.068423 | 0.248987 |
+| Application and loan history · LightGBM | 0.265862 | 0.775862 | 0.066655 | 0.240720 |
+| Application and loan history · logistic regression | 0.251083 | 0.766675 | 0.067396 | 0.243982 |
+| Training outcome rate · constant benchmark | 0.080728 | 0.500000 | 0.074211 | 0.280544 |
 
-These are means of five matched fold metrics; descriptive sample SD is in
+These are means of five matched applicant test-group metrics. Average precision measures ranking, not accuracy; Brier/log loss measure probability error (lower is better). Final probabilities reflect the selected method, including unchanged raw probabilities when no adjustment is selected. All five current history fits retained raw probabilities. Descriptive sample SD is in
 `summary.csv`. No pooled cross-fold average precision or optimality claim is made.
 `prior_protocol_comparison.csv` records v3 minus prior v2 results; tuned unweighted
 logistic is compared explicitly with the prior balanced fixed-C1 comparator, so
 that difference mixes changed recipe and optimization budget. Paired differences
 within v3 use identical outer applicants, not independent samples or causal effects.
-History calibrated AP changed by +0.000112, essentially unchanged.
-Raw history probability losses are much lower than r2; calibrated losses are
+History final-probability average precision changed by +0.000112, essentially unchanged.
+Raw history probability losses are much lower than r2; final probability losses are
 similar. Application ranking fell slightly and tuned logistic ranking rose.
 Changed recipes and budgets prevent this search comparison alone from attributing
 differences to one parameter, and these descriptive results do not establish
@@ -31,6 +29,8 @@ significance or guaranteed gains.
 The separate [controlled class-weighting comparison](../class_weighting_20261004/assessment_report.md) changes only `scale_pos_weight` within each frozen earlier/current history recipe and applicant group. Removing the earlier 9–11× positive weight reduces earlier-recipe raw Brier/log loss from 0.157305/0.477672 to 0.066572/0.240121, essentially reproducing current losses of 0.066655/0.240720. Mean raw predicted risk falls from 34.20% to 7.94%, against 8.07% observed difficulty. Adding the earlier weight to the current recipe worsens raw Brier/log loss to 0.176169/0.525676.
 
 Both losses improve without weighting in all ten recipe/group pairs. All ten original-weight refits reproduce frozen raw predictions exactly. This identifies weighting as the dominant explanation for the raw-scale improvement conditional on these selected recipes; it does not isolate the search screen's selection effect, establish future-cohort validity or promote a diagnostic model. The original numerical evidence and execution fingerprints in this directory remain unchanged. The diagnostic examines raw probabilities only; the original final-method results remain authoritative.
+
+## Fitting and selection methods
 
 All 261,384 development applicants receive one frozen prediction per declared
 workflow, excluding the same 46,127 historical IDs. V3 and r2 outer and reserved
@@ -63,12 +63,12 @@ agreement, coverage, probability flags and sensitivity ranges without applicant 
 
 ## Complete shuffled-label diagnostic
 
-| Workflow | Average precision | ROC AUC | Brier | Log loss |
+| Model / input scope | Average precision | ROC AUC | Brier score | Log loss |
 |---|---:|---:|---:|---:|
-| application_only | 0.083875 | 0.501050 | 0.074353 | 0.281354 |
-| history_selected | 0.083556 | 0.504891 | 0.074406 | 0.281720 |
-| logistic_tuned | 0.087017 | 0.508619 | 0.074242 | 0.280676 |
-| training_prevalence | 0.080750 | 0.500000 | 0.074229 | 0.280597 |
+| Application fields only · LightGBM | 0.083875 | 0.501050 | 0.074353 | 0.281354 |
+| Application and loan history · LightGBM | 0.083556 | 0.504891 | 0.074406 | 0.281720 |
+| Application and loan history · logistic regression | 0.087017 | 0.508619 | 0.074242 | 0.280676 |
+| Training outcome rate · constant benchmark | 0.080750 | 0.500000 | 0.074229 | 0.280597 |
 
 The stratified sampled 20k development control permutes labels at seed 913 and runs
 the complete five-fold selection/calibration/comparator procedure. Its chance
@@ -102,3 +102,10 @@ application chronology, feature availability or label maturity. This remains an
 already explored public static dataset, not an untouched external or future cohort.
 Utility uses illustrative weights and is not profit or a hard queue guarantee.
 No guarantee of improved performance or global tuning optimality is implied.
+
+## Technical run details
+
+- Protocol: `nested_inner_cv_v3`
+- Assessment: `b45cb7fb871d4322bfdbb52e6e8d1d38`
+- Sampled shuffled-outcome diagnostic: `706d7db1cbf5487aa96261cc4b5d9ab9`
+- CSV keys remain machine identifiers: `calibrated` means final probabilities and can be unchanged raw values.

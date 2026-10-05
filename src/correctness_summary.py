@@ -4,6 +4,7 @@ import argparse
 import html
 import json
 import shutil
+import textwrap
 from pathlib import Path
 
 import joblib
@@ -358,9 +359,9 @@ def run(config_path, assessment, negative, destination, v1_config_path):
         f"| {workflow_label(row.workflow)} | {metric_label(row.metric_name)} | {row.fold_mean:.6f} | {row.fold_std:.6f} |"
         for row in negative_rows.itertuples()
     ]
-    text = f"""# Corrected assessment evidence, 2026-10-04
+    text = f"""# Earlier repaired assessment, 2026-10-04
 
-This report compares models after repairing loan-history inputs and separating fitting from selection. It records the earlier corrected assessment, source-data checks and saved-model comparison; numbered historical experiments and Power BI assets retain their original values.
+**Earlier completed procedure.** This `nested_matched_holdout_v2` assessment precedes the [current `nested_inner_cv_v3` assessment](../tuning_20261004/assessment_report.md), also completed on 2026-10-04. Start with [the current case study](../portfolio/case_study.md). This report compares models after repairing loan-history inputs and separating fitting from selection. It records the earlier corrected assessment, source-data checks and saved-model comparison; numbered historical experiments and Power BI assets retain their original values.
 
 {table}
 
@@ -471,7 +472,7 @@ def plot_evidence(destination, summary, tables, assessment):
         xerr=calibrated["fold_std"],
     )
     axes[0, 0].set(
-        title="Matched applicant-group average precision; descriptive SD",
+        title="Earlier five-group assessment: 261,384 applicants\nAverage precision; descriptive group SD",
         xlabel="Average precision",
     )
     bins = pd.read_csv(assessment / "reliability_bins.csv")
@@ -488,7 +489,7 @@ def plot_evidence(destination, summary, tables, assessment):
         )
     axes[0, 1].plot([0, 1], [0, 1], "k--", alpha=0.5)
     axes[0, 1].set(
-        title="Final-probability reliability; ties stay together",
+        title="Earlier five-group assessment: 261,384 applicants\nFinal-probability reliability; ties stay together",
         xlabel="Mean predicted repayment-difficulty probability",
         ylabel="Observed difficulty rate",
         xlim=(0, 0.5),
@@ -500,7 +501,7 @@ def plot_evidence(destination, summary, tables, assessment):
     counts = comparison["recommended_action"].value_counts()
     axes[1, 0].bar([ACTION_LABELS.get(v, v) for v in counts.index], counts.values)
     axes[1, 0].set(
-        title="Saved-model historical comparison: balanced actions",
+        title=f"Saved post-v1 model: {len(comparison):,} reused applicants\nBalanced-reference simulated actions",
         ylabel="Applicant count",
     )
     for kind in ("raw_risk_score", "calibrated_risk_score"):
@@ -513,13 +514,14 @@ def plot_evidence(destination, summary, tables, assessment):
             else "Final probabilities",
         )
     axes[1, 1].set(
-        title="Saved-model comparison scores; separate from outer fits",
+        title=f"Saved post-v1 model: {len(comparison):,} reused applicants\nSeparate from the five-group assessment",
         xlabel="Score",
         ylabel="Applicant count",
     )
     axes[1, 1].legend()
     fig.suptitle(
-        "Corrected local portfolio evidence — no native PBIX refresh", fontsize=15
+        "Earlier repaired assessment | 2026-10-04 | nested_matched_holdout_v2",
+        fontsize=15,
     )
     fig.tight_layout()
     fig.savefig(destination / "corrected_evidence.png", dpi=160)
@@ -548,9 +550,179 @@ def plot_evidence(destination, summary, tables, assessment):
         }
     ).to_html(index=False, float_format=lambda value: f"{value:.6f}")
     (destination / "corrected_evidence.html").write_text(
-        f"<!doctype html><html><meta charset='utf-8'><title>Corrected local assessment</title><style>body{{font:16px system-ui;margin:2rem;max-width:1300px}}table{{border-collapse:collapse}}td,th{{padding:.4rem;border:1px solid #ddd}}img{{max-width:100%}}</style><h1>Corrected local portfolio evidence</h1><p>Five matched applicant test groups. Raw/final probability views are separate; final may select unchanged raw probabilities. Fold SD is descriptive, not a confidence interval. Saved-model comparison scores are reused historical comparison; unlabeled Kaggle scores are excluded from these visuals.</p><img src='corrected_evidence.png' alt='Corrected anonymous aggregate evidence'><p>{html.escape(NATIVE_LIMIT)}</p>{rows}</html>",
+        f"<!doctype html><html><meta charset='utf-8'><title>Corrected local assessment</title><style>body{{font:16px system-ui;margin:2rem;max-width:1300px}}table{{border-collapse:collapse}}td,th{{padding:.4rem;border:1px solid #ddd}}img{{max-width:100%}}</style><h1>Earlier repaired assessment, 2026-10-04</h1><p>Earlier protocol: nested_matched_holdout_v2. The <a href='../portfolio/index.html'>current case study</a> and <a href='../tuning_20261004/assessment_report.md'>current assessment</a> use nested_inner_cv_v3, completed later on the same date.</p><p>Upper panels: 261,384 development applicants; lower panels: 46,127 reused historical comparison applicants from the saved post-v1 model. These are separate model populations.</p><p>Five matched applicant test groups. Raw/final probability views are separate; final may select unchanged raw probabilities. Fold SD is descriptive, not a confidence interval. Saved-model comparison scores are reused historical comparison; unlabeled Kaggle scores are excluded from these visuals.</p><img src='corrected_evidence.png' alt='Corrected anonymous aggregate evidence'><p>{html.escape(NATIVE_LIMIT)}</p>{rows}</html>",
         encoding="utf-8",
     )
+
+
+def refresh_presentation(destination):
+    """Render the earlier repaired view from frozen anonymous aggregates only.
+
+    This does not call curation, read applicant scores or alter empirical manifests.
+    Returned hashes are presentation-delivery proof, separate from verification.json.
+    """
+    names = (
+        "fold_summary.csv",
+        "reliability_bins.csv",
+        "renewed_saved_model_comparison.csv",
+        "evidence_manifest.json",
+    )
+    inputs = {name: file_sha256(destination / name) for name in names}
+    manifest = json.loads(
+        (destination / "evidence_manifest.json").read_text(encoding="utf-8")
+    )
+    verification = json.loads(
+        (destination / "verification.json").read_text(encoding="utf-8")
+    )
+    if (
+        manifest["status"] != "complete"
+        or manifest["protocol"] != "nested_matched_holdout_v2"
+    ):
+        raise ValueError(
+            "Presentation refresh requires completed earlier repaired evidence"
+        )
+    for name in names:
+        expected = verification["curated_artifact_sha256"].get(name)
+        if expected is not None and inputs[name] != expected:
+            raise ValueError(f"Frozen presentation input changed: {name}")
+    summary = pd.read_csv(destination / "fold_summary.csv")
+    bins = pd.read_csv(destination / "reliability_bins.csv")
+    bins = bins.loc[
+        (bins.workflow == "history_selected") & (bins.score_kind == "calibrated")
+    ]
+    assessment_count = int(bins.applicant_count.sum())
+    comparison_count = manifest["labeled_comparison_count"]
+    balanced = next(
+        row for row in manifest["scenario_checks"] if row["scenario_name"] == "balanced"
+    )
+    counts = [
+        balanced[key]
+        for key in ("approve_count", "review_count", "simulated_decline_count")
+    ]
+    if sum(counts) != comparison_count or bins.outer_fold.nunique() != 5:
+        raise ValueError("Presentation populations do not reconcile")
+    renewed = pd.read_csv(destination / "renewed_saved_model_comparison.csv")
+    raw_ap = renewed.loc[
+        (renewed.score_kind == "raw") & (renewed.metric_name == "pr_auc")
+    ]
+    if set(raw_ap.scope) != {"v1", "post_v1"} or len(raw_ap) != 2:
+        raise ValueError("Saved-model comparison must identify both earlier scopes")
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10), layout="constrained")
+    primary = summary.loc[
+        (summary.score_kind == "calibrated") & (summary.metric_name == "pr_auc")
+    ]
+    axes[0, 0].barh(
+        [textwrap.fill(workflow_label(value), 28) for value in primary.workflow],
+        primary.fold_mean,
+        xerr=primary.fold_std,
+        color="#087f82",
+    )
+    axes[0, 0].set(
+        title=f"Five-group assessment: {assessment_count:,} applicants\nFinal-probability ranking; descriptive group SD",
+        xlabel="Average precision (higher is better; not accuracy)",
+    )
+    for fold, group in bins.groupby("outer_fold"):
+        axes[0, 1].plot(
+            group.average_predicted_score,
+            group.observed_default_rate,
+            marker=".",
+            label=f"Group {fold}",
+        )
+    axes[0, 1].plot([0, 0.5], [0, 0.5], "k--", alpha=0.5)
+    axes[0, 1].set(
+        title=f"Five-group assessment: {assessment_count:,} applicants\nHistory final-probability reliability",
+        xlabel="Mean predicted repayment-difficulty probability",
+        ylabel="Observed repayment-difficulty rate",
+        xlim=(0, 0.5),
+        ylim=(0, 0.5),
+    )
+    axes[0, 1].legend(fontsize=9)
+    axes[1, 0].bar(
+        ["Simulated\napproval", "Manual\nreview", "Simulated\ndecline"],
+        counts,
+        color="#087f82",
+    )
+    axes[1, 0].set(
+        title=f"Saved post-v1 model: {comparison_count:,} reused applicants\nBalanced-reference simulated actions",
+        ylabel="Applicant count",
+    )
+    axes[1, 1].bar(
+        ["Saved v1\n74 inputs", "Saved post-v1\n174 inputs"],
+        raw_ap.set_index("scope").loc[["v1", "post_v1"], "metric_value"],
+        color=["#8a6397", "#087f82"],
+    )
+    axes[1, 1].set(
+        title=f"Saved-model comparison: {comparison_count:,} reused applicants\nSeparate saved fits; raw-probability ranking",
+        ylabel="Average precision (higher is better; not accuracy)",
+        ylim=(0, 0.3),
+    )
+    for axis in axes.flat:
+        axis.grid(axis="x" if axis == axes[0, 0] else "y", alpha=0.15)
+        axis.set_axisbelow(True)
+    fig.suptitle(
+        "Earlier repaired assessment | 2026-10-04 | nested_matched_holdout_v2",
+        fontsize=16,
+        weight="bold",
+    )
+    fig.supxlabel(
+        "Upper panels: matched development assessment. Lower panels: reused historical comparison, not an untouched test.\nCurrent results: stevennitesh.github.io/loan-default-risk-decisioning-system/ | Presentation refresh only; no PBIX refresh.",
+        fontsize=10,
+    )
+    fig.savefig(destination / "corrected_evidence.png", dpi=160)
+    plt.close(fig)
+    rows = summary.loc[
+        summary.metric_name.isin(
+            [
+                "pr_auc",
+                "roc_auc",
+                "brier_score",
+                "log_loss",
+                "balanced_utility_per_applicant",
+            ]
+        )
+    ].copy()
+    rows["workflow"] = rows.workflow.map(workflow_label)
+    rows["metric_name"] = rows.metric_name.map(metric_label)
+    rows["score_kind"] = rows.score_kind.map(score_label)
+    rows["model_family"] = rows.model_family.map(
+        {
+            "lightgbm": "Tree ensemble",
+            "logistic_regression": "Logistic regression",
+            "prevalence": "Constant benchmark",
+        }
+    )
+    rows = rows.rename(
+        columns={
+            "workflow": "Model / input scope",
+            "model_family": "Model family",
+            "split_seed": "Grouping seed",
+            "fold_count": "Applicant test groups",
+            "metric_name": "Metric",
+            "score_kind": "Probability view",
+            "fold_mean": "Mean across groups",
+            "fold_std": "Descriptive group SD",
+        }
+    )
+    table = rows.to_html(index=False, float_format=lambda value: f"{value:.6f}")
+    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Earlier repaired assessment, 2026-10-04</title><style>*{{box-sizing:border-box}}body{{font:16px/1.6 system-ui;margin:0;background:#f6f8fa;color:#182230}}main{{max-width:1100px;margin:auto;padding:1.5rem}}img{{display:block;width:100%;height:auto}}figure{{margin:1.5rem 0;border:1px solid #cad6df;border-radius:10px;background:white;overflow:hidden}}figcaption{{padding:1rem;background:#e9f1f3}}.table-wrap{{max-width:100%;overflow-x:auto}}table{{border-collapse:collapse;font-size:.85rem}}td,th{{padding:.5rem;border:1px solid #ddd}}a{{color:#076c76}}p{{overflow-wrap:anywhere}}@media(max-width:600px){{main{{padding:.8rem}}}}</style></head><body><main><h1>Earlier repaired assessment, 2026-10-04</h1><p><strong>Earlier completed protocol: nested_matched_holdout_v2.</strong> The <a href="../portfolio/index.html">current report</a> and <a href="../tuning_20261004/assessment_report.md">current technical assessment</a> use nested_inner_cv_v3, completed later on the same date. These earlier values remain separate.</p><p>The upper panels assess {assessment_count:,} development applicants in five matched test groups. The lower panels compare separate saved models on {comparison_count:,} reused historical applicants. Unlabeled Kaggle applications are excluded. Random groups do not establish future-cohort performance; the historical comparison is not an untouched lockbox.</p><figure><img src="corrected_evidence.png" alt="Earlier repaired five-group ranking and reliability, with separate saved-model actions and ranking"><figcaption>Earlier aggregate evidence. Final probabilities are the chosen probability view and can equal raw probabilities; this earlier history procedure chose sigmoid adjustment. Group SD is descriptive, not a confidence interval. Actions are simulations, only middle-band reviews incur cost, and high-band simulated declines contribute zero utility. <a href="corrected_evidence.png">Full-size chart</a>.</figcaption></figure><h2>Exact earlier aggregate results</h2><p>Average precision measures ranking, not accuracy. Brier/log loss measure probability error (lower is better). Utility uses illustrative units, not money or profit.</p><div class="table-wrap">{table}</div><h2>Presentation and scientific provenance</h2><p>This presentation refresh reads frozen anonymous CSVs and the existing evidence manifest; it does not load models or applicant records. The lower-right raw average-precision panel replaces the original score histogram. Original verification.json HTML/PNG hashes apply to the original figures, recoverable at Git commit 7bcdee0ae22bd715d6527e2884b37bdcdc897823; the empirical evidence and execution fingerprints remain unchanged. Refresh hashes are recorded separately during delivery.</p><p>{html.escape(NATIVE_LIMIT)}</p><details><summary>Technical identity</summary><p>Assessment {html.escape(manifest["assessment_run_id"])}; protocol {html.escape(manifest["protocol"])}. Machine keys remain unchanged in the source CSVs.</p></details></main></body></html>"""
+    (destination / "corrected_evidence.html").write_text(document, encoding="utf-8")
+    return {
+        "purpose": "Presentation-only refresh; no empirical recomputation",
+        "assessment_run_id": manifest["assessment_run_id"],
+        "source_sha256": inputs,
+        "renderer_sha256": file_sha256(Path(__file__)),
+        "output_sha256": {
+            name: file_sha256(destination / name)
+            for name in ("corrected_evidence.png", "corrected_evidence.html")
+        },
+        "original_output_sha256": {
+            name: verification["curated_artifact_sha256"][name]
+            for name in ("corrected_evidence.png", "corrected_evidence.html")
+        },
+        "assessment_count": assessment_count,
+        "historical_comparison_count": comparison_count,
+        "baseline_git": "7bcdee0ae22bd715d6527e2884b37bdcdc897823",
+    }
 
 
 def main():

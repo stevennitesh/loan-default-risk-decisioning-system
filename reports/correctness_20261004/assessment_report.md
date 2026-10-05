@@ -1,17 +1,17 @@
-# Corrected assessment evidence, 2026-10-04
+# Earlier repaired assessment, 2026-10-04
 
-Completed protocol `nested_matched_holdout_v2`, assessment `f6b58bf8335645b3a1ece2ca3502e173`. This is new evidence from the corrected implementation; numbered historical experiments and Power BI assets retain their original values.
+**Earlier completed procedure.** This `nested_matched_holdout_v2` assessment precedes the [current `nested_inner_cv_v3` assessment](../tuning_20261004/assessment_report.md), also completed on 2026-10-04. Read [the current case study](../portfolio/case_study.md) first. This report preserves the earlier repaired protocol, source-data checks and saved-model comparison; historical experiments and Power BI assets retain their original values.
 
-| Workflow | brier_score | log_loss | pr_auc | roc_auc |
+| Model / input scope | Brier score | Log loss | Average precision | ROC AUC |
 |---|---:|---:|---:|---:|
-| application_only | 0.068399 | 0.248743 | 0.232638 | 0.749246 |
-| history_selected | 0.066696 | 0.240738 | 0.265750 | 0.776040 |
-| logistic_fixed | 0.067500 | 0.244309 | 0.248427 | 0.766581 |
-| training_prevalence | 0.074211 | 0.280544 | 0.080728 | 0.500000 |
+| Application fields only · LightGBM | 0.068399 | 0.248743 | 0.232638 | 0.749246 |
+| Application and loan history · LightGBM | 0.066696 | 0.240738 | 0.265750 | 0.776040 |
+| Application and loan history · earlier logistic regression | 0.067500 | 0.244309 | 0.248427 | 0.766581 |
+| Training outcome rate · constant benchmark | 0.074211 | 0.280544 | 0.080728 | 0.500000 |
 
-These are means of five fold metrics. `fold_summary.csv` includes raw/calibrated views and descriptive sample SD; SD is not a confidence interval. No pooled cross-fold average precision is reported. `paired_differences.csv` compares history with each declared comparator on exactly matched folds. Application-only ablation measures conditional engineering value, not causal attribution. Model families have different declared optimization budgets and are never chosen using outer metrics.
+These are means of five applicant test-group metrics. Average precision measures ranking, not accuracy. The table uses final probabilities after choosing whether to adjust raw scores; this earlier procedure selected sigmoid adjustment, unlike the current history fits. `fold_summary.csv` includes raw/calibrated views and descriptive sample SD; SD is not a confidence interval. No pooled cross-fold average precision is reported. `paired_differences.csv` compares history with each declared comparator on exactly matched folds. Application-only ablation measures conditional engineering value, not causal attribution. Model families have different declared optimization budgets and are never chosen using outer metrics.
 
-History-selected calibrated average precision was 0.265750. Its matched-fold difference versus application-only averaged 0.033112 (fold range 0.025122 to 0.040060); versus fixed logistic it averaged 0.017323 (range 0.012172 to 0.028076). These observations support predictive engineering value within this population and recipe, with no causal or untouched external-performance claim.
+Application-and-loan-history final-probability average precision was 0.265750. Its matched-fold difference versus application-only averaged 0.033112 (fold range 0.025122 to 0.040060); versus fixed logistic it averaged 0.017323 (range 0.012172 to 0.028076). These observations support predictive engineering value within this population and recipe, with no causal or untouched external-performance claim.
 
 Raw class-weighted history scores had worse probability losses than training prevalence: Brier 0.157305 versus 0.074211, and log loss 0.477672 versus 0.280544. Calibration reduced history Brier to 0.066696 and log loss to 0.240738, below prevalence. Sigmoid was chosen in every fold for all three non-flat workflows. Its monotone mapping preserved ranking metrics, so calibration produced no average-precision/lift improvement. History selected 80 features in three folds and all 174 in two; selected settings varied across folds. This variation is documented, not used to change the predeclared holdout recipe.
 
@@ -41,24 +41,24 @@ Applicant totals and target rates cover disjoint outer populations; performance 
 
 A stratified sample of 20,000 development applicants, selected before a seed-913 label permutation, traversed the complete five-fold inner ranking, fitting, feature/grid/method selection and frozen outer assessment with the same recipe. It remains a sampled diagnostic, separate from full-data performance.
 
-| Workflow | Metric | Fold mean | Descriptive fold SD |
+| Model / input scope | Metric | Fold mean | Descriptive fold SD |
 |---|---|---:|---:|
-| application_only | brier_score | 0.074283 | 0.000073 |
-| application_only | log_loss | 0.280970 | 0.000518 |
-| application_only | pr_auc | 0.078983 | 0.002394 |
-| application_only | roc_auc | 0.486882 | 0.017044 |
-| history_selected | brier_score | 0.074300 | 0.000094 |
-| history_selected | log_loss | 0.281076 | 0.000641 |
-| history_selected | pr_auc | 0.082974 | 0.004447 |
-| history_selected | roc_auc | 0.499084 | 0.015408 |
-| logistic_fixed | brier_score | 0.074251 | 0.000029 |
-| logistic_fixed | log_loss | 0.280763 | 0.000229 |
-| logistic_fixed | pr_auc | 0.082641 | 0.004729 |
-| logistic_fixed | roc_auc | 0.495736 | 0.016350 |
-| training_prevalence | brier_score | 0.074229 | 0.000000 |
-| training_prevalence | log_loss | 0.280597 | 0.000000 |
-| training_prevalence | pr_auc | 0.080750 | 0.000000 |
-| training_prevalence | roc_auc | 0.500000 | 0.000000 |
+| Application fields only · LightGBM | Brier score | 0.074283 | 0.000073 |
+| Application fields only · LightGBM | Log loss | 0.280970 | 0.000518 |
+| Application fields only · LightGBM | Average precision | 0.078983 | 0.002394 |
+| Application fields only · LightGBM | ROC AUC | 0.486882 | 0.017044 |
+| Application and loan history · LightGBM | Brier score | 0.074300 | 0.000094 |
+| Application and loan history · LightGBM | Log loss | 0.281076 | 0.000641 |
+| Application and loan history · LightGBM | Average precision | 0.082974 | 0.004447 |
+| Application and loan history · LightGBM | ROC AUC | 0.499084 | 0.015408 |
+| Application and loan history · earlier logistic regression | Brier score | 0.074251 | 0.000029 |
+| Application and loan history · earlier logistic regression | Log loss | 0.280763 | 0.000229 |
+| Application and loan history · earlier logistic regression | Average precision | 0.082641 | 0.004729 |
+| Application and loan history · earlier logistic regression | ROC AUC | 0.495736 | 0.016350 |
+| Training outcome rate · constant benchmark | Brier score | 0.074229 | 0.000000 |
+| Training outcome rate · constant benchmark | Log loss | 0.280597 | 0.000000 |
+| Training outcome rate · constant benchmark | Average precision | 0.080750 | 0.000000 |
+| Training outcome rate · constant benchmark | ROC AUC | 0.500000 | 0.000000 |
 
 Chance-level behavior is judged with sampling variation, not an exact hard threshold. This control can detect strong leakage/selection bugs in the exercised workflow, but cannot prove real-world feature availability or undo historical dataset exploration. Regression checks prove that outer label/covariate changes cannot mutate fitted choices or preprocessors.
 
@@ -112,3 +112,13 @@ Power BI Desktop, pbi-tools, Tabular Editor and DAX Studio are unavailable on th
 The historical overview filters model/`test` and uses balanced scenario filters for most KPIs; the comparison chart intentionally spans scenarios. The appendix filter is attached to feature importance, so cross-table propagation is unverified. Screenshot `held-out` means historical reused comparison. Historical score histograms mix labeled comparison and unlabeled scoring populations unless explicitly filtered. No visible binding certifies simulated-decline actions. These historical assets remain byte-identical. `corrected_evidence.html` and the PNG below are newly generated aggregate evidence from the verified bundle, not a refreshed PBIX.
 
 ![Corrected aggregate evidence](corrected_evidence.png)
+
+## Technical run details
+
+- Protocol: `nested_matched_holdout_v2`
+- Assessment: `f6b58bf8335645b3a1ece2ca3502e173`
+- CSV keys remain machine identifiers: `calibrated` denotes the final probability view.
+
+### Presentation refresh, 2026-10-05
+
+The earlier HTML/PNG now use human labels and explicit population counts. The lower-right panel shows raw average precision from `renewed_saved_model_comparison.csv`, replacing the old score histogram that required applicant-level scores. No model, metric, CSV or scientific provenance was regenerated. The HTML/PNG hashes in the original `verification.json` describe the original figures, preserved at baseline Git commit `7bcdee0ae22bd715d6527e2884b37bdcdc897823`; they do not certify this presentation refresh. Its separate input/output hash proof is recorded during delivery.

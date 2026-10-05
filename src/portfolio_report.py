@@ -392,6 +392,13 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
     review_cost = weights["manual_review_cost"]
     selections = evidence["selection_stability"]
     history = selections.loc[selections.workflow == "history_selected"]
+    support = evidence["reliability_bins"].loc[
+        (evidence["reliability_bins"].workflow == "history_selected")
+        & (evidence["reliability_bins"].score_kind == "calibrated")
+        & (evidence["reliability_bins"].applicant_count > 0),
+        "applicant_count",
+    ]
+    support_text = f"The {len(support)} displayed bins contain {int(support.min()):,} to {int(support.max()):,} applicants each; score ties stay together."
     method_text = (
         "All five history models selected the full 174 eligible inputs and raw probabilities; no probability-adjustment transform was selected."
         if (
@@ -416,17 +423,17 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         (
             "assessment",
             "Compare models on the same applicants",
-            f"The assessment covers {evidence['applicant_count']:,} labeled development applicants in five applicant test groups. Each group is predicted by models whose fitting and selection used the other groups. Inside that training population, three-group cross-validation selects inputs and model settings; separate applicants support stopping, probability-adjustment fitting and method/threshold selection. A constant outcome-rate benchmark, logistic regression, application-only LightGBM and history LightGBM predict the same test applicants. Logistic regression is the simpler linear benchmark; LightGBM combines decision trees. Means summarize five separate metrics, not one pooled cross-model score. Prior public-data exploration remains: this is not an untouched final test or a future-cohort assessment.",
+            f"The assessment covers {evidence['applicant_count']:,} labeled development applicants in five applicant test groups. Each group is predicted by models whose fitting and selection used the other groups. A constant outcome-rate benchmark, logistic regression, application-only LightGBM and history LightGBM predict the same test applicants. Logistic regression is the simpler linear benchmark; LightGBM combines decision trees. Means summarize five separate metrics, not one pooled cross-model score.\n\nPrior public-data exploration remains: this is not an untouched final test or a future-cohort assessment.",
         ),
         (
             "ranking",
             "History improves ranking in this assessment",
-            f"Average precision is {ap:.3f} with application and loan history versus {application:.3f} with application fields only. Average precision summarizes how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy. The history model captures {capture:.1%} of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a 10% random-ranking reference. Tied boundary scores receive equal expected membership. This highest-risk group is separate from the middle manual-review band.",
+            f"Average precision is {ap:.3f} with application and loan history versus {application:.3f} with application fields only. Average precision summarizes how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy. The history model captures {capture:.1%} of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a 10% random-ranking reference. This highest-risk group is separate from the middle manual-review band.\n\nEqual scores at the boundary receive equal expected membership; the methods retain the exact tie rule.",
         ),
         (
             "probabilities",
             "Check probabilities separately",
-            f"The history model's Brier score is {brier:.3f} and log loss is {loss:.3f}; lower is better for both. These measure probability errors, while the reliability chart compares predicted and observed rates within each test group's own score bins. {method_text} Reliability is descriptive, not a guarantee for a new lending population.",
+            f"The history model's Brier score is {brier:.3f} and log loss is {loss:.3f}; lower is better for both. These measure probability errors, while the reliability chart compares predicted and observed rates within each test group's own score bins. {method_text}\n\n{support_text} Reliability is descriptive, not a guarantee for a new lending population.",
         ),
         (
             "search",
@@ -458,7 +465,7 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         (
             "weighting",
             "Test why the raw probabilities improved",
-            f"{finding} A separate controlled comparison kept each recipe's applicants, selected inputs, fitting-only preprocessing, random seed, number of trees and all other model settings fixed. Only the weight assigned to repayment-difficulty cases changed, from the earlier 9–11 times weight to equal weighting. Using the earlier recipe alone, mean predicted risk fell from {before.mean_probability_mean:.1%} to {after.mean_probability_mean:.2%}, against an observed rate of {weighting['observed_rate']:.2%}; raw Brier score fell from {before.brier_score_mean:.4f} to {after.brier_score_mean:.4f}. Brier and log loss improved together; average-rate agreement alone does not prove calibration. Class weighting prioritizes the rare outcome during fitting and can distort the probability scale. This retrospective check makes no model promotion and does not establish the separate contribution of the search's probability-quality screen, globally optimal weights or future-cohort performance. Earlier probability adjustment had already repaired much of the scale error, so final probability quality changed little.",
+            f"Class weighting gives repayment-difficulty cases more influence during fitting. It can improve attention to a rare outcome while distorting the probability scale. The controlled comparison changes only that weight within each frozen recipe and applicant group.\n\n{finding} Using the earlier recipe, mean predicted risk fell from {before.mean_probability_mean:.1%} to {after.mean_probability_mean:.2%}, against an observed difficulty rate of {weighting['observed_rate']:.2%}. Raw Brier score fell from {before.brier_score_mean:.4f} to {after.brier_score_mean:.4f}; log loss improved too. Average-rate agreement alone does not prove calibration.\n\nEarlier probability adjustment had already repaired much of the scale error, so final probability quality changed little. This retrospective check does not promote a model, establish optimal weights for future cohorts or isolate the search screen's separate selection effect.",
         ),
     )
     return intro, sections
@@ -557,7 +564,7 @@ def render(
         ),
         "utility": (
             "utility_sensitivity",
-            "Three fixed simulated policies across all 27 margin, loss and review-cost assumptions; five-group means.",
+            "Three model workflows, each with five fixed simulated policies, across all 27 cost assumptions; five-group means.",
         ),
         "ranking": (
             "model_comparison",
@@ -588,7 +595,14 @@ def render(
             name, alt = figures[key]
             md += f"![{alt}]({name}.png)\n\n"
         if key == "inputs":
-            md += group_md
+            md += (
+                "[Sampling and contribution methods](model_input_methods.md).\n\n"
+                + group_md
+            )
+        elif key == "assessment":
+            md += "[How fitting, selection and assessment are separated](../../docs/validation/ASSESSMENT_METHODOLOGY.md).\n\n"
+        elif key == "weighting":
+            md += "[Controlled comparison methods and exact results](../class_weighting_20261004/assessment_report.md).\n\n"
     glossary_keys = [
         "pr_auc",
         "roc_auc",
@@ -602,10 +616,22 @@ def render(
     ]
     md += "## Metric glossary\n\n| Measure | Meaning | Direction | Units |\n|---|---|---|---|\n"
     md += "\n".join("| " + " | ".join(row) + " |" for row in glossary_rows) + "\n\n"
-    md += "## Explore the evidence\n\n[Browser report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) · [Offline standalone report](index.html) · [Exact numeric appendix](metrics.csv) · [Metric dictionary](metric_dictionary.csv) · [Presentation provenance](provenance.json) · [Frozen-model input methods](model_input_methods.md) · [Input dictionary](model_input_dictionary.csv) · [Input magnitudes](model_input_summary.csv) · [Current technical assessment](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md) · [Controlled weighting evidence](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md) · [Historical experiment archive](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/experiments/README.md)\n\nInstall the project dependencies using [How To Run](../../README.md#how-to-run), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregate inputs are read; no raw data, saved model or new fitting is required.\n"
+    md += """## Explore the evidence
+
+- Read online: [browser report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) or [standalone offline report](index.html).
+- Check the exact results: [numeric appendix](metrics.csv), [metric dictionary](metric_dictionary.csv) and [presentation provenance](provenance.json).
+- Understand the model inputs: [frozen-model methods](model_input_methods.md), [input dictionary](model_input_dictionary.csv) and [input magnitudes](model_input_summary.csv).
+- Read the technical assessment: [current procedure](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md) and [controlled weighting follow-up](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md).
+- Follow the development trail: [historical experiment archive](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/experiments/README.md).
+
+Install the dependencies using [How To Run](../../README.md#how-to-run), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregates are read; no raw data, saved model or new fitting is required.
+"""
     (destination / "case_study.md").write_text(md, encoding="utf-8")
-    nav = " ".join(
-        f'<a href="#{key}">{html.escape(title)}</a>' for key, title, _ in sections
+    nav = (
+        " ".join(
+            f'<a href="#{key}">{html.escape(title)}</a>' for key, title, _ in sections
+        )
+        + ' <a href="#metric-glossary">Metric glossary</a>'
     )
     chart_titles = {
         "model_comparison": "Model ranking comparison",
@@ -620,7 +646,10 @@ def render(
     figure_number = 0
     body = ""
     for key, title, paragraph in sections:
-        body += f'<section id="{key}"><h2>{html.escape(title)}</h2><p>{html.escape(paragraph)}</p>'
+        body += f'<section id="{key}"><h2>{html.escape(title)}</h2>'
+        body += "".join(
+            f"<p>{html.escape(part)}</p>" for part in paragraph.split("\n\n")
+        )
         if key == "inputs":
             body += group_html
         if key == "ranking":
@@ -659,7 +688,7 @@ def render(
                 if key == "weighting"
                 else "Raw and final probabilities from different search procedures."
                 if key == "search"
-                else "Final method-choice probabilities."
+                else "Final probabilities: after choosing whether to adjust the raw model probabilities."
             )
             figure_number += 1
             body += (
@@ -672,6 +701,12 @@ def render(
                 f'<p class="figure-source"><strong>Source and interpretation:</strong> Completed public labeled-applicant assessment; '
                 f"five matched test groups. {html.escape(score_note)}</p></figcaption></figure>"
             )
+        if key == "inputs":
+            body += '<p><a href="model_input_methods.md">Sampling and contribution methods</a></p>'
+        elif key == "assessment":
+            body += '<p><a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/docs/validation/ASSESSMENT_METHODOLOGY.md">How fitting, selection and assessment are separated</a></p>'
+        elif key == "weighting":
+            body += '<p><a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md">Controlled comparison methods and exact results</a></p>'
         body += "</section>"
     appendix = f"Assessment {evidence['provenance']['assessment_run_id']}; protocol {evidence['provenance']['protocol']}; shuffled-label diagnostic {evidence['provenance']['control_run_id']}. Exact means, descriptive fold variation and preserved machine metric keys are in metrics.csv. The CSV score-kind key calibrated means the final method-choice view; it does not imply that a transform was selected. The presentation provenance lists aggregate and renderer hashes; scientific execution fingerprints remain unchanged."
     dictionary = "".join(
@@ -685,6 +720,7 @@ def render(
             ("metric_dictionary.csv", "Metric dictionary"),
             ("provenance.json", "Presentation provenance"),
             ("model_input_dictionary.csv", "Model inputs CSV"),
+            ("model_input_methods.md", "Frozen-model input methods"),
             ("model_input_summary.csv", "Input magnitudes CSV"),
             ("model_input_provenance.json", "Input provenance"),
             ("installment_segments.svg", "Installment chart SVG"),
@@ -695,7 +731,16 @@ def render(
     evidence_links = (
         '<section id="downloads"><h2>Downloads and source evidence</h2><nav aria-label="Download anonymous evidence">'
         + downloads
-        + '</nav><p>Downloads work online or alongside this HTML in the presentation folder. The charts and story remain readable when this HTML is opened alone offline.</p><p>Optional source links require a network connection: <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system">Project repository</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md">Current assessment</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md">Controlled weighting evidence</a> · <a href="model_input_methods.md" download>Frozen-model input methods</a></p></section>'
+        + '</nav><p>Downloads work online or alongside this HTML in the presentation folder. The charts and story remain readable when this HTML is opened alone offline.</p><p>Optional source links require a network connection: <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system">Project repository</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md">Current assessment</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md">Controlled weighting evidence</a></p></section>'
+    )
+    glossary = "".join(
+        f"<div><dt>{html.escape(label)}</dt><dd>{html.escape(meaning)}</dd>"
+        f'<dd class="metric-units">{html.escape(direction)} · {html.escape(units)}</dd></div>'
+        for label, meaning, direction, units in glossary_rows
+    )
+    body += (
+        '<section id="metric-glossary"><h2>Metric glossary</h2>'
+        f'<dl class="metric-definitions">{glossary}</dl></section>'
     )
     body += evidence_links
     document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Credit risk from application and repayment history</title><style>
@@ -732,6 +777,10 @@ code{{overflow-wrap:anywhere}}
 details{{min-width:0;background:white;padding:1.5rem;border:1px solid #dde4eb;border-radius:12px}}
 summary{{cursor:pointer;color:#123e4b;font-weight:600}}
 details[open] summary{{margin-bottom:1rem}}
+.metric-definitions{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.3rem 1.5rem;margin:0}}
+.metric-definitions dt{{font-weight:700;color:#123e4b;margin-bottom:.35rem}}
+.metric-definitions dd{{margin:0 0 .35rem}}
+.metric-units{{font-size:.85rem;color:#475467}}
 footer{{padding:1rem 0;font-size:.9rem;color:#475467}}
 @media(max-width:600px){{
 main{{padding:.8rem}}
@@ -742,6 +791,7 @@ h2{{font-size:1.35rem}}
 .chart-panel{{margin:0 .5rem .5rem;padding:.35rem}}
 figcaption{{padding:.8rem}}
 .report-figure{{margin:1.4rem 0}}
+.metric-definitions{{grid-template-columns:1fr}}
 }}
 @media print{{
 body{{background:white}}

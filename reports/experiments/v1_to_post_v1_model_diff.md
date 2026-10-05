@@ -8,7 +8,7 @@ The v1 model was a complete end-to-end decision-support baseline: SQL feature ma
 
 The historical experiments retained a 168-feature last-k record-window model with sigmoid calibration and recorded better ranking and probability-quality metrics. Smaller SHAP-ranked feature surfaces did not win by the historical mean-validation rule. These are exploratory findings, not a verified independent-test improvement: repeated-seed runs reused original test applicants in fitting, selection importance used reporting populations, and calibration fitting and selection shared validation rows.
 
-Read [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status) for the open feature, policy, calibration, and artifact gaps. The [remediation plan](../../docs/implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) proposes repairs that have not been implemented. This comparison preserves numeric history rather than substituting current local metrics.
+This is the historical state preceding the repairs completed on 2026-10-04. Source semantics, fitting/selection boundaries and artifact checks were subsequently repaired and assessed; broader proposals remain distinct from completed work. Start with [the current case study](../portfolio/case_study.md), [current assessment](../tuning_20261004/assessment_report.md) and [current evidence status](../../docs/validation/VALIDATION_PLAN.md#current-evidence-status). The [earlier repaired assessment](../correctness_20261004/assessment_report.md) preserves the prior corrected protocol. Historical numbers and conclusions below remain unchanged.
 
 ## Model Diff
 

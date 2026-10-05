@@ -20,7 +20,7 @@ from src.config import (
     threshold_policy,
     threshold_version,
 )
-from src.feature_labels import readable_feature_label
+from src.feature_labels import humanize_feature_token, readable_feature_label
 from src.mart_access import load_labeled_split_frames
 from src.metrics import probability_metrics, with_reliability_bin
 from src.model_artifacts import load_model_artifact
@@ -437,16 +437,29 @@ def ranked_raw_features(
     feature_columns: list[str],
 ) -> list[str]:
     """Map ranked display labels back to raw model feature names."""
-    label_to_raw_feature = {
-        _normalize_feature_label(readable_feature_label(feature_column)): feature_column
-        for feature_column in feature_columns
-    }
+    aliases: dict[str, set[str]] = {}
+    for feature_column in feature_columns:
+        for label in (
+            humanize_feature_token(feature_column),  # Literal historical display text.
+            readable_feature_label(feature_column),
+        ):
+            aliases.setdefault(_normalize_feature_label(label), set()).add(
+                feature_column
+            )
     ranked_features: list[str] = []
     seen_features = set()
     rows = sorted(importance_rows, key=lambda row: int(row["rank"]))
     for row in rows:
         raw_label = str(row["feature_name"]).split(":", 1)[0]
-        raw_feature = label_to_raw_feature.get(_normalize_feature_label(raw_label))
+        if raw_label in feature_columns:
+            raw_feature = raw_label
+        else:
+            matches = aliases.get(_normalize_feature_label(raw_label), set())
+            if len(matches) > 1:
+                raise FeatureExperimentError(
+                    f"Ambiguous feature display label: {raw_label}"
+                )
+            raw_feature = next(iter(matches), None)
         if raw_feature is None or raw_feature in seen_features:
             continue
         ranked_features.append(raw_feature)

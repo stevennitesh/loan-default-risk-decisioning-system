@@ -147,7 +147,10 @@ def test_render_is_offline_preserves_keys_and_is_deterministic(tmp_path: Path) -
     assert "no installment obligations does not imply" in report
     assert "27 assumption combinations" in report
     assert "shares of predictive performance" in report
-    assert "1,000 uniformly sampled assessment applicants per fold" in report
+    assert "model_input_methods.md" in report
+    assert "1,000 uniformly sampled assessment applicants per fold" in (
+        destination / "model_input_methods.md"
+    ).read_text(encoding="utf-8")
     assert (
         "only class weighting changes"
         in (destination / "index.html").read_text(encoding="utf-8").lower()

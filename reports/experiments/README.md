@@ -27,7 +27,7 @@ New corrected assessment uses `make assess-post-v1` and writes a separate run
 directory with a protocol manifest. It assesses a fold-local LightGBM selection
 procedure; the old repeated-seed command remains development sensitivity. Mean
 feature ranks use several model seeds within each fitting population, with split
-and model randomness separated. New full-data evidence is recorded separately in [the named correctness assessment](../correctness_20261004/assessment_report.md). See
+and model randomness separated. The earlier repaired `nested_matched_holdout_v2` evidence is preserved in [the correctness assessment](../correctness_20261004/assessment_report.md). The current completed `nested_inner_cv_v3` procedure is explained in [the case study](../portfolio/case_study.md) and [current assessment](../tuning_20261004/assessment_report.md). Both were completed on 2026-10-04 and have distinct protocol/run identities. See
 [the explanation](../../docs/validation/ASSESSMENT_METHODOLOGY.md) before interpreting
 or deliberately curating a new run. Historical reports below are not rewritten.
 

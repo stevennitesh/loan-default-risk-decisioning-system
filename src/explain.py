@@ -519,7 +519,7 @@ def _write_shap_summary(
     axis.axvline(0, color="gray", linewidth=1, alpha=0.7)
     axis.set_yticks(range(len(feature_order)))
     axis.set_yticklabels([feature_labels[index] for index in reversed(feature_order)])
-    axis.set_xlabel("Model contribution to repayment-difficulty score (SHAP)")
+    axis.set_xlabel("SHAP contribution (log-odds; right raises modeled risk)")
     axis.set_title("Model inputs and their score contributions")
     axis.grid(True, axis="x", alpha=0.25)
     if len(feature_order):
@@ -552,7 +552,7 @@ def _write_shap_package_summary(
     figure = plt.gcf()
     if figure.axes:
         figure.axes[0].set_xlabel(
-            "Model contribution to repayment-difficulty score (SHAP)"
+            "SHAP contribution (log-odds; right raises modeled risk)"
         )
         figure.axes[0].set_title("Model inputs and their score contributions")
     _save_shap_figure(path, figure)
@@ -564,11 +564,13 @@ def _save_shap_figure(path: Path, figure: Any) -> None:
     figure.text(
         0.5,
         0.005,
-        "Model behavior, not causal effects or adverse-action reasons; scoring populations may be combined.",
+        "Each dot: one applicant; color: encoded input value (blue lower, red higher).\n"
+        "Raw log-odds before probability adjustment; not probability points, causality or adverse-action reasons.\n"
+        "Scoring populations may be combined; encoded values can be imputed, scaled or category indicators.",
         ha="center",
         fontsize=8,
     )
-    figure.tight_layout(rect=(0, 0.04, 1, 1))
+    figure.tight_layout(rect=(0, 0.09, 1, 1))
     figure.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(figure)
     if not path.exists() or path.stat().st_size == 0:

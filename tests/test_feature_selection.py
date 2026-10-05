@@ -107,6 +107,32 @@ def test_ranked_raw_features_maps_readable_shap_labels_to_model_columns() -> Non
         "credit_card_avg_credit_utilization",
         "AMT_CREDIT",
     ]
+    # Actual previously persisted text above stays supported. New presentation
+    # names and encoded-category suffixes identify the same raw fields/ranks.
+    current_rows = [
+        {"feature_name": "Reported education category: Higher education", "rank": "1"},
+        {"feature_name": "Mean external credit score", "rank": "2"},
+        {"feature_name": "Credit card avg credit utilization", "rank": "3"},
+        {
+            "feature_name": "Reported education category: Secondary / secondary special",
+            "rank": "4",
+        },
+        {"feature_name": "Requested credit amount", "rank": "5"},
+    ]
+    assert ranked_raw_features(current_rows, feature_columns) == ranked_raw_features(
+        importance_rows, feature_columns
+    )
+
+
+def test_feature_display_aliases_reject_ambiguity_and_keep_literal_raw_keys():
+    columns = ["AMT_CREDIT", "requested_credit_amount"]
+    assert ranked_raw_features(
+        [{"feature_name": "requested_credit_amount", "rank": "1"}], columns
+    ) == ["requested_credit_amount"]
+    with pytest.raises(FeatureExperimentError, match="Ambiguous feature display label"):
+        ranked_raw_features(
+            [{"feature_name": "Requested credit amount", "rank": "1"}], columns
+        )
 
 
 def test_feature_selection_experiment_writes_comparison_and_report(

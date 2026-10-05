@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -98,10 +99,46 @@ def verify_search(output, manifest):
     return pd.DataFrame(rows)
 
 
-def run(output, control, destination=None):
+def weighting_followup_note(assessment_run_id, followup, destination):
+    """Link an explicitly supplied completed comparison to its source assessment."""
+    if followup is None:
+        return (
+            "This search comparison alone cannot isolate a parameter effect. No separately "
+            "identified weighting follow-up was supplied for this report; controlled evidence "
+            "would be needed for that attribution."
+        )
+    provenance = json.loads((followup / "provenance.json").read_text(encoding="utf-8"))
+    if (
+        provenance.get("status") != "complete"
+        or provenance.get("source_runs", {}).get("current") != assessment_run_id
+    ):
+        raise ValueError(
+            "Weighting follow-up must be complete and match this assessment"
+        )
+    for name, expected in provenance["aggregate_sha256"].items():
+        if file_sha256(followup / name) != expected:
+            raise ValueError(f"Weighting follow-up aggregate changed: {name}")
+    report = followup / "assessment_report.md"
+    if not report.is_file():
+        raise ValueError("Weighting follow-up report is missing")
+    link = Path(os.path.relpath(report, destination)).as_posix()
+    return (
+        "## Completed controlled follow-up\n\n"
+        "Class weighting gives rare repayment-difficulty cases extra influence during fitting. "
+        f"The separately identified [controlled comparison]({link}) tests this setting in "
+        "the frozen earlier/current recipes on matched applicant groups. Its report retains "
+        "the exact effects and limits. This follow-up is separate from the original final-probability "
+        "assessment, changes no original evidence and promotes no diagnostic model."
+    )
+
+
+def run(output, control, destination=None, weighting_followup=None):
     destination = destination or REPO_ROOT / "reports/tuning_20261004"
     manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
     negative = json.loads((control / "manifest.json").read_text(encoding="utf-8"))
+    followup_note = weighting_followup_note(
+        manifest["run_id"], weighting_followup, destination
+    )
     if (
         manifest["status"] != "complete"
         or negative["status"] != "complete"
@@ -274,6 +311,8 @@ def run(output, control, destination=None):
     control_lines = table(pd.read_csv(control / "summary.csv"))
     report = f"""# Current model-selection assessment, 2026-10-04
 
+**Current completed procedure.** Start with [the case study](../portfolio/case_study.md) for the engineering story. The [earlier repaired assessment](../correctness_20261004/assessment_report.md) was completed on the same date under a different protocol; its values remain separate.
+
 This completed assessment compares application-only and application-and-loan-history models with simple benchmarks on the same applicant test groups. A separate sampled shuffled-outcome diagnostic checks for obvious leakage behavior. Search, randomness settings and probability criteria were fixed before assessment results. No outer result promoted
 a model, family, surface or seed. The prior r2 report and its source/config/evidence
 identities remain preserved; {len(snapshot["protected_sha256"])} protected files matched their pre-edit hashes.
@@ -292,8 +331,9 @@ History final-probability average precision changed by {prior_ap["v3_minus_v2"]:
 Raw history probability errors are much lower than the earlier corrected search; final probability errors are
 similar. Application ranking fell slightly and tuned logistic ranking rose.
 This search comparison alone cannot attribute differences to one parameter;
-a separate controlled weighting comparison is needed for that attribution,
-and these descriptive results do not establish significance or guaranteed gains.
+these descriptive results do not establish significance or guaranteed gains.
+
+{followup_note}
 
 All 261,384 development applicants receive one frozen prediction per declared
 workflow, excluding the same 46,127 historical IDs. V3 and r2 outer and reserved
@@ -382,8 +422,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assessment-dir", type=Path, required=True)
     parser.add_argument("--control-dir", type=Path, required=True)
+    parser.add_argument(
+        "--weighting-followup",
+        type=Path,
+        help="Explicit completed weighting evidence directory; must match the assessment run",
+    )
     args = parser.parse_args()
-    print(json.dumps(run(args.assessment_dir, args.control_dir)))
+    print(
+        json.dumps(
+            run(
+                args.assessment_dir,
+                args.control_dir,
+                weighting_followup=args.weighting_followup,
+            )
+        )
+    )
 
 
 if __name__ == "__main__":

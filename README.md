@@ -16,16 +16,6 @@ The current five-group assessment covers **261,384 labeled applicants**. Applica
 
 Small dots show the five individual group metrics; diamonds show their mean. Variation is descriptive, not a confidence interval. Every model predicts the same applicants in each group. The constant training-outcome-rate benchmark shows the importance of comparing against a simple baseline.
 
-## What the results mean
-
-- **History adds ranking information.** The matched application-only comparison isolates the engineering value of adding prior loan and repayment inputs within this assessment; it does not establish a causal effect.
-- **Probability quality is a separate check.** The history model's Brier score is **0.067**, log loss **0.241** and ROC AUC **0.776**. Lower Brier/log loss is better. All five history models selected 174 inputs and unchanged raw probabilities after separate probability-adjustment testing.
-- **More search reached a ranking plateau.** Earlier corrected average precision was 0.265750; current average precision is 0.265862. Raw probabilities improved substantially, while final probability quality stayed similar.
-- **A controlled follow-up explains the probability improvement.** Changing only class weighting in the earlier model recipe reduced raw Brier score from 0.1573 to 0.0666, essentially reproducing the current 0.0667. Both probability losses improved in all ten recipe/group pairs; adding the earlier weight to the current recipe reversed the benefit. [The controlled comparison](reports/class_weighting_20261004/assessment_report.md) isolates this model-setting effect, with applicants, inputs, preprocessing, seed and other settings fixed. It does not establish optimal weights for other populations or the separate contribution of the search's probability-quality screen.
-- **Actions are simulations.** Lower/upper score cutoffs define simulated approval, manual review and simulated decline. Only the middle band incurs review cost. Utility uses illustrative units, not dollars or profit, and does not promise a fixed review queue.
-
-The [case study](reports/portfolio/case_study.md) shows highest-risk-group capture, predicted-versus-observed probabilities, matched installment-history segments, all 27 utility assumptions and current model inputs. Imported external credit scores lead individual input magnitudes; cumulative group magnitudes also depend on group size and correlated inputs. These are fitted-model explanations, not causal effects or shares of predictive performance. PNG and SVG versions are available in [the presentation folder](reports/portfolio/); [exact aggregate metrics](reports/portfolio/metrics.csv) and [presentation provenance](reports/portfolio/provenance.json) retain precision and source identities.
-
 ## What I built
 
 | Layer | Responsibility |
@@ -46,6 +36,16 @@ flowchart LR
 ```
 
 The outcome records **repayment difficulty**, a proxy rather than measured financial loss. Applicant identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Diagnostic fields stay separate. Unlabeled Kaggle applications demonstrate scoring and contribute no outcome metrics.
+
+## What the results mean
+
+- **History adds ranking information.** The matched application-only comparison isolates the engineering value of adding prior loan and repayment inputs within this assessment; it does not establish a causal effect.
+- **Probability quality is a separate check.** The history model's Brier score is **0.067**, log loss **0.241** and ROC AUC **0.776**. Lower Brier/log loss is better. All five history models selected 174 inputs and unchanged raw probabilities after separate probability-adjustment testing.
+- **More search reached a ranking plateau.** Earlier corrected average precision was 0.265750; current average precision is 0.265862. Raw probabilities improved substantially, while final probability quality stayed similar.
+- **Class weighting explains much of the probability change.** Weighting gives rare repayment-difficulty cases extra influence during fitting. In [a controlled follow-up](reports/class_weighting_20261004/assessment_report.md), removing that weight from the earlier recipe reduced raw Brier score from 0.1573 to 0.0666, essentially reproducing the current 0.0667. This isolates a model-setting effect within the frozen recipes; it does not establish weights for other populations or the search screen's separate contribution.
+- **Actions are simulations.** Lower/upper score cutoffs define simulated approval, manual review and simulated decline. Only the middle band incurs review cost. Utility uses illustrative units, not dollars or profit, and does not promise a fixed review queue.
+
+The [case study](reports/portfolio/case_study.md) shows highest-risk-group capture, predicted-versus-observed probabilities, matched installment-history segments, all 27 utility assumptions and current model inputs. Imported external credit scores lead individual input magnitudes; cumulative group magnitudes also depend on group size and correlated inputs. These are fitted-model explanations, not causal effects or shares of predictive performance. PNG and SVG versions are available in [the presentation folder](reports/portfolio/); [exact aggregate metrics](reports/portfolio/metrics.csv) and [presentation provenance](reports/portfolio/provenance.json) retain precision and source identities.
 
 ## Read the code
 
@@ -135,7 +135,7 @@ ordinary training. It is intentionally separate from the main pipeline.
 
 ## Locked correctness evidence
 
-The new [assessment report](reports/correctness_20261004/assessment_report.md) separates full-data outer evidence, saved-model reused comparison, and historical Power BI snapshots. Its [corrected aggregate HTML](reports/correctness_20261004/corrected_evidence.html) is generated from the verified CSV bundle; it is not a refreshed PBIX.
+The [earlier repaired assessment report](reports/correctness_20261004/assessment_report.md) separates full-data outer evidence, saved-model reused comparison, and historical Power BI snapshots. Its [corrected aggregate HTML](reports/correctness_20261004/corrected_evidence.html) is generated from the verified CSV bundle; it is not a refreshed PBIX.
 
 ```powershell
 uv venv .tmp/assessment-env --python 3.12 --cache-dir .tmp/uv-cache
@@ -152,7 +152,7 @@ The completed local scopes are `configs/correctness_20261004_post_v1_r2.yaml` an
 
 This is a local portfolio decision-support simulation. It does not establish underwriting, compliance, fair-lending or adverse-action readiness. Calendar application, field-availability and label-maturity timestamps are unavailable; relative offsets cannot certify real-time availability. Historical public-data exploration remains a limitation even with disjoint fitting/selection roles. Same-host reproduction is not cross-hardware certification. See [current evidence status](docs/validation/VALIDATION_PLAN.md#current-evidence-status).
 
-The current reader journey uses the new report above. The saved [Power BI files and screenshots](powerbi/README.md) are **unrefreshed historical demonstrations**. Native Desktop/DAX refresh was unavailable on this host. These assets are preserved; the new HTML and plots are separate outputs.
+The current reader journey starts with [the application-and-loan-history case study](reports/portfolio/case_study.md) and [current assessment](reports/tuning_20261004/assessment_report.md). The saved [Power BI files and screenshots](powerbi/README.md) are **unrefreshed historical demonstrations**. Native Desktop/DAX refresh was unavailable on this host. These assets are preserved; the new HTML and plots are separate outputs.
 
 For the documented development trail, use the [historical experiment archive](reports/experiments/README.md). Original numbers and dated conclusions are retained there, including the earlier 68-input and 168-input comparisons. They are historical comparisons, not current selection instructions or independent final-test evidence. The [prior corrected assessment](reports/correctness_20261004/assessment_report.md) preserves the earlier repaired protocol; the [current tuning assessment](reports/tuning_20261004/assessment_report.md) identifies the current completed procedure.
 

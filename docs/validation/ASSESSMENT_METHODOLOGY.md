@@ -2,8 +2,6 @@
 
 ## Plain-language reading path
 
-The [controlled class-weighting follow-up](../../reports/class_weighting_20261004/assessment_report.md) separately tests why raw probabilities improved. It refits both frozen history recipes with and without their earlier positive-class weight, holding applicants, selected inputs, fitting-only preprocessing, seed, tree counts and every other classifier setting fixed within each pair. Removing weighting improves raw Brier and log loss in all ten recipe/group pairs and essentially reproduces the full original probability-loss reduction. Original-weight refits match frozen predictions exactly. This isolates a model-setting effect conditional on the selected recipes; it does not measure the probability-quality screen's separate selection effect or establish weights for future cohorts. No diagnostic variant is promoted, and no new calibration comparison is made.
-
 [The case study](../../reports/portfolio/case_study.md) and [offline report](../../reports/portfolio/index.html) explain the current assessment. A **feature** is a model input; the **mart** is a one-applicant modeling table. **Cross-validation** repeats fitting/selection across applicant groups. An **outer fold** is an applicant test group predicted after the training procedure is frozen. **Calibration** is a probability adjustment; the final method can leave raw probabilities unchanged. Exact protocol/CSV keys remain technical identifiers.
 
 
@@ -37,6 +35,10 @@ The shared owner [src/tuning.py](../../src/tuning.py) caches transformed fitting
 stopping and scoring matrices by feature surface within each exact fold. Caches
 are discarded at the fold boundary. Each classifier creates its own dataset and
 sets `feature_pre_filter=False` while minimum leaf size varies.
+
+## Controlled probability follow-up
+
+The [controlled class-weighting follow-up](../../reports/class_weighting_20261004/assessment_report.md) separately tests why raw probabilities improved. It refits both frozen history recipes with and without their earlier positive-class weight, holding applicants, selected inputs, fitting-only preprocessing, seed, tree counts and every other classifier setting fixed within each pair. Removing weighting improves raw Brier and log loss in all ten recipe/group pairs and essentially reproduces the full original probability-loss reduction. Original-weight refits match frozen predictions exactly. This isolates a model-setting effect conditional on the selected recipes; it does not measure the probability-quality screen's separate selection effect or establish weights for future cohorts. No diagnostic variant is promoted, and no new calibration comparison is made.
 
 ## Declared search and acceptance
 

@@ -12,11 +12,17 @@ SQL converts several relational tables into one modeling-table row per applicant
 
 ## Compare models on the same applicants
 
-The assessment covers 261,384 labeled development applicants in five applicant test groups. Each group is predicted by models whose fitting and selection used the other groups. Inside that training population, three-group cross-validation selects inputs and model settings; separate applicants support stopping, probability-adjustment fitting and method/threshold selection. A constant outcome-rate benchmark, logistic regression, application-only LightGBM and history LightGBM predict the same test applicants. Logistic regression is the simpler linear benchmark; LightGBM combines decision trees. Means summarize five separate metrics, not one pooled cross-model score. Prior public-data exploration remains: this is not an untouched final test or a future-cohort assessment.
+The assessment covers 261,384 labeled development applicants in five applicant test groups. Each group is predicted by models whose fitting and selection used the other groups. A constant outcome-rate benchmark, logistic regression, application-only LightGBM and history LightGBM predict the same test applicants. Logistic regression is the simpler linear benchmark; LightGBM combines decision trees. Means summarize five separate metrics, not one pooled cross-model score.
+
+Prior public-data exploration remains: this is not an untouched final test or a future-cohort assessment.
+
+[How fitting, selection and assessment are separated](../../docs/validation/ASSESSMENT_METHODOLOGY.md).
 
 ## History improves ranking in this assessment
 
-Average precision is 0.266 with application and loan history versus 0.231 with application fields only. Average precision summarizes how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy. The history model captures 35.9% of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a 10% random-ranking reference. Tied boundary scores receive equal expected membership. This highest-risk group is separate from the middle manual-review band.
+Average precision is 0.266 with application and loan history versus 0.231 with application fields only. Average precision summarizes how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy. The history model captures 35.9% of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a 10% random-ranking reference. This highest-risk group is separate from the middle manual-review band.
+
+Equal scores at the boundary receive equal expected membership; the methods retain the exact tie rule.
 
 | Model / input scope | Average precision ↑ | ROC AUC ↑ | Brier score ↓ | Log loss ↓ |
 |---|---:|---:|---:|---:|
@@ -31,15 +37,21 @@ Average precision is 0.266 with application and loan history versus 0.231 with a
 
 ## Check the installment-history boundary
 
-History improves average precision within each declared installment-history segment: known installment payments: 0.237 to 0.269; ambiguous or unknown payments: 0.199 to 0.262; no installment obligations: 0.212 to 0.219. The chart preserves matched fold variation and applicant counts. Segment prevalences differ, so AP should be compared between models within each segment. These labels describe installment records and payment support; no installment obligations does not imply absence of bureau or other loan history. Results are descriptive, with no significance claim.
+History improves average precision within each declared installment-history segment: known installment payments: 0.237 to 0.269; ambiguous or unknown payments: 0.199 to 0.262; no installment obligations: 0.212 to 0.219. The chart preserves matched fold variation and applicant counts. Segment prevalences differ, so average precision should be compared between models within each segment. These labels describe installment records and payment support; no installment obligations does not imply absence of bureau or other loan history. Results are descriptive, with no significance claim.
 
 ![Application-only and history ranking within three installment-history segments; fold variation and counts retained.](installment_segments.png)
 
 ## Explain the current assessed model inputs
 
-The five frozen history models use 174 eligible raw inputs. Mean external credit score and Employment length lead individual input magnitudes; application finances and context have the largest cumulative group magnitude. Supplied credit scores are application inputs, so signal should not be credited entirely to engineered history. Native LightGBM TreeSHAP reuses saved fitting-only preprocessing on 1,000 uniformly sampled assessment applicants per fold, seed 20261004, without outcome-based sampling. Absolute encoded effects sum by raw field and source group; five sample means receive equal weight. Values are raw-margin natural-log-odds magnitudes, not signed net effects, probability points or shares of predictive performance. Larger groups and correlated inputs affect attribution. Intercept-inclusive signed additivity was checked separately. This is fitted-model behavior, not causality, predictive-value ablation or adverse-action reasons; the methods download retains detail.
+The five assessed history models use 174 eligible raw inputs. Mean external credit score and Employment length lead individual input magnitudes; application finances and context have the largest cumulative group magnitude. Supplied credit scores are application inputs, so the signal should not be credited entirely to engineered history.
+
+The chart describes how these fitted models use their inputs, on the model's internal log-odds score scale. It sums absolute contributions, so a group's total depends on its input count and correlated fields. These magnitudes are not signed net effects, probability changes, causal effects or shares of predictive performance.
+
+The diagnostic reuses the five frozen models on target-blind samples without fitting or selection. Sampling, encoded-field aggregation and separate signed additivity checks are documented in the methods download; these are not adverse-action reasons.
 
 ![Cumulative mean absolute raw-margin contributions by source group and individual input for five frozen history models.](model_inputs.png)
+
+[Sampling and contribution methods](model_input_methods.md).
 
 | Input group | Raw inputs | What it describes |
 |---|---:|---|
@@ -54,7 +66,9 @@ The five frozen history models use 174 eligible raw inputs. Mean external credit
 
 ## Check probabilities separately
 
-The history model's Brier score is 0.067 and log loss is 0.241; lower is better for both. These measure probability errors, while the reliability chart compares predicted and observed rates within each test group's own score bins. All five history models selected the full 174 eligible inputs and raw probabilities; no probability-adjustment transform was selected. Reliability is descriptive, not a guarantee for a new lending population.
+The history model's Brier score is 0.067 and log loss is 0.241; lower is better for both. These measure probability errors, while the reliability chart compares predicted and observed rates within each test group's own score bins. All five history models selected the full 174 eligible inputs and raw probabilities; no probability-adjustment transform was selected.
+
+The 50 displayed bins contain 5,227 to 5,228 applicants each; score ties stay together. Reliability is descriptive, not a guarantee for a new lending population.
 
 ![Predicted and observed repayment-difficulty rates in each test group's own bins.](probability_reliability.png)
 
@@ -66,9 +80,15 @@ The earlier corrected history search had average precision 0.265750; the current
 
 ## Test why the raw probabilities improved
 
-Removing class weighting is the dominant explanation for the better raw probabilities in these recipes. Probability errors improved in all ten recipe/group pairs, and putting the earlier weight into the current recipe reversed the benefit. A separate controlled comparison kept each recipe's applicants, selected inputs, fitting-only preprocessing, random seed, number of trees and all other model settings fixed. Only the weight assigned to repayment-difficulty cases changed, from the earlier 9–11 times weight to equal weighting. Using the earlier recipe alone, mean predicted risk fell from 34.2% to 7.94%, against an observed rate of 8.07%; raw Brier score fell from 0.1573 to 0.0666. Brier and log loss improved together; average-rate agreement alone does not prove calibration. Class weighting prioritizes the rare outcome during fitting and can distort the probability scale. This retrospective check makes no model promotion and does not establish the separate contribution of the search's probability-quality screen, globally optimal weights or future-cohort performance. Earlier probability adjustment had already repaired much of the scale error, so final probability quality changed little.
+Class weighting gives repayment-difficulty cases more influence during fitting. It can improve attention to a rare outcome while distorting the probability scale. The controlled comparison changes only that weight within each frozen recipe and applicant group.
+
+Removing class weighting is the dominant explanation for the better raw probabilities in these recipes. Probability errors improved in all ten recipe/group pairs, and putting the earlier weight into the current recipe reversed the benefit. Using the earlier recipe, mean predicted risk fell from 34.2% to 7.94%, against an observed difficulty rate of 8.07%. Raw Brier score fell from 0.1573 to 0.0666; log loss improved too. Average-rate agreement alone does not prove calibration.
+
+Earlier probability adjustment had already repaired much of the scale error, so final probability quality changed little. This retrospective check does not promote a model, establish optimal weights for future cohorts or isolate the search screen's separate selection effect.
 
 ![Controlled class-weighting comparison: two fixed recipes, weighted and unweighted, on five matched groups.](class_weighting.png)
+
+[Controlled comparison methods and exact results](../class_weighting_20261004/assessment_report.md).
 
 ## Show decisions as assumptions, not lending advice
 
@@ -76,9 +96,11 @@ A lower score cutoff separates simulated approval from manual review; an upper c
 
 ## Check sensitivity without re-optimizing policies
 
-Application and loan history has the highest mean simulated utility among the three declared model workflows in 27 of 27 assumption combinations. All five models' balanced-reference score cutoffs and resulting actions remain fixed; varying margin, loss and review-cost weights does not optimize a new policy. Each point is a mean of five fold utilities, not a profit estimate. The constant ranking benchmark is not part of this declared utility grid. Only the middle manual-review band incurs review cost; simulated declines contribute zero modeled utility. These descriptive results remain conditional on the illustrative formula and public-data population.
+Application and loan history has the highest mean simulated utility among the three declared model workflows in 27 of 27 assumption combinations. Each of the three workflows keeps the score cutoffs and actions from its five applicant-group fits fixed (15 fitted policies in total); varying margin, loss and review-cost weights does not optimize a new policy. Each point is a mean of five fold utilities, not a profit estimate. The constant ranking benchmark is not part of this declared utility grid.
 
-![Three fixed simulated policies across all 27 margin, loss and review-cost assumptions; five-group means.](utility_sensitivity.png)
+Only the middle manual-review band incurs review cost; simulated declines contribute zero modeled utility. These descriptive results remain conditional on the illustrative formula and public-data population.
+
+![Three model workflows, each with five fixed simulated policies, across all 27 cost assumptions; five-group means.](utility_sensitivity.png)
 
 ## What this demonstrates—and what remains unknown
 
@@ -97,6 +119,10 @@ The contribution is disciplined SQL data engineering, benchmark comparison, boun
 
 ## Explore the evidence
 
-[Browser report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) · [Offline standalone report](index.html) · [Exact numeric appendix](metrics.csv) · [Metric dictionary](metric_dictionary.csv) · [Presentation provenance](provenance.json) · [Frozen-model input methods](model_input_methods.md) · [Input dictionary](model_input_dictionary.csv) · [Input magnitudes](model_input_summary.csv) · [Current technical assessment](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md) · [Controlled weighting evidence](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md) · [Historical experiment archive](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/experiments/README.md)
+- Read online: [browser report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) or [standalone offline report](index.html).
+- Check the exact results: [numeric appendix](metrics.csv), [metric dictionary](metric_dictionary.csv) and [presentation provenance](provenance.json).
+- Understand the model inputs: [frozen-model methods](model_input_methods.md), [input dictionary](model_input_dictionary.csv) and [input magnitudes](model_input_summary.csv).
+- Read the technical assessment: [current procedure](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md) and [controlled weighting follow-up](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md).
+- Follow the development trail: [historical experiment archive](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/experiments/README.md).
 
-Install the project dependencies using [How To Run](../../README.md#how-to-run), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregate inputs are read; no raw data, saved model or new fitting is required.
+Install the dependencies using [How To Run](../../README.md#how-to-run), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregates are read; no raw data, saved model or new fitting is required.
