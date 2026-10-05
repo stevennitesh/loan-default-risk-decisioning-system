@@ -607,6 +607,17 @@ def render(
     nav = " ".join(
         f'<a href="#{key}">{html.escape(title)}</a>' for key, title, _ in sections
     )
+    chart_titles = {
+        "model_comparison": "Model ranking comparison",
+        "risk_capture": "Highest-risk group capture",
+        "installment_segments": "Installment-history comparison",
+        "model_inputs": "Inputs used by the assessed models",
+        "probability_reliability": "Predicted and observed probabilities",
+        "search_comparison": "Earlier and current search",
+        "class_weighting": "Controlled class-weighting comparison",
+        "utility_sensitivity": "Fixed-policy utility sensitivity",
+    }
+    figure_number = 0
     body = ""
     for key, title, paragraph in sections:
         body += f'<section id="{key}"><h2>{html.escape(title)}</h2><p>{html.escape(paragraph)}</p>'
@@ -650,7 +661,17 @@ def render(
                 if key == "search"
                 else "Final method-choice probabilities."
             )
-            body += f'<figure><img src="data:image/png;base64,{encoded}" alt="{html.escape(alt)}"><figcaption>{html.escape(alt)} Source: completed public labeled-applicant assessment; five matched test groups. {score_note}</figcaption></figure>'
+            figure_number += 1
+            body += (
+                f'<figure class="report-figure" aria-labelledby="{name}-title" aria-describedby="{name}-caption">'
+                f'<div class="figure-heading"><div><p class="figure-number">Figure {figure_number}</p>'
+                f'<h3 id="{name}-title">{html.escape(chart_titles[name])}</h3></div>'
+                f'<a class="figure-download" href="{name}.png">Full-size chart</a></div>'
+                f'<div class="chart-panel"><img src="data:image/png;base64,{encoded}" alt="{html.escape(alt)}"></div>'
+                f'<figcaption id="{name}-caption"><p class="figure-description">{html.escape(alt)}</p>'
+                f'<p class="figure-source"><strong>Source and interpretation:</strong> Completed public labeled-applicant assessment; '
+                f"five matched test groups. {html.escape(score_note)}</p></figcaption></figure>"
+            )
         body += "</section>"
     appendix = f"Assessment {evidence['provenance']['assessment_run_id']}; protocol {evidence['provenance']['protocol']}; shuffled-label diagnostic {evidence['provenance']['control_run_id']}. Exact means, descriptive fold variation and preserved machine metric keys are in metrics.csv. The CSV score-kind key calibrated means the final method-choice view; it does not imply that a transform was selected. The presentation provenance lists aggregate and renderer hashes; scientific execution fingerprints remain unchanged."
     dictionary = "".join(
@@ -677,7 +698,58 @@ def render(
         + '</nav><p>Downloads work online or alongside this HTML in the presentation folder. The charts and story remain readable when this HTML is opened alone offline.</p><p>Optional source links require a network connection: <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system">Project repository</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md">Current assessment</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md">Controlled weighting evidence</a> · <a href="model_input_methods.md" download>Frozen-model input methods</a></p></section>'
     )
     body += evidence_links
-    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Credit risk from application and repayment history</title><style>html{{scroll-behavior:smooth}}body{{margin:0;background:#f6f8fa;color:#182230;font:17px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}}main{{max-width:1120px;margin:auto;padding:2rem 1.5rem}}header{{padding:2rem;background:#123e4b;color:white;border-radius:14px}}h1{{font-size:clamp(2rem,5vw,3.1rem);line-height:1.15;max-width:900px}}h2{{font-size:1.55rem;line-height:1.3;color:#123e4b}}.eyebrow{{letter-spacing:.08em;text-transform:uppercase;font-size:.8rem}}nav{{display:flex;flex-wrap:wrap;gap:.5rem 1rem;margin:1.5rem 0}}a{{color:#076c76;text-underline-offset:3px}}section{{background:white;padding:1.7rem 2rem;border:1px solid #dde4eb;border-radius:12px;margin:1.2rem 0;scroll-margin-top:1rem}}p{{max-width:90ch}}img{{display:block;width:100%;height:auto}}figure{{margin:1.5rem 0}}figcaption{{font-size:.85rem;color:#475467}}.table-wrap{{overflow-x:auto}}table{{border-collapse:collapse;width:100%;font-size:.9rem}}td,th{{text-align:left;padding:.65rem;border-bottom:1px solid #dde4eb}}th{{background:#edf5f6}}code{{overflow-wrap:anywhere}}details{{background:white;padding:1.5rem;border-radius:12px}}@media(max-width:600px){{main{{padding:.8rem}}header,section{{padding:1.2rem}}}}@media print{{body{{background:white}}nav{{display:none}}section{{break-inside:avoid}}}}</style></head><body><main><header><p class="eyebrow">Public-data portfolio · SQL · Python · credit risk</p><h1>Credit risk from application and repayment history</h1><p>{html.escape(intro)}</p><p>Current completed evidence · {evidence["applicant_count"]:,} labeled applicants · five matched applicant test groups</p></header><nav aria-label="Report contents">{nav}</nav>{body}<details id="technical-appendix"><summary>Technical appendix: exact identities and machine-key dictionary</summary><p>{html.escape(appendix)}</p><div class="table-wrap"><table><thead><tr><th>Preserved machine key</th><th>Measure</th><th>Meaning</th><th>Direction</th><th>Units</th></tr></thead><tbody>{dictionary}</tbody></table></div><p>Average precision summarizes ranking (higher is better); ROC AUC summarizes pairwise ordering (higher is better). Brier score is mean squared probability error; log loss penalizes incorrect confident probabilities (lower is better). No confidence interval is inferred from fold variation.</p></details><footer><p>This file is self-contained: charts, styles and text require no network connection. Adjacent PNG/SVG files are available for reuse; metrics.csv and provenance.json provide the technical evidence trail.</p></footer></main></body></html>"""
+    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Credit risk from application and repayment history</title><style>
+*{{box-sizing:border-box}}
+html{{scroll-behavior:smooth}}
+body{{margin:0;background:#f6f8fa;color:#182230;font:17px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}}
+main{{width:100%;max-width:1000px;margin:auto;padding:2rem 1.5rem}}
+header{{padding:2rem;background:#123e4b;color:white;border-radius:14px}}
+h1{{font-size:clamp(2rem,5vw,3.1rem);line-height:1.15;margin:.6rem 0 1.2rem}}
+h2{{font-size:1.55rem;line-height:1.3;color:#123e4b;margin:0 0 1rem}}
+p{{margin:0 0 1rem;overflow-wrap:anywhere}}
+p:last-child{{margin-bottom:0}}
+.eyebrow{{letter-spacing:.08em;text-transform:uppercase;font-size:.8rem}}
+nav{{display:flex;flex-wrap:wrap;gap:.5rem 1rem;margin:1.5rem 0}}
+a{{color:#076c76;text-underline-offset:3px;overflow-wrap:anywhere}}
+a:focus-visible,summary:focus-visible{{outline:3px solid #087f82;outline-offset:4px}}
+section{{min-width:0;background:white;padding:1.7rem 1.75rem;border:1px solid #dde4eb;border-radius:12px;margin:1.2rem 0;scroll-margin-top:1rem}}
+.report-figure{{width:100%;margin:1.8rem 0;border:1px solid #cad6df;border-radius:12px;background:#f0f4f6;overflow:hidden}}
+.figure-heading{{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem}}
+.figure-number{{margin:0 0 .2rem;color:#475467;font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase}}
+.figure-heading h3{{margin:0;color:#123e4b;font-size:1.1rem;line-height:1.35}}
+.figure-download{{flex-shrink:0;font-size:.8rem}}
+.chart-panel{{margin:0 .75rem .75rem;padding:.75rem;background:white;border:1px solid #dde4eb;border-radius:8px}}
+.chart-panel img{{display:block;width:100%;height:auto}}
+figcaption{{padding:1rem 1.1rem;border-top:1px solid #cad6df;background:#e9f1f3;color:#344054;font-size:.85rem;line-height:1.55}}
+.figure-description{{font-weight:600;margin:0 0 .4rem}}
+.figure-source{{margin:0}}
+.figure-source strong{{color:#123e4b}}
+.table-wrap{{width:100%;max-width:100%;overflow-x:auto;margin:1.3rem 0}}
+table{{border-collapse:collapse;width:100%;font-size:.9rem}}
+td,th{{text-align:left;padding:.65rem;border-bottom:1px solid #dde4eb}}
+th{{background:#edf5f6}}
+code{{overflow-wrap:anywhere}}
+details{{min-width:0;background:white;padding:1.5rem;border:1px solid #dde4eb;border-radius:12px}}
+summary{{cursor:pointer;color:#123e4b;font-weight:600}}
+details[open] summary{{margin-bottom:1rem}}
+footer{{padding:1rem 0;font-size:.9rem;color:#475467}}
+@media(max-width:600px){{
+main{{padding:.8rem}}
+header,section,details{{padding:1rem}}
+h2{{font-size:1.35rem}}
+.figure-heading{{align-items:flex-start;flex-direction:column;gap:.55rem;padding:.8rem}}
+.figure-heading h3{{font-size:1rem}}
+.chart-panel{{margin:0 .5rem .5rem;padding:.35rem}}
+figcaption{{padding:.8rem}}
+.report-figure{{margin:1.4rem 0}}
+}}
+@media print{{
+body{{background:white}}
+main{{max-width:none;padding:0}}
+nav,.figure-download{{display:none}}
+.report-figure{{break-inside:avoid}}
+}}
+</style></head><body><main><header><p class="eyebrow">Public-data portfolio · SQL · Python · credit risk</p><h1>Credit risk from application and repayment history</h1><p>{html.escape(intro)}</p><p>Current completed evidence · {evidence["applicant_count"]:,} labeled applicants · five matched applicant test groups</p></header><nav aria-label="Report contents">{nav}</nav>{body}<details id="technical-appendix"><summary>Technical appendix: exact identities and machine-key dictionary</summary><p>{html.escape(appendix)}</p><div class="table-wrap"><table><thead><tr><th>Preserved machine key</th><th>Measure</th><th>Meaning</th><th>Direction</th><th>Units</th></tr></thead><tbody>{dictionary}</tbody></table></div><p>Average precision summarizes ranking (higher is better); ROC AUC summarizes pairwise ordering (higher is better). Brier score is mean squared probability error; log loss penalizes incorrect confident probabilities (lower is better). No confidence interval is inferred from fold variation.</p></details><footer><p>This file is self-contained: charts, styles and text require no network connection. Adjacent PNG/SVG files are available for reuse; metrics.csv and provenance.json provide the technical evidence trail.</p></footer></main></body></html>"""
     (destination / "index.html").write_text(document, encoding="utf-8")
     for original, final_name in [
         ("input_dictionary.csv", "model_input_dictionary.csv"),

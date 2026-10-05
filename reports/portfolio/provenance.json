@@ -30,7 +30,7 @@
     "provenance.json": "360e9cd2174f175a529dad553cdedc26dd81c7b73b029c9e9e2c8e44a83c4e9e"
   },
   "renderer_sha256": {
-    "src/portfolio_report.py": "030a128335d0cf92d976ba2f03aaf8f273dcb80c4e7439078acbbb674648804e",
+    "src/portfolio_report.py": "8b1dc64435b46a9305f71922ad033def6e29a68961b0e986210b8b161565e18d",
     "src/portfolio_extensions.py": "b34c3b974e3510d71eed1b0878fd6f99a6590ef168ab07caca58af5437725c55",
     "src/class_weighting_report.py": "fc3779719db550309c20c856c38563d916bf8afad84ff2a5e11b8946e3415428",
     "src/presentation.py": "824ae94e05a1144e94b397d36de09b54cef7e636d0e49e655ab2d33dcfed2a4e",
@@ -46,7 +46,7 @@
     "case_study.md": "e32aed4b07585fca89f81a22658284167129f1eebcbb7d00367d4ed5ee00dfcf",
     "class_weighting.png": "878d8a9de979f330c5d5e3785783ec1d1aeeedd9f53942cb7bce6bbf7f057fad",
     "class_weighting.svg": "b8015636b4cb2037c760a1bf4d14136cce1c9ef3d8504e1c02214828cb523f87",
-    "index.html": "6b83121a491f055e4f3852956412e596c3ea3df1471b63af8de4693566ec007a",
+    "index.html": "46bd846222736330af015d9f789896472b680de5ebdf73f2064e8997fff9d562",
     "installment_segments.png": "53813ea3de339a09f586a9b87e8682eb6136961c862a2b7e6dc3007c90eef2eb",
     "installment_segments.svg": "47c4336fa8a56bfc01b6c03eaf61af4f56df211a8850fe92368ca0ef7a618a4e",
     "metrics.csv": "9c986adf315c4414126a0ba8792e5bad7f78564038d61d2aab5f1d26ff01ca07",
