@@ -1,29 +1,31 @@
 # Loan Default Risk Decisioning System
 
-**Version:** 0.3.1 (context reconciled 2026-10-03; behavior unchanged)
-**Status:** Implemented local pipeline contract; historical comparison and open validation gaps
+**Version:** 0.6.0 (matched correctness assessment completed 2026-10-04; historical evidence preserved)
+**Status:** Verified local pipeline and matched assessment; source/temporal/native Power BI limits documented
 **Owner:** Steven  
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-04
 
 ---
 
 ## 1. Executive Summary
 
-This resume portfolio presents an end-to-end financial ML workflow to recruiters and hiring managers: it ranks observed repayment-difficulty risk, assigns simulated action bands, writes batch predictions to DuckDB, and visualizes scenario tradeoffs in Power BI.
+This resume portfolio presents an end-to-end financial ML workflow to recruiters and hiring managers: it ranks observed repayment-difficulty risk, assigns simulated action bands, writes batch predictions to DuckDB, and presents current matched results in an offline report and exportable charts, alongside historical Power BI demonstrations.
 
 The goal is to demonstrate SQL feature engineering, configured Python modeling, imbalanced-outcome evaluation, interpretation, scenario utility, batch scoring, testing, and clear documentation. This is a decision-support simulation, not a production underwriting system.
 
 ### Contract and evidence status
 
-This document owns scope and intended public behavior. Implemented paths and historical artifact checklists do not certify methodological correctness. [Current evidence status](../validation/VALIDATION_PLAN.md#current-evidence-status) owns the verified limitations: reused assessment applicants, reporting-population SHAP selection, shared calibration fit/selection data, installment/window semantics, capacity/action utility mismatch, and artifact/reproduction gaps. The [remediation plan](../implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) proposes repairs; it does not describe implemented behavior. Do not adopt its new evaluation protocol, policy, or commands implicitly.
+This document owns scope and implemented public behavior. [Current evidence status](../validation/VALIDATION_PLAN.md#current-evidence-status) records the corrected features/roles, nested assessment, action semantics, and local artifact binding. The [assessment methodology](../validation/ASSESSMENT_METHODOLOGY.md) owns the explanation of fold roles, seed separation, and estimands. Historical numbers precede these corrections. Prior exploration, illustrative utility, same-host reproduction limits, and unrefreshed native dashboards still limit claims. The [remediation plan](../implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) retains historical proposals. Current explicitly authorized tuning implements inner CV as described in the methodology; capacity policy and broader lineage remain outside scope.
+
+The [current case study](../../reports/portfolio/case_study.md) owns the reader journey: application-only versus application-and-loan-history ranking, probability checks and restrained simulated-action conclusions. Numerical assessment and contract owners remain authoritative.
 
 **One-line portfolio summary:**
 
-> Built a reproducible loan default risk decisioning pipeline using public credit application data, SQL feature engineering, LightGBM modeling, SHAP explainability, batch scoring, and Power BI threshold analysis.
+> Built a reproducible loan default risk decisioning pipeline using public credit application data, SQL feature engineering, LightGBM modeling, SHAP explainability, batch scoring, and matched applicant-group assessment and readable reporting.
 
 **Portfolio claim:**
 
-> This project simulates a credit-risk decision-support workflow. It converts public loan-application data into applicant-level risk scores, evaluates the model with imbalanced-class and business metrics, and shows how threshold choices affect approval volume, default capture, manual review load, and expected value.
+> This project simulates a credit-risk decision-support workflow. It converts public loan-application data into applicant-level risk scores, evaluates the model with imbalanced-class and business metrics, and shows how threshold choices affect approval volume, repayment-difficulty case capture, manual review volume, and illustrative utility.
 
 ---
 
@@ -162,6 +164,7 @@ The positive class is expected to be relatively rare. Accuracy will not be used 
 | Population | Source | Has `TARGET`? | Purpose |
 |---|---|---:|---|
 | Training split | `application_train` feature mart rows | Yes | Fit preprocessing and model |
+| Calibration split (post-v1) | `application_train` feature mart rows | Yes | Fit sigmoid/isotonic transforms only; disjoint from training and selection |
 | Validation split | `application_train` feature mart rows | Yes | Derive threshold scenarios and select calibration and model choices |
 | Test split | `application_train` feature mart rows | Yes | Within-run reporting; historical comparison across reused experiments |
 | Kaggle test scoring population | `application_test` feature mart rows | No | Production-like batch scoring demo only |
@@ -272,7 +275,21 @@ Post-v1 comparison adds:
 | `f_credit_card_agg` | Utilization, balance, drawdown, and delinquency aggregates |
 | `f_risk_pressure_features` | Configured cross-source pressure interactions |
 | `f_recency_deterioration_features` | Recent-versus-older record behavior summaries |
-| `f_last_k_temporal_features` | Last-k record and last-loan summaries; POS/card windows are not distinct applicant months |
+| `f_last_k_temporal_features` | Latest three due obligations; latest three distinct applicant POS/card months; last-loan summaries |
+
+#### Bureau historical-origin availability (0.6.0)
+
+SQL `n_eligible_bureau` admits only finite `DAYS_CREDIT < 0`. Bureau aggregates, bureau-balance children and recency children consume this same owner, so rejected origins cannot re-enter through a child join. Separate `bureau_origin_coverage` preserves day-zero, positive and unknown-origin counts outside model features. Planned future maturity/enddate fields remain known contract attributes on eligible prior loans; positive planned dates alone are not excluded. The real source contains 25 day-zero origins, no positive/unknown origins; day zero is not proven future leakage, but lacks intraday prior-history proof. Relative cutoffs do not establish source ingestion timestamps.
+
+#### Repayment and monthly feature semantics (0.4.0)
+
+`n_installment_obligations` groups rows by applicant, previous loan, installment number, and schedule version. An obligation is eligible only when its key, positive owed amount, and pre-application due day are known and consistent, with no competing version for the same loan/installment number. Ambiguous schedules are counted and excluded from repayment statistics; version numbers do not establish amendment chronology.
+
+Known dated payments strictly before application are accumulated within each obligation. Owed amount is counted once; the first cumulative full-payment day determines completed delay. Incomplete obligations have ongoing arrears age rather than an invented completion delay. Unknown payment evidence yields null repayment statistics, not zero delay or full payment. Future-due obligations and application-day/future cashflows are excluded. Identical payment rows are retained because no unique payment-event ID supports safe deduplication. Repayment totals and ratios use the same known obligation support.
+
+Support fields expose total, ambiguous, unknown-payment, known-payment, and ongoing-arrears obligation counts plus average arrears age. Legacy `late_payment_count`, underpayment, and delay field names now summarize obligations, not payment rows; latest-installment fields refer to the latest due obligation. `installment_payment_count` still counts eligible dated payment records.
+
+POS/card last-three windows contain distinct applicant months, including all accounts within each month. Only `MONTHS_BALANCE <= -1` is eligible, as a conservative snapshot cutoff. A month is delinquent if any account has known positive delinquency; it is on-time only if every account has known nonnegative zero delinquency. Otherwise its status is unknown and omitted from rate denominators. Bureau `X`/unknown status is also excluded from delinquency-rate denominators. Duplicate account/month rows fail rather than silently multiplying support. Monetary/count ratios use matched known operands; card utilization is pooled eligible balance divided by eligible limit. Legacy lifetime/recent `*_month_count` fields still count account-month records; applicant-month delinquency rates and last-three windows have the distinct grain above.
 
 ### 8.4 Feature categories
 
@@ -309,7 +326,7 @@ These are required controls. Current per-run pipeline checks implement several o
 - `TARGET` is never used as a feature.
 - `SK_ID_CURR` is used only as an identifier, not as a model feature.
 - Train/validation/test split is created before fitting encoders, imputers, scalers, calibrators, or models.
-- Imputation, encoding, scaling, model fitting, and calibration are fit only on the appropriate training or validation data.
+- Imputation, encoding, scaling, model fitting, and selection importance use only training rows; post-v1 calibrators fit only their reserved calibration role.
 - Feature SQL must produce one row per `SK_ID_CURR` per population.
 - Historical tables are aggregated before joining back to the application grain.
 - Joins are checked for duplicate-row expansion.
@@ -362,7 +379,29 @@ Validation: 15%
 Test: 15%
 ```
 
-The split will be stratified by `TARGET`.
+v1 uses these three stratified roles. Post-v1 divides the configured 15% validation budget equally: training 70%, calibration fitting 7.5%, selection validation 7.5%, and historical comparison test 15%. Counts can differ by rounding. Every role must contain both classes; insufficient support fails rather than reusing another role. All preprocessing and feature ranking fit only training rows. Calibration fits only its reserved role; validation selects models/calibration and derives scenarios. The split summary records all four post-v1 roles, while model-performance reports retain train/validation/test rows.
+
+If a model artifact already exists, retraining preserves its test applicant IDs across seed changes. Stability seeds redivide only the saved development roles and recompute training-only feature rankings. This is a local reuse boundary, not an untouched lockbox or a separately persisted assessment quarantine. Deleting the model artifact removes that membership reference.
+
+### 11.1a Nested assessment
+
+The ordinary pipeline fits the configured dashboard comparison. The separate
+`make assess-post-v1` command evaluates a declared LightGBM selection procedure
+using five stratified outer folds over development applicants. Its inner
+70%/15%/15% fitting/calibration/selection roles are fractions of outer training,
+not of the full dataset. Current v3 uses three inner CV folds within base fitting, with separate stopping subsets; r2 used a reserved selection holdout. Outer metrics do not select or promote the workflow and do not replace the
+dashboard model's metrics. Matched independent controls assess training prevalence, tuned logistic regression (fixed C=1 in r2) and application-only LightGBM on the exact same folds/roles. Outer results never select a model family or promote a workflow.
+
+Feature rankings average raw-column ranks across independently configured model
+seeds, using only fitting rows. `project.split_seed` and `project.model_seed` split
+ordinary partition/model randomness; `assessment.split_seeds` defines outer-fold
+repeats. Exact settings and local role IDs are recorded before candidate fitting.
+See the [methodology owner](../validation/ASSESSMENT_METHODOLOGY.md) for the workflow,
+artifacts, and interpretation. The named [correctness assessment](../../reports/correctness_20261004/assessment_report.md) identifies completed real-data evidence separately from historical snapshots.
+
+### 11.1b Evaluation ties and diagnostics
+
+Top-rate precision/recall/lift use uniform fractional membership across a boundary score tie, with selected mass `ceil(n*rate)`. Equal scores have equal expected membership independent of labels and row order. This is an evaluation expectation, not a queue policy. Reliability bins keep score groups together by empirical midrank; ten nominal bins may be empty and counts must be shown. Target-blind score/ID display rank bins remain separate. Log loss accompanies Brier, average precision and ROC-AUC. Prespecified utility sensitivities use frozen raw thresholds; history-quality segments and matched fold differences are descriptive, never selection inputs. Training prevalence has no meaningful quantile policy threshold.
 
 ### 11.2 Baseline model
 
@@ -383,13 +422,13 @@ Purpose:
 LightGBM Classifier
 ```
 
-Implemented family selection compares validation average precision (legacy PR-AUC). LightGBM tuning filters degenerate scores, then sorts by validation PR-AUC, top-decile lift, top-score capture, ROC-AUC, and lower Brier score. Expected value, inference speed, simplicity, and SHAP compatibility are review considerations, not additional automatic selection criteria. Verify effective parameters: configured `subsample` currently has no row-bagging effect because `subsample_freq` is zero.
+Implemented family selection compares validation average precision (legacy PR-AUC). Current LightGBM joint tuning first checks mean inner Brier/log loss against fitting-prevalence tolerances, then sorts by inner average precision, top-decile lift, top-score capture, ROC-AUC, and lower Brier score. The all-failed fallback retains ranking and records failed probability acceptance; legacy preset tuning filters degenerate scores before its ranking. Expected value, inference speed, simplicity, and SHAP compatibility are review considerations, not additional automatic selection criteria. Historical fits left row bagging disabled; the current builder sets `subsample_freq=1` so configured `subsample` takes effect. New corrected comparisons are recorded separately in the named correctness assessment; they do not rewrite historical metrics.
 
 ### 11.4 Imbalance handling
 
-Initial imbalance strategy:
+Current imbalance strategy:
 
-1. Use LightGBM class weighting or `scale_pos_weight` as the first option.
+1. Jointly search unweighted, lighter and balanced LightGBM `scale_pos_weight` fractions using fitting labels alone.
 2. Derive threshold scenarios separately from model fitting.
 3. Evaluate PR-AUC, lift, and recall at review capacity.
 4. Resampling is not implemented as part of the selected pipeline; a future experiment would need separate development-only evidence.
@@ -402,7 +441,9 @@ Implemented calibration options:
 - Platt scaling;
 - isotonic regression.
 
-v1 does not fit a calibration layer. Post-v1 compares sigmoid and isotonic layers against raw scores and historically selected sigmoid. Fitting and method selection currently share validation data, and per-method minimum-gain eligibility needs repair. Recorded improvements are exploratory probability-quality evidence, not independent calibration certification.
+v1 does not fit a calibration layer. Post-v1 fits sigmoid/isotonic on reserved calibration rows and compares them with raw scores on disjoint selection-validation rows. Each candidate must improve validation Brier by at least 0.0005 before selection; sigmoid is preferred among eligible methods within 0.0005 of the best method. Historical experiments shared fit/selection rows and selected sigmoid; their recorded gains are exploratory. Current validation gains remain selection evidence. Named outer assessment and saved-model comparison evidence are separate, with no untouched-lockbox claim.
+
+Feature-subset experiments aggregate encoded LightGBM gain to raw fields, rank each model-seed repeat, and use mean ranks with deterministic name-based tie breaking. They do not read reporting SHAP rankings. Probability-quality metrics use the selected calibration; threshold scenario utility uses raw scores, matching batch scoring. Ranking seeds are independent of partition/model seeds.
 
 ---
 
@@ -480,12 +521,14 @@ Do not mix these in one metric table.
 |---:|---|---|
 | `< T_low` | Low risk | Approve |
 | `T_low` to `< T_high` | Medium risk | Manual review |
-| `>= T_high` | High risk | High-priority review |
+| `>= T_high` | High risk | Simulated decline (`simulated_decline`) |
 
 The selected `T_low` and `T_high` values come from validation-score quantiles
 for the configured capacity scenarios. Expected value and other business
 outcomes are used to interpret the resulting scenarios, not to optimize the
 cutoffs.
+
+The high band issues no simulated loan and receives zero modeled value/cost. Only the middle band incurs manual-review cost; no reviewer success rate or subsequent lending outcome is assumed. These illustrative actions align with the existing utility formula and do not form an operational underwriting policy.
 
 ### 13.2 Starting business assumptions
 
@@ -533,6 +576,8 @@ Minimum configuration shape:
 project:
   name: loan-default-decisioning
   random_seed: 42
+  split_seed: 42
+  model_seed: 42
   data_scope_version: post_v1_011_last_k_temporal
 
 paths:
@@ -566,7 +611,9 @@ model:
   calibrate_probabilities: false
   lightgbm_tuning:
     enabled: true
-    max_candidates: 8
+    mode: bounded_inner_cv
+    max_candidates: 24
+    inner_folds: 3
 
 excluded_features:
   identifiers:
@@ -606,7 +653,11 @@ threshold_policy:
 ```
 
 Threshold values are initially null and filled from validation-score quantiles
-for the configured capacity scenarios.
+for the configured capacity scenarios. `project.random_seed` is the legacy
+fallback when a separate split/model seed is absent. Scoped post-v1 and base
+configs also define `feature_selection.ranking_seeds` and `assessment` settings;
+their meaning and defaults belong to the
+[assessment methodology](../validation/ASSESSMENT_METHODOLOGY.md#reserved-calibration-seeds-and-interpretation).
 
 ---
 
@@ -685,7 +736,7 @@ The tables below describe field meaning, not a duplicate exhaustive schema. [src
 | `test_rows` | Test row count |
 | `feature_count` | Number of model features |
 | `positive_rate_train` | Training default/repayment-difficulty rate |
-| `random_seed` | Reproducibility seed |
+| `random_seed` | Legacy summary column for the model-fitting seed; fitted artifacts record `split_seed` and `model_seed` separately |
 | `created_at` | Run timestamp |
 
 ### 16.2 `model_metrics_summary`
@@ -905,7 +956,7 @@ The active agent reading path is [AGENTS.md](../../AGENTS.md). Domain and accept
 
 ## 22. Reproducibility Interface
 
-The [Makefile](../../Makefile) owns the interface. See [the README run guide](../../README.md#how-to-run) for explicit scopes and Windows `PYTHON=python`. `make setup` installs into the selected interpreter; it does not create an environment. Scoped pipelines regenerate local artifacts from raw Kaggle data; they do not guarantee exact historical metrics or refresh PBIX visuals. Export targets use existing artifacts without retraining and can recompute probability-quality/segment views. Dependencies are currently unlocked.
+The [Makefile](../../Makefile) owns the interface. See [the README run guide](../../README.md#how-to-run) for explicit scopes and Windows `PYTHON=python`. `make setup` installs into the selected interpreter; it does not create an environment. Scoped pipelines regenerate local artifacts from raw Kaggle data; they do not guarantee exact historical metrics or refresh PBIX visuals. Export targets use existing artifacts without retraining and can recompute probability-quality/segment views. `requirements.lock` pins the dependency closure used for the named correctness run and same-host clean reproduction.
 
 Required commands:
 
@@ -1059,7 +1110,7 @@ This is a historical implementation inventory, not current validation sign-off. 
 - [x] `make test` passes tests for data contracts, scoring, thresholding, and expected-value logic.
 - [x] README includes final metrics, architecture diagram, dashboard screenshot, limitations, and run instructions.
 - [x] `reports/model_card.md` exists and clearly states intended use, non-use, metrics, thresholds, and limitations.
-- [ ] A controlled clean reproduction and exact artifact/dashboard reconciliation are verified; unlocked dependencies and differing local snapshots currently limit this claim.
+- [x] The named assessment records a clean locked same-host fold reproduction and CSV bundle reconciliation. Native PBIX refresh and opaque DAX/relationship certification remain unverified.
 
 ---
 
@@ -1141,3 +1192,13 @@ This project succeeds if a reader can quickly see that the work demonstrates:
 - mature limitations around credit-model usage.
 
 The project should read as an applied financial ML system, not a notebook-only Kaggle exercise.
+
+## Current tuning protocol, 2026-10-04
+
+Current ordinary/post-v1 and assessment callers share `src/tuning.py` and
+`nested_inner_cv_v3`. The methodology owns the exact 24 joint-candidate budget,
+parameter bounds, probability acceptance, fixed rounds and seed roles. Final
+base/calibration/selection roles remain disjoint; outer quality never promotes a
+recipe. Tuned logistic and fixed historical logistic have distinct workflow
+identities. Static public offsets/IDs do not identify calendar application,
+feature availability or label maturity; no chronological splitter is justified.

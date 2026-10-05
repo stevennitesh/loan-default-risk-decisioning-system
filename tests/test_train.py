@@ -1,12 +1,13 @@
-from pathlib import Path
 import warnings
+from pathlib import Path
 
 import duckdb
 import joblib
 import pandas as pd
 import pytest
 
-from src.modeling import build_lightgbm_pipeline
+from src.config import load_config
+from src.modeling import build_lightgbm_pipeline, lightgbm_params
 from src.report_contracts import (
     LIGHTGBM_TUNING_SUMMARY_COLUMNS,
     MODEL_COMPARISON_SUMMARY_COLUMNS,
@@ -19,6 +20,7 @@ from src.train import TrainingError, run_training
 from tests.helpers import create_training_database, read_csv_rows, table_row_count
 
 REQUIRED_METRICS = {
+    "log_loss",
     "roc_auc",
     "pr_auc",
     "brier_score",
@@ -28,6 +30,28 @@ REQUIRED_METRICS = {
     "precision_at_top_decile",
     "recall_at_manual_review_capacity",
 }
+
+
+def test_configured_row_subsampling_is_enabled(project_config_path: Path) -> None:
+    params = lightgbm_params(
+        load_config(project_config_path), pd.DataFrame({"TARGET": [0, 0, 1]}), 42
+    )
+    classifier = build_lightgbm_pipeline(["feature"], [], params).named_steps[
+        "classifier"
+    ]
+    assert classifier.get_params()["subsample"] < 1
+    assert classifier.get_params()["subsample_freq"] > 0
+
+
+def test_training_runs_have_distinct_ids_even_with_the_same_timestamp(
+    scratch_path: Path, project_config_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    create_training_database(scratch_path / "db" / "credit_risk.duckdb", train_rows=80)
+    monkeypatch.setattr("src.train.created_at_utc", lambda: "2026-10-04T00:00:00Z")
+    first = run_training(project_config_path)
+    second = run_training(project_config_path)
+    assert first["run_id"] != second["run_id"]
+
 
 FORBIDDEN_FEATURES = {
     "SK_ID_CURR",
@@ -131,12 +155,18 @@ def test_run_training_creates_model_artifacts_reports_and_duckdb_tables(
     assert split_ids["validation"].isdisjoint(split_ids["test"])
     assert {split: len(ids) for split, ids in split_ids.items()} == {
         "train": 28,
-        "validation": 6,
+        "validation": 3,
+        "calibration": 3,
         "test": 6,
     }
 
     split_summary = baseline_artifact["split_summary"]
-    assert {row["split"] for row in split_summary} == {"train", "validation", "test"}
+    assert {row["split"] for row in split_summary} == {
+        "train",
+        "calibration",
+        "validation",
+        "test",
+    }
     assert all(
         row["positive_count"] > 0 and row["negative_count"] > 0 for row in split_summary
     )
@@ -159,9 +189,9 @@ def test_run_training_creates_model_artifacts_reports_and_duckdb_tables(
             assert probabilities.max() <= 1
 
         assert table_row_count(connection, "model_run_summary") == 2
-        assert table_row_count(connection, "split_summary") == 3
-        assert table_row_count(connection, "model_metrics_summary") == 48
-        assert table_row_count(connection, "model_comparison_summary") == 8
+        assert table_row_count(connection, "split_summary") == 4
+        assert table_row_count(connection, "model_metrics_summary") == 54
+        assert table_row_count(connection, "model_comparison_summary") == 9
         assert table_row_count(connection, "lightgbm_tuning_summary") == 4
 
     run_rows = read_csv_rows(
@@ -189,10 +219,15 @@ def test_run_training_creates_model_artifacts_reports_and_duckdb_tables(
     }
     for row in run_rows:
         assert row["train_rows"] == "28"
-        assert row["validation_rows"] == "6"
+        assert row["validation_rows"] == "3"
         assert row["test_rows"] == "6"
         assert int(row["feature_count"]) == len(baseline_artifact["feature_columns"])
-    assert {row["split"] for row in split_rows} == {"train", "validation", "test"}
+    assert {row["split"] for row in split_rows} == {
+        "train",
+        "calibration",
+        "validation",
+        "test",
+    }
 
     metrics_by_split = {
         (model_version, split): {
@@ -200,11 +235,11 @@ def test_run_training_creates_model_artifacts_reports_and_duckdb_tables(
             for row in metrics_rows
             if row["model_version"] == model_version and row["split"] == split
         }
-        for model_version in {
+        for model_version in (
             "logistic_regression_baseline_v1",
             "lightgbm_credit_risk_v1",
-        }
-        for split in {"train", "validation", "test"}
+        )
+        for split in ("train", "validation", "test")
     }
     for split_metrics in metrics_by_split.values():
         assert REQUIRED_METRICS.issubset(split_metrics)

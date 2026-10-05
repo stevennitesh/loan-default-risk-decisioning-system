@@ -21,7 +21,7 @@ pytestmark = pytest.mark.filterwarnings(
 )
 
 
-def test_calibration_experiment_fits_on_validation_and_exports_comparison_artifacts(
+def test_calibration_experiment_fits_reserved_rows_and_exports_comparison_artifacts(
     scratch_path: Path,
     project_config_path: Path,
 ) -> None:
@@ -47,12 +47,20 @@ def test_calibration_experiment_fits_on_validation_and_exports_comparison_artifa
     assert artifact_path.exists()
     assert result["selected_method"] in CALIBRATION_METHODS
     assert artifact["base_model_version"] == "lightgbm_credit_risk_v1"
-    assert artifact["calibration_fit_split"] == "validation"
+    assert (
+        artifact["base_model_run_id"]
+        == joblib.load(model_dir / "lightgbm_credit_risk.joblib")["run_id"]
+    )
+    assert artifact["calibration_fit_split"] == "calibration"
     assert artifact["selected_method"] == result["selected_method"]
     assert set(artifact["calibrators"]) == {"sigmoid", "isotonic"}
     assert (
-        artifact["fit_applicant_ids"] == artifact["split_applicant_ids"]["validation"]
+        artifact["fit_applicant_ids"] == artifact["split_applicant_ids"]["calibration"]
     )
+    fit_ids = set(artifact["fit_applicant_ids"])
+    assert not fit_ids.intersection(artifact["split_applicant_ids"]["validation"])
+    assert not fit_ids.intersection(artifact["split_applicant_ids"]["train"])
+    assert not fit_ids.intersection(artifact["split_applicant_ids"]["test"])
 
     assert len(comparison_rows) == len(CALIBRATION_METHODS) * len(REPORTING_SPLITS)
     assert {(row["calibration_method"], row["split"]) for row in comparison_rows} == {
@@ -81,8 +89,16 @@ def test_calibration_experiment_fits_on_validation_and_exports_comparison_artifa
             ]
             assert {int(row["bin_id"]) for row in rows} == set(range(1, 11))
             assert sum(int(row["applicant_count"]) for row in rows) > 0
-            assert all(0 <= float(row["average_predicted_score"]) <= 1 for row in rows)
-            assert all(0 <= float(row["observed_default_rate"]) <= 1 for row in rows)
+            assert all(
+                0 <= float(row["average_predicted_score"]) <= 1
+                for row in rows
+                if row["average_predicted_score"]
+            )
+            assert all(
+                0 <= float(row["observed_default_rate"]) <= 1
+                for row in rows
+                if row["observed_default_rate"]
+            )
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
         assert table_row_count(connection, "model_calibration_comparison") == len(
@@ -115,3 +131,15 @@ def test_calibration_selection_prefers_sigmoid_when_isotonic_brier_gain_is_tiny(
     ]
 
     assert select_calibration_method(rows) == "sigmoid"
+
+
+def test_sigmoid_preference_cannot_bypass_its_own_minimum_improvement() -> None:
+    rows = [
+        {"calibration_method": method, "split": "validation", "brier_score": score}
+        for method, score in [
+            ("uncalibrated", 0.20),
+            ("sigmoid", 0.1998),
+            ("isotonic", 0.1994),
+        ]
+    ]
+    assert select_calibration_method(rows) == "isotonic"

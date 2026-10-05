@@ -37,6 +37,7 @@ def test_makefile_exposes_required_targets() -> None:
         "evaluate",
         "score",
         "calibrate",
+        "assess-post-v1",
         "explain",
         "dashboard-data",
         "pipeline-v1",
@@ -103,6 +104,8 @@ def test_generated_artifact_paths_are_gitignored() -> None:
         "reports/dashboard_data_post_v1/segment_performance_summary.csv",
         "reports/v1/model_metrics_summary.csv",
         "reports/post_v1/model_metrics_summary.csv",
+        "reports/nested_assessment/example/manifest.json",
+        "reports/nested_assessment/example/assessment_predictions.csv",
         "reports/figures/generated/lift_chart.png",
         ".tmp/scratch.txt",
     ]

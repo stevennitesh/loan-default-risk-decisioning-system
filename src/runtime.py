@@ -12,6 +12,18 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def configure_duckdb(connection, config):
+    """Bound SQL resources for an explicitly configured local run."""
+    resources = config.get("resources", {})
+    threads = resources.get("duckdb_threads", 4)
+    if type(threads) is not int or threads < 1:
+        raise ValueError("resources.duckdb_threads must be a positive integer")
+    connection.execute(f"SET threads={threads}")
+    connection.execute(
+        "SET memory_limit=?", [resources.get("duckdb_memory_limit", "6GB")]
+    )
+
+
 def resolve_project_path(path_value: str | Path) -> Path:
     """Resolve a config or CLI path relative to the repository root."""
     path = Path(path_value)

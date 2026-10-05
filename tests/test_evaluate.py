@@ -4,9 +4,15 @@ from pathlib import Path
 
 import duckdb
 import joblib
+import numpy as np
 import pytest
+import yaml
 
-from src.evaluate import EvaluationError, run_evaluation
+from src.calibrate import run_calibration_experiment
+from src.config import load_config
+from src.dashboard_exports import run_dashboard_export
+from src.evaluate import EvaluationError, _validate_artifacts, run_evaluation
+from src.model_contracts import MODEL_ARTIFACTS
 from src.report_contracts import (
     MODEL_CALIBRATION_BINS_COLUMNS,
     MODEL_CONFUSION_MATRIX_COLUMNS,
@@ -14,6 +20,7 @@ from src.report_contracts import (
     MODEL_METRICS_SUMMARY_COLUMNS,
     MODEL_THRESHOLD_METRICS_COLUMNS,
 )
+from src.score_batch import run_scoring
 from src.thresholding import SCENARIO_NAMES
 from src.train import run_training
 from tests.helpers import (
@@ -24,6 +31,7 @@ from tests.helpers import (
 )
 
 REQUIRED_EVALUATION_METRICS = {
+    "log_loss",
     "roc_auc",
     "pr_auc",
     "brier_score",
@@ -109,8 +117,8 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
         assert 0 <= thresholds["threshold_low"] < thresholds["threshold_high"] <= 1
 
     assert len(metrics_rows) == 2 * 3 * len(REQUIRED_EVALUATION_METRICS)
-    for model_version in {"logistic_regression_baseline_v1", "lightgbm_credit_risk_v1"}:
-        for split in {"train", "validation", "test"}:
+    for model_version in ("logistic_regression_baseline_v1", "lightgbm_credit_risk_v1"):
+        for split in ("train", "validation", "test"):
             split_metrics = {
                 row["metric_name"]: float(row["metric_value"])
                 for row in metrics_rows
@@ -131,25 +139,32 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
     }
 
     assert {row["split"] for row in lift_rows} == {"validation", "test"}
-    for split in {"validation", "test"}:
+    for split in ("validation", "test"):
         rows = [row for row in lift_rows if row["split"] == split]
         assert {int(row["decile"]) for row in rows} == set(range(1, 11))
         assert sum(int(row["applicant_count"]) for row in rows) == split_sizes[split]
         decile_scores = {
-            int(row["decile"]): float(row["average_score"]) for row in rows
+            int(row["decile"]): float(row["average_score"])
+            for row in rows
+            if row["average_score"]
         }
-        assert decile_scores[1] >= decile_scores[10]
-        assert all(float(row["lift"]) >= 0 for row in rows)
+        assert decile_scores[min(decile_scores)] >= decile_scores[max(decile_scores)]
+        assert all(float(row["lift"]) >= 0 for row in rows if row["lift"])
         assert all(
             0 <= float(row["cumulative_default_capture_rate"]) <= 1 for row in rows
         )
 
     assert {row["split"] for row in calibration_rows} == {"validation", "test"}
-    for split in {"validation", "test"}:
+    for split in ("validation", "test"):
         rows = [row for row in calibration_rows if row["split"] == split]
         assert {int(row["bin_id"]) for row in rows} == set(range(1, 11))
         assert sum(int(row["applicant_count"]) for row in rows) == split_sizes[split]
         for row in rows:
+            if int(row["applicant_count"]) == 0:
+                assert row["average_predicted_score"] == ""
+                assert row["observed_default_rate"] == ""
+                assert row["calibration_error"] == ""
+                continue
             assert 0 <= float(row["average_predicted_score"]) <= 1
             assert 0 <= float(row["observed_default_rate"]) <= 1
             assert -1 <= float(row["calibration_error"]) <= 1
@@ -175,7 +190,7 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
     }
     assert validation_thresholds == test_thresholds
 
-    for split in {"validation", "test"}:
+    for split in ("validation", "test"):
         for scenario_name in SCENARIOS:
             rows = [
                 row
@@ -243,6 +258,30 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
     business_value_report = (report_dir / "business_value_analysis.md").read_text(
         encoding="utf-8"
     )
+    for report in (validation_report, business_value_report):
+        narrative, run_details = report.split("## Technical run details")
+        assert result["selected_model_version"] not in narrative
+        assert result["selected_model_version"] in run_details
+    selected_artifact = joblib.load(
+        scratch_path / "models" / MODEL_ARTIFACTS[result["selected_model_type"]][1]
+    )
+    for identity in (
+        selected_artifact["run_id"],
+        selected_artifact["feature_build_id"],
+        selected_artifact["methodology_version"],
+    ):
+        narrative, run_details = validation_report.split("## Technical run details")
+        assert identity not in narrative
+        assert identity in run_details
+    for split in ("validation", "test"):
+        value = next(
+            float(row["metric_value"])
+            for row in metrics_rows
+            if row["model_version"] == result["selected_model_version"]
+            and row["split"] == split
+            and row["metric_name"] == "pr_auc"
+        )
+        assert f"Average precision={value:.3f}" in validation_report
     assert "Expected-value analysis is pending Milestone 7" not in validation_report
     assert "Threshold expected-value analysis" in validation_report
     assert "Expected margin per good approved loan: 1000" in business_value_report
@@ -268,3 +307,126 @@ def test_run_evaluation_creates_metrics_reports_figures_and_duckdb_tables(
             threshold_rows
         )
         assert table_exists(connection, "model_threshold_metrics")
+
+
+@pytest.mark.parametrize("limit", [40, 80])
+def test_joint_subset_training_evaluates_each_fitted_surface(
+    scratch_path,
+    project_config_path,
+    monkeypatch,
+    limit,
+):
+    from src import evaluate, tuning
+
+    config = load_config(project_config_path)
+    config["resources"] = {"model_threads": 1}
+    config["model"]["lightgbm_tuning"].update(
+        mode="bounded_inner_cv",
+        max_candidates=1,
+        inner_folds=3,
+        max_rounds=20,
+        stopping_rounds=3,
+        sensitivity_seeds=[101],
+    )
+    project_config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    database = scratch_path / "db" / "credit_risk.duckdb"
+    create_training_database(database, train_rows=500)
+    with duckdb.connect(str(database)) as con:
+        for index in range(70):
+            con.execute(
+                f"ALTER TABLE mart_credit_risk_features ADD COLUMN fixture_extra_{index} DOUBLE DEFAULT {index}"
+            )
+    original_specs = tuning.candidate_specs
+    # Force a declared top-N winner while retaining real CV preprocessing,
+    # ranking, stopping, fixed-round fitting and ordinary artifact persistence.
+    monkeypatch.setattr(
+        tuning,
+        "candidate_specs",
+        lambda cfg, surfaces: original_specs(cfg, [f"top_{limit}"]),
+    )
+    trained = run_training(project_config_path)
+    baseline = joblib.load(trained["artifacts"]["logistic_regression"])
+    lightgbm = joblib.load(trained["artifacts"]["lightgbm"])
+    assert len(baseline["feature_columns"]) == 85
+    assert len(lightgbm["feature_columns"]) == limit
+    assert (
+        lightgbm["lightgbm_tuning"]["selected_candidate"]["feature_set"]
+        == f"top_{limit}"
+    )
+    union, ids = _validate_artifacts(
+        {"logistic_regression": baseline, "lightgbm": lightgbm}
+    )
+    assert set(union) == set(baseline["feature_columns"])
+    assert set(ids) == {"train", "validation", "test"}
+    calls = []
+    original_predict = evaluate.predict_probabilities
+
+    def observed_predict(artifact, frame, columns, *args):
+        assert columns == artifact["feature_columns"]
+        calls.append((artifact["model_type"], len(columns)))
+        return original_predict(artifact, frame, columns, *args)
+
+    monkeypatch.setattr(evaluate, "predict_probabilities", observed_predict)
+    result = run_evaluation(project_config_path)
+    assert calls == [("logistic_regression", 85)] * 3 + [("lightgbm", limit)] * 3
+    expected = {
+        (r["model_version"], r["split"], r["metric_name"]): r["metric_value"]
+        for r in trained["metric_rows"]
+    }
+    for row in result["metric_rows"]:
+        assert row["metric_value"] == pytest.approx(
+            expected[(row["model_version"], row["split"], row["metric_name"])]
+        )
+    # Downstream consumers load the chosen artifact's own fields.
+    run_calibration_experiment(project_config_path)
+    run_scoring(project_config_path)
+    assert result["selected_model_type"] == "lightgbm"
+    from src.explain import run_explain
+
+    explained = run_explain(project_config_path)
+    assert explained
+    exported = run_dashboard_export(project_config_path)
+    assert exported
+
+
+def test_legacy_equal_surface_artifacts_still_evaluate(
+    scratch_path, project_config_path
+):
+    database = scratch_path / "db" / "credit_risk.duckdb"
+    create_training_database(database, train_rows=80)
+    trained = run_training(project_config_path)  # Explicit pre-v3 config contract.
+    artifacts = {name: joblib.load(path) for name, path in trained["artifacts"].items()}
+    assert artifacts["lightgbm"]["methodology_version"] == "disjoint_calibration_v2"
+    assert (
+        artifacts["logistic_regression"]["feature_columns"]
+        == artifacts["lightgbm"]["feature_columns"]
+    )
+    # Old equal-surface files did not require an eligibility-search manifest.
+    for name, artifact in artifacts.items():
+        artifact.pop("eligible_feature_columns", None)
+        joblib.dump(artifact, trained["artifacts"][name])
+    evaluated = run_evaluation(project_config_path)
+    assert np.allclose(
+        [row["metric_value"] for row in evaluated["metric_rows"]],
+        [row["metric_value"] for row in trained["metric_rows"]],
+    )
+
+
+@pytest.mark.parametrize("mutation", ["ineligible", "build", "calibration_roles"])
+def test_evaluation_keeps_artifact_identity_guards(
+    scratch_path, project_config_path, mutation
+):
+    create_training_database(scratch_path / "db" / "credit_risk.duckdb", train_rows=100)
+    trained = run_training(project_config_path)
+    path = trained["artifacts"]["lightgbm"]
+    artifact = joblib.load(path)
+    if mutation == "ineligible":
+        artifact["eligible_feature_columns"] = artifact["feature_columns"][1:]
+    elif mutation == "build":
+        artifact["feature_build_id"] = "another_build"
+    else:
+        ids = artifact["split_applicant_ids"]
+        ids["calibration"][0], ids["train"][0] = ids["train"][0], ids["calibration"][0]
+    joblib.dump(artifact, path)
+    with pytest.raises(EvaluationError):
+        run_evaluation(project_config_path)

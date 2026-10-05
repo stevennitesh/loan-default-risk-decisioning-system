@@ -6,33 +6,29 @@ WITH installment_ranked AS (
     -- least-negative, most recent installment first.
     SELECT
         SK_ID_CURR,
-        DAYS_INSTALMENT,
-        AMT_INSTALMENT,
-        AMT_PAYMENT,
+        scheduled_amount AS AMT_INSTALMENT,
+        paid_amount AS AMT_PAYMENT,
         ROW_NUMBER() OVER (
             PARTITION BY SK_ID_CURR
-            ORDER BY DAYS_INSTALMENT DESC, SK_ID_PREV DESC, NUM_INSTALMENT_NUMBER DESC
+            ORDER BY due_day DESC, SK_ID_PREV DESC,
+                NUM_INSTALMENT_NUMBER DESC, NUM_INSTALMENT_VERSION DESC
         ) AS payment_recency_rank,
-        GREATEST(DAYS_ENTRY_PAYMENT - DAYS_INSTALMENT, 0) AS payment_delay_days,
-        AMT_PAYMENT / NULLIF(AMT_INSTALMENT, 0) AS payment_ratio,
-        CASE
-            WHEN DAYS_ENTRY_PAYMENT > DAYS_INSTALMENT THEN 1
-            ELSE 0
-        END AS paid_late,
-        CASE
-            WHEN AMT_PAYMENT < AMT_INSTALMENT THEN 1
-            ELSE 0
-        END AS underpaid
-    FROM stg_installments_payments
+        CASE WHEN completed_delay_days IS NOT NULL
+            THEN GREATEST(completed_delay_days, 0) END AS payment_delay_days,
+        paid_amount / NULLIF(scheduled_amount, 0) AS payment_ratio,
+        late AS paid_late,
+        underpaid
+    FROM n_installment_obligations
+    WHERE obligation_known
 ),
 installment_last_3 AS (
-    -- Last three installment rows capture near-term repayment behavior.
+    -- Last three due obligations capture near-term repayment behavior.
     SELECT
         SK_ID_CURR,
         AVG(paid_late) AS installments_last_3_late_payment_rate,
         AVG(underpaid) AS installments_last_3_underpayment_rate,
         AVG(payment_delay_days) AS installments_last_3_avg_payment_delay_days,
-        SUM(AMT_PAYMENT) / NULLIF(SUM(AMT_INSTALMENT), 0)
+        SUM(AMT_PAYMENT) / NULLIF(SUM(AMT_INSTALMENT) FILTER (WHERE AMT_PAYMENT IS NOT NULL), 0)
             AS installments_last_3_payment_amount_ratio
     FROM installment_ranked
     WHERE payment_recency_rank <= 3
@@ -51,24 +47,31 @@ pos_cash_ranked AS (
     -- most recent POS cash month first.
     SELECT
         SK_ID_CURR,
-        SK_ID_PREV,
         MONTHS_BALANCE,
-        CNT_INSTALMENT,
-        CNT_INSTALMENT_FUTURE,
-        SK_DPD,
-        SK_DPD_DEF,
+        SUM(CNT_INSTALMENT) FILTER (
+            WHERE CNT_INSTALMENT > 0 AND CNT_INSTALMENT_FUTURE >= 0
+        ) AS CNT_INSTALMENT,
+        SUM(CNT_INSTALMENT_FUTURE) FILTER (
+            WHERE CNT_INSTALMENT > 0 AND CNT_INSTALMENT_FUTURE >= 0
+        ) AS CNT_INSTALMENT_FUTURE,
+        CASE WHEN MAX(SK_DPD) > 0 THEN 1
+            WHEN COUNT(SK_DPD) = COUNT(*) AND MIN(SK_DPD) >= 0 THEN 0 END AS SK_DPD,
+        CASE WHEN MAX(SK_DPD_DEF) > 0 THEN 1
+            WHEN COUNT(SK_DPD_DEF) = COUNT(*) AND MIN(SK_DPD_DEF) >= 0 THEN 0 END AS SK_DPD_DEF,
         ROW_NUMBER() OVER (
             PARTITION BY SK_ID_CURR
-            ORDER BY MONTHS_BALANCE DESC, SK_ID_PREV DESC
+            ORDER BY MONTHS_BALANCE DESC
         ) AS pos_month_recency_rank
     FROM stg_pos_cash_balance
+    WHERE MONTHS_BALANCE <= -1
+    GROUP BY SK_ID_CURR, MONTHS_BALANCE
 ),
 pos_cash_last_3 AS (
     SELECT
         SK_ID_CURR,
-        AVG(CASE WHEN SK_DPD > 0 THEN 1 ELSE 0 END)
+        AVG(CASE WHEN SK_DPD IS NOT NULL THEN CAST(SK_DPD > 0 AS INTEGER) END)
             AS pos_cash_last_3_dpd_rate,
-        AVG(CASE WHEN SK_DPD_DEF > 0 THEN 1 ELSE 0 END)
+        AVG(CASE WHEN SK_DPD_DEF IS NOT NULL THEN CAST(SK_DPD_DEF > 0 AS INTEGER) END)
             AS pos_cash_last_3_dpd_def_rate,
         SUM(CNT_INSTALMENT_FUTURE) / NULLIF(SUM(CNT_INSTALMENT), 0)
             AS pos_cash_last_3_future_installment_ratio
@@ -92,6 +95,7 @@ pos_cash_latest_loan AS (
                 ORDER BY MAX(MONTHS_BALANCE) DESC, SK_ID_PREV DESC
             ) AS loan_recency_rank
         FROM stg_pos_cash_balance
+        WHERE MONTHS_BALANCE <= -1
         GROUP BY SK_ID_CURR, SK_ID_PREV
     )
     WHERE loan_recency_rank = 1
@@ -99,12 +103,13 @@ pos_cash_latest_loan AS (
 pos_cash_last_loan AS (
     SELECT
         pos_cash.SK_ID_CURR,
-        AVG(CASE WHEN pos_cash.SK_DPD > 0 THEN 1 ELSE 0 END)
+        AVG(CASE WHEN pos_cash.SK_DPD >= 0 THEN CAST(pos_cash.SK_DPD > 0 AS INTEGER) END)
             AS pos_cash_last_loan_dpd_rate
     FROM stg_pos_cash_balance AS pos_cash
     INNER JOIN pos_cash_latest_loan AS latest_loan
         ON pos_cash.SK_ID_CURR = latest_loan.SK_ID_CURR
         AND pos_cash.SK_ID_PREV = latest_loan.SK_ID_PREV
+    WHERE pos_cash.MONTHS_BALANCE <= -1
     GROUP BY pos_cash.SK_ID_CURR
 ),
 credit_card_ranked AS (
@@ -113,28 +118,30 @@ credit_card_ranked AS (
     SELECT
         SK_ID_CURR,
         MONTHS_BALANCE,
-        AMT_BALANCE,
-        AMT_CREDIT_LIMIT_ACTUAL,
-        AMT_DRAWINGS_CURRENT,
-        AMT_INST_MIN_REGULARITY,
-        AMT_PAYMENT_CURRENT,
-        CNT_DRAWINGS_CURRENT,
-        SK_DPD,
-        AMT_BALANCE / NULLIF(AMT_CREDIT_LIMIT_ACTUAL, 0) AS credit_utilization,
+        SUM(AMT_BALANCE) FILTER (WHERE AMT_BALANCE >= 0 AND AMT_CREDIT_LIMIT_ACTUAL > 0) AS AMT_BALANCE,
+        SUM(AMT_CREDIT_LIMIT_ACTUAL) FILTER (WHERE AMT_BALANCE >= 0 AND AMT_CREDIT_LIMIT_ACTUAL > 0) AS AMT_CREDIT_LIMIT_ACTUAL,
+        SUM(AMT_INST_MIN_REGULARITY) FILTER (WHERE AMT_PAYMENT_CURRENT >= 0 AND AMT_INST_MIN_REGULARITY > 0) AS AMT_INST_MIN_REGULARITY,
+        SUM(AMT_PAYMENT_CURRENT) FILTER (WHERE AMT_PAYMENT_CURRENT >= 0 AND AMT_INST_MIN_REGULARITY > 0) AS AMT_PAYMENT_CURRENT,
+        CASE WHEN COUNT(CNT_DRAWINGS_CURRENT) = COUNT(*) AND MIN(CNT_DRAWINGS_CURRENT) >= 0
+            THEN SUM(CNT_DRAWINGS_CURRENT) END AS CNT_DRAWINGS_CURRENT,
+        CASE WHEN MAX(SK_DPD) > 0 THEN 1
+            WHEN COUNT(SK_DPD) = COUNT(*) AND MIN(SK_DPD) >= 0 THEN 0 END AS SK_DPD,
         ROW_NUMBER() OVER (
             PARTITION BY SK_ID_CURR
-            ORDER BY MONTHS_BALANCE DESC, SK_ID_PREV DESC
+            ORDER BY MONTHS_BALANCE DESC
         ) AS card_month_recency_rank
     FROM stg_credit_card_balance
+    WHERE MONTHS_BALANCE <= -1
+    GROUP BY SK_ID_CURR, MONTHS_BALANCE
 ),
 credit_card_last_3 AS (
     SELECT
         SK_ID_CURR,
-        AVG(credit_utilization) AS credit_card_last_3_credit_utilization,
+        SUM(AMT_BALANCE) / NULLIF(SUM(AMT_CREDIT_LIMIT_ACTUAL), 0) AS credit_card_last_3_credit_utilization,
         SUM(AMT_PAYMENT_CURRENT) / NULLIF(SUM(AMT_INST_MIN_REGULARITY), 0)
             AS credit_card_last_3_payment_to_min_ratio,
         AVG(CNT_DRAWINGS_CURRENT) AS credit_card_last_3_drawing_count,
-        AVG(CASE WHEN SK_DPD > 0 THEN 1 ELSE 0 END)
+        AVG(CASE WHEN SK_DPD IS NOT NULL THEN CAST(SK_DPD > 0 AS INTEGER) END)
             AS credit_card_last_3_dpd_rate
     FROM credit_card_ranked
     WHERE card_month_recency_rank <= 3

@@ -13,7 +13,8 @@ UNCALIBRATED_METHOD = "uncalibrated"
 SIGMOID_METHOD = "sigmoid"
 ISOTONIC_METHOD = "isotonic"
 CALIBRATION_METHODS = (UNCALIBRATED_METHOD, SIGMOID_METHOD, ISOTONIC_METHOD)
-CALIBRATION_FIT_SPLIT = "validation"
+CALIBRATION_FIT_SPLIT = "calibration"
+CALIBRATION_SELECTION_SPLIT = "validation"
 CALIBRATION_MIN_BRIER_IMPROVEMENT = 0.0005
 SIGMOID_SIMPLICITY_TOLERANCE = 0.0005
 
@@ -24,11 +25,11 @@ def fit_calibrators(
     random_seed: int,
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, Any]:
-    """Fit sigmoid and isotonic calibrators on validation predictions."""
+    """Fit calibrators on reserved predictions, separate from method selection."""
     validate_probabilities(
-        validation_probabilities, "validation calibration input", error_cls=error_cls
+        validation_probabilities, "reserved calibration input", error_cls=error_cls
     )
-    target_values = target_class_values(validation_targets)
+    target_values = target_class_values(validation_targets, error_cls=error_cls)
     if target_values != {0, 1}:
         raise error_cls("Calibration fit split must contain both target classes")
 
@@ -113,27 +114,39 @@ def select_calibration_method(
 ) -> str:
     """Select calibration by validation Brier improvement and simplicity rules."""
     validation_rows = [
-        row for row in comparison_rows if row["split"] == CALIBRATION_FIT_SPLIT
+        row for row in comparison_rows if row["split"] == CALIBRATION_SELECTION_SPLIT
     ]
     by_method = {
         str(row["calibration_method"]): float(row["brier_score"])
         for row in validation_rows
     }
-    missing_methods = set(CALIBRATION_METHODS).difference(by_method)
-    if missing_methods:
+    if len(by_method) != len(validation_rows) or set(by_method) != set(
+        CALIBRATION_METHODS
+    ):
         raise error_cls(
-            f"Missing calibration comparison rows for: {sorted(missing_methods)}"
+            "Calibration comparison requires exactly one row per known method"
         )
-
+    if any(
+        not np.isfinite(brier) or not 0 <= brier <= 1 for brier in by_method.values()
+    ):
+        raise error_cls(
+            "Calibration comparison Brier scores must be finite and in [0, 1]"
+        )
     uncalibrated_brier = by_method[UNCALIBRATED_METHOD]
-    best_method = min(by_method, key=by_method.get)
-    best_brier = by_method[best_method]
-
-    if uncalibrated_brier - best_brier < CALIBRATION_MIN_BRIER_IMPROVEMENT:
+    eligible = {
+        method: brier
+        for method, brier in by_method.items()
+        if method != UNCALIBRATED_METHOD
+        and uncalibrated_brier - brier >= CALIBRATION_MIN_BRIER_IMPROVEMENT - 1e-12
+    }
+    if not eligible:
         return UNCALIBRATED_METHOD
+    best_method = min(eligible, key=eligible.get)
+    best_brier = eligible[best_method]
     if (
-        SIGMOID_METHOD in by_method
-        and by_method[SIGMOID_METHOD] - best_brier <= SIGMOID_SIMPLICITY_TOLERANCE
+        SIGMOID_METHOD in eligible
+        and eligible[SIGMOID_METHOD] - best_brier
+        <= SIGMOID_SIMPLICITY_TOLERANCE + 1e-12
     ):
         return SIGMOID_METHOD
     return best_method

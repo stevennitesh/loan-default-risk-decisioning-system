@@ -48,15 +48,10 @@ htmlcov/
 .agents/
 .codex/
 
-# Data: keep directory placeholders, not Kaggle/source/intermediate files
-data/raw/*
-data/parquet/*
-data/db/*
-data/external/*
-data/interim/*
-data/processed/*
-data/features/*
-!data/**/.gitkeep
+# Data: exclude every source/intermediate path; keep directory placeholders only.
+/data/**
+!/data/**/
+!/data/**/.gitkeep
 
 # Local databases and query scratch files
 *.duckdb
@@ -78,40 +73,90 @@ models/*
 mlruns/
 wandb/
 
-# Generated reports, exports, and runtime artifacts
+# Runtime outputs are local. Reports are excluded unless explicitly curated below.
 artifacts/
 outputs/
-reports/generated/
-reports/v1/*
-reports/post_v1/*
-reports/ingestion_summary.csv
-reports/feature_mart_profile.csv
-reports/data_inventory.csv
-reports/feature_inventory.csv
-reports/model_run_summary.csv
-reports/model_metrics_summary.csv
-reports/model_comparison_summary.csv
-reports/lightgbm_tuning_summary.csv
-reports/split_summary.csv
-reports/model_lift_by_decile.csv
-reports/model_calibration_bins.csv
-reports/model_confusion_matrix.csv
-reports/model_threshold_metrics.csv
-reports/validation_report.md
-reports/business_value_analysis.md
-reports/model_feature_importance.csv
-reports/figures/roc_curve.png
-reports/figures/pr_curve.png
-reports/figures/calibration_curve.png
-reports/figures/lift_chart.png
-reports/figures/shap_summary.png
-reports/dashboard_data/*
-reports/dashboard_data_post_v1/*
-reports/figures/generated/
-reports/tables/generated/
-!reports/**/.gitkeep
+/reports/**
+!/reports/**/
+!/reports/**/.gitkeep
 
-# Curated experiment evidence under reports/experiments/ is intentionally tracked.
+# Reviewed final reports and evidence: reports
+!/reports/010_recency_stability_seed_runs.csv
+!/reports/010_recency_stability_summary.csv
+!/reports/012_last_k_stability_seed_runs.csv
+!/reports/012_last_k_stability_summary.csv
+!/reports/013_feature_cleanup_comparison.csv
+!/reports/014_feature_cleanup_stability_seed_runs.csv
+!/reports/014_feature_cleanup_stability_summary.csv
+!/reports/README.md
+!/reports/feature_selection_comparison.csv
+!/reports/model_calibration_bins_comparison.csv
+!/reports/model_calibration_comparison.csv
+!/reports/model_card.md
+!/reports/model_stability_seed_runs.csv
+!/reports/model_stability_summary.csv
+
+# Reviewed final reports and evidence: reports/correctness_20261004
+!/reports/correctness_20261004/assessment_report.md
+!/reports/correctness_20261004/corrected_evidence.html
+!/reports/correctness_20261004/corrected_evidence.png
+!/reports/correctness_20261004/evidence_manifest.json
+!/reports/correctness_20261004/feature_selection_frequency.csv
+!/reports/correctness_20261004/fold_summary.csv
+!/reports/correctness_20261004/history_segment_metrics.csv
+!/reports/correctness_20261004/negative_control_summary.csv
+!/reports/correctness_20261004/paired_differences.csv
+!/reports/correctness_20261004/reliability_bins.csv
+!/reports/correctness_20261004/renewed_saved_model_comparison.csv
+!/reports/correctness_20261004/selection_stability.csv
+!/reports/correctness_20261004/source_coverage_by_target.csv
+!/reports/correctness_20261004/source_provenance.json
+!/reports/correctness_20261004/source_summary.json
+!/reports/correctness_20261004/utility_sensitivity.csv
+!/reports/correctness_20261004/verification.json
+
+# Reviewed final reports and evidence: reports/experiments
+!/reports/experiments/000_v1_baseline.md
+!/reports/experiments/001_bureau_balance_features.md
+!/reports/experiments/002_pos_cash_features.md
+!/reports/experiments/003_credit_card_features.md
+!/reports/experiments/004_calibration_experiment.md
+!/reports/experiments/005_feature_selection.md
+!/reports/experiments/005_selected_features.csv
+!/reports/experiments/006_model_stability.md
+!/reports/experiments/007_risk_pressure_features.md
+!/reports/experiments/008_narrow_pressure_features.md
+!/reports/experiments/009_recency_deterioration_features.md
+!/reports/experiments/010_recency_model_stability.md
+!/reports/experiments/011_last_k_temporal_features.md
+!/reports/experiments/012_last_k_model_stability.md
+!/reports/experiments/013_feature_cleanup.md
+!/reports/experiments/013_selected_features.csv
+!/reports/experiments/014_feature_cleanup_stability.md
+!/reports/experiments/README.md
+!/reports/experiments/experiment_log.csv
+!/reports/experiments/experiment_template.md
+!/reports/experiments/post_v1_results_summary.md
+!/reports/experiments/v1_to_post_v1_model_diff.md
+
+# Reviewed final reports and evidence: reports/tuning_20261004
+!/reports/tuning_20261004/assessment_report.md
+!/reports/tuning_20261004/cv_search_summary.csv
+!/reports/tuning_20261004/feature_selection_frequency.csv
+!/reports/tuning_20261004/fold_metrics.csv
+!/reports/tuning_20261004/history_segment_metrics.csv
+!/reports/tuning_20261004/independent_verification.json
+!/reports/tuning_20261004/model_seed_sensitivity.csv
+!/reports/tuning_20261004/negative_control_fold_metrics.csv
+!/reports/tuning_20261004/negative_control_summary.csv
+!/reports/tuning_20261004/paired_differences.csv
+!/reports/tuning_20261004/prior_protocol_comparison.csv
+!/reports/tuning_20261004/probability_acceptance.csv
+!/reports/tuning_20261004/provenance.json
+!/reports/tuning_20261004/reliability_bins.csv
+!/reports/tuning_20261004/selection_stability.csv
+!/reports/tuning_20261004/summary.csv
+!/reports/tuning_20261004/utility_sensitivity.csv
 
 # Power BI and Office temp files
 *.pbix.Backup
@@ -124,3 +169,47 @@ powerbi/**/PowerBICache/
 *.log
 logs/
 *.prof
+
+# Reviewed current portfolio presentation (exact final files only)
+!/reports/portfolio/case_study.md
+!/reports/portfolio/index.html
+!/reports/portfolio/metrics.csv
+!/reports/portfolio/metric_dictionary.csv
+!/reports/portfolio/provenance.json
+!/reports/portfolio/model_comparison.png
+!/reports/portfolio/model_comparison.svg
+!/reports/portfolio/risk_capture.png
+!/reports/portfolio/risk_capture.svg
+!/reports/portfolio/probability_reliability.png
+!/reports/portfolio/probability_reliability.svg
+!/reports/portfolio/search_comparison.png
+!/reports/portfolio/search_comparison.svg
+!/reports/portfolio/class_weighting.png
+!/reports/portfolio/class_weighting.svg
+
+# Reviewed final anonymous class-weighting diagnostic
+!/reports/class_weighting_20261004/assessment_report.md
+!/reports/class_weighting_20261004/fold_metrics.csv
+!/reports/class_weighting_20261004/summary.csv
+!/reports/class_weighting_20261004/paired_differences.csv
+!/reports/class_weighting_20261004/provenance.json
+
+# Reviewed frozen-model behavior diagnostic: anonymous final files only
+!/reports/model_inputs_20261004/fold_importance.csv
+!/reports/model_inputs_20261004/importance_summary.csv
+!/reports/model_inputs_20261004/input_dictionary.csv
+!/reports/model_inputs_20261004/provenance.json
+!/reports/model_inputs_20261004/methods.md
+
+# Reviewed final presentation extensions
+!/reports/portfolio/installment_segments.png
+!/reports/portfolio/installment_segments.svg
+!/reports/portfolio/utility_sensitivity.png
+!/reports/portfolio/utility_sensitivity.svg
+!/reports/portfolio/model_inputs.png
+!/reports/portfolio/model_inputs.svg
+!/reports/portfolio/model_input_dictionary.csv
+!/reports/portfolio/model_input_summary.csv
+!/reports/portfolio/model_input_fold_importance.csv
+!/reports/portfolio/model_input_provenance.json
+!/reports/portfolio/model_input_methods.md

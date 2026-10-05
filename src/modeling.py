@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
+from src.config import is_post_v1_scope
 from src.metrics import probability_metrics, target_class_values, validate_probabilities
 from src.runtime import feature_frame, sql_identifier
 
@@ -46,7 +47,7 @@ def load_labeled_training_frame(
     frame = connection.execute(query).fetch_df()
     if frame.empty:
         raise error_cls("No labeled application_train rows are available for training")
-    target_values = target_class_values(frame["TARGET"], dropna=True)
+    target_values = target_class_values(frame["TARGET"], error_cls=error_cls)
     if target_values != {0, 1}:
         raise error_cls(
             f"Training TARGET must contain both binary classes, got {sorted(target_values)}"
@@ -59,6 +60,7 @@ def split_labeled_frame(
     config: dict[str, Any],
     random_seed: int,
     error_cls: type[Exception] = ValueError,
+    frozen_test_ids: list[int] | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Create stratified train, validation, and test splits."""
     split_config = config["split"]
@@ -69,26 +71,57 @@ def split_labeled_frame(
         raise error_cls("Validation and test split sizes must be positive")
 
     # Split in two stratified stages so validation and test keep the configured proportions.
-    train_frame, holdout_frame = train_test_split(
-        frame,
-        test_size=holdout_size,
-        stratify=frame["TARGET"].astype(int),
-        random_state=random_seed,
-    )
-    validation_test_ratio = test_size / holdout_size
-    validation_frame, test_frame = train_test_split(
-        holdout_frame,
-        test_size=validation_test_ratio,
-        stratify=holdout_frame["TARGET"].astype(int),
-        random_state=random_seed,
-    )
+    try:
+        train_frame, holdout_frame = train_test_split(
+            frame,
+            test_size=holdout_size,
+            stratify=frame["TARGET"].astype(int),
+            random_state=random_seed,
+        )
+        validation_frame, test_frame = train_test_split(
+            holdout_frame,
+            test_size=test_size / holdout_size,
+            stratify=holdout_frame["TARGET"].astype(int),
+            random_state=random_seed,
+        )
+        if frozen_test_ids is not None and set(test_frame["SK_ID_CURR"]) != set(
+            frozen_test_ids
+        ):
+            test_frame = frame.loc[frame["SK_ID_CURR"].isin(frozen_test_ids)]
+            if set(test_frame["SK_ID_CURR"]) != set(frozen_test_ids):
+                raise error_cls(
+                    "Saved comparison IDs do not reconcile to the training population"
+                )
+            development = frame.loc[~frame["SK_ID_CURR"].isin(frozen_test_ids)]
+            train_frame, validation_frame = train_test_split(
+                development,
+                test_size=validation_size / (1 - test_size),
+                stratify=development["TARGET"].astype(int),
+                random_state=random_seed,
+            )
+        calibration_frame = None
+        if is_post_v1_scope(config):
+            calibration_frame, validation_frame = train_test_split(
+                validation_frame,
+                test_size=0.5,
+                stratify=validation_frame["TARGET"].astype(int),
+                random_state=random_seed,
+            )
+    except ValueError as error:
+        raise error_cls(
+            f"Cannot create disjoint stratified model roles: {error}"
+        ) from error
     split_frames = {
         "train": train_frame.sort_values("SK_ID_CURR").reset_index(drop=True),
         "validation": validation_frame.sort_values("SK_ID_CURR").reset_index(drop=True),
         "test": test_frame.sort_values("SK_ID_CURR").reset_index(drop=True),
     }
+    if calibration_frame is not None:
+        split_frames["calibration"] = calibration_frame.sort_values(
+            "SK_ID_CURR"
+        ).reset_index(drop=True)
     for split_name, split_frame in split_frames.items():
-        split_targets = target_class_values(split_frame["TARGET"])
+        split_targets = target_class_values(split_frame["TARGET"], error_cls=error_cls)
         if split_targets != {0, 1}:
             raise error_cls(f"{split_name} split must contain both target classes")
     return split_frames
@@ -115,7 +148,7 @@ class LightGBMFeatureNameSanitizer(BaseEstimator, TransformerMixin):
 
     def fit(
         self, transformed_features: Any, y: Any = None
-    ) -> "LightGBMFeatureNameSanitizer":
+    ) -> LightGBMFeatureNameSanitizer:
         column_count = int(transformed_features.shape[1])
         self.feature_names_out_ = [f"feature_{index}" for index in range(column_count)]
         return self
@@ -257,9 +290,10 @@ def lightgbm_params(
         "learning_rate": 0.05,
         "num_leaves": 31,
         "subsample": 0.9,
+        "subsample_freq": 1,
         "colsample_bytree": 0.9,
         "random_state": random_seed,
-        "n_jobs": -1,
+        "n_jobs": config.get("resources", {}).get("model_threads", 4),
         "verbosity": -1,
     }
     if config["model"]["use_class_weighting"]:
@@ -280,6 +314,12 @@ def fit_tuned_lightgbm(
     error_cls: type[Exception] = ValueError,
 ) -> dict[str, Any]:
     """Train bounded LightGBM candidates and select the best validation model."""
+    from src.tuning import joint_search, uses_inner_cv
+
+    if uses_inner_cv(config):
+        return joint_search(
+            config, split_frames["train"], feature_columns, manual_review_capacity_rate
+        )
     tuning_config = config["model"].get("lightgbm_tuning", {})
     tuning_enabled = bool(tuning_config.get("enabled", True))
     max_candidates = int(tuning_config.get("max_candidates", 8))
@@ -389,7 +429,17 @@ def build_lightgbm_tuning_artifact(tuning_result: dict[str, Any]) -> dict[str, A
             "validation_selection_score": selected["validation_selection_score"],
             "validation_metrics": selected["validation_metrics"],
             "params": selected["params"],
+            **{
+                key: selected[key]
+                for key in ("feature_set", "probability_accepted", "weight_fraction")
+                if key in selected
+            },
         },
+        **(
+            {"search_evidence": tuning_result["search_evidence"]}
+            if "search_evidence" in tuning_result
+            else {}
+        ),
     }
 
 

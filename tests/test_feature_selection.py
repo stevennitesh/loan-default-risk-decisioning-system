@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from src.feature_experiments import ranked_raw_features
+from src import feature_experiments
+from src.feature_experiments import (
+    FeatureExperimentError,
+    prepare_feature_set_specs,
+    ranked_raw_features,
+)
 from src.feature_selection import run_feature_selection_experiment
 from src.report_contracts import FEATURE_SELECTION_COMPARISON_COLUMNS
 from src.train import run_training
@@ -17,6 +22,65 @@ from tests.helpers import (
 pytestmark = pytest.mark.filterwarnings(
     "ignore:X does not have valid feature names.*:UserWarning"
 )
+
+
+def test_full_only_experiment_does_not_require_a_shap_ranking(
+    scratch_path: Path, project_config_path: Path
+) -> None:
+    create_training_database(scratch_path / "db" / "credit_risk.duckdb", train_rows=80)
+    run_training(project_config_path)
+    assert not (scratch_path / "reports" / "model_feature_importance.csv").exists()
+    result = run_feature_selection_experiment(
+        project_config_path, feature_limits=(), include_full=True
+    )
+    assert result["selected_feature_set"] == "full"
+
+
+def test_empty_experiment_request_fails_without_loading_shap(
+    scratch_path: Path,
+) -> None:
+    with pytest.raises(FeatureExperimentError, match="At least one feature set"):
+        prepare_feature_set_specs(scratch_path, ["feature"], (), False)
+
+
+def test_flat_calibrated_scores_do_not_change_raw_score_policy(
+    scratch_path: Path,
+    project_config_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    create_training_database(scratch_path / "db" / "credit_risk.duckdb", train_rows=80)
+    run_training(project_config_path)
+    original_apply = feature_experiments.apply_calibration_method
+
+    def apply_with_flat_isotonic(method: str, *args, **kwargs):
+        predictions = original_apply(method, *args, **kwargs)
+        if method == "isotonic":
+            return {
+                name: frame.assign(probability=0.25)
+                for name, frame in predictions.items()
+            }
+        return predictions
+
+    baseline = run_feature_selection_experiment(
+        project_config_path, feature_limits=(), include_full=True
+    )["comparison_rows"][0]
+    monkeypatch.setattr(
+        feature_experiments, "apply_calibration_method", apply_with_flat_isotonic
+    )
+    monkeypatch.setattr(
+        feature_experiments,
+        "select_calibration_method",
+        lambda *args, **kwargs: "isotonic",
+    )
+    flat = run_feature_selection_experiment(
+        project_config_path, feature_limits=(), include_full=True
+    )["comparison_rows"][0]
+
+    assert flat["selected_calibration_method"] == "isotonic"
+    for split in ("validation", "test"):
+        assert flat[f"{split}_balanced_ev_per_applicant"] == pytest.approx(
+            baseline[f"{split}_balanced_ev_per_applicant"]
+        )
 
 
 def test_ranked_raw_features_maps_readable_shap_labels_to_model_columns() -> None:

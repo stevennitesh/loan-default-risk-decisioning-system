@@ -1,4 +1,18 @@
 -- Collapse bureau credit history to applicant grain before mart joins.
+-- A historical loan origin must precede application day. Planned future
+-- maturities are known contract information and remain available on eligible
+-- loans. Unknown/day-zero origins are not proven prior history.
+CREATE OR REPLACE TABLE n_eligible_bureau AS
+SELECT * FROM stg_bureau WHERE ISFINITE(DAYS_CREDIT) AND DAYS_CREDIT < 0;
+
+CREATE OR REPLACE TABLE bureau_origin_coverage AS
+SELECT SK_ID_CURR, COUNT(*) AS source_loan_count,
+    COUNT(*) FILTER (WHERE ISFINITE(DAYS_CREDIT) AND DAYS_CREDIT < 0) AS eligible_loan_count,
+    COUNT(*) FILTER (WHERE DAYS_CREDIT = 0) AS day_zero_loan_count,
+    COUNT(*) FILTER (WHERE DAYS_CREDIT > 0 AND ISFINITE(DAYS_CREDIT)) AS positive_origin_loan_count,
+    COUNT(*) FILTER (WHERE DAYS_CREDIT IS NULL OR NOT ISFINITE(DAYS_CREDIT)) AS unknown_origin_loan_count
+FROM stg_bureau GROUP BY SK_ID_CURR;
+
 CREATE OR REPLACE TABLE f_bureau_agg AS
 SELECT
     SK_ID_CURR,
@@ -17,5 +31,5 @@ SELECT
     MAX(DAYS_CREDIT) AS latest_days_credit,
     AVG(DAYS_CREDIT_ENDDATE) AS avg_days_credit_enddate,
     AVG(DAYS_ENDDATE_FACT) AS avg_days_enddate_fact
-FROM stg_bureau
+FROM n_eligible_bureau
 GROUP BY SK_ID_CURR;

@@ -15,7 +15,9 @@ from src.model_artifacts import (
     load_calibration_artifact,
     load_selected_model_artifact,
     load_selected_model_type,
+    require_reporting_identity,
     uncalibrated_calibration_artifact,
+    validate_feature_build,
 )
 from src.model_contracts import (
     LIGHTGBM_MODEL_TYPE,
@@ -116,14 +118,38 @@ def run_dashboard_export(
             MODEL_ARTIFACTS,
             error_cls=DashboardExportError,
         )
-        calibration_artifact = (
-            load_calibration_artifact(
-                model_dir,
-                artifact,
-                CALIBRATION_ARTIFACT_NAME,
-                LIGHTGBM_MODEL_TYPE,
-                error_cls=DashboardExportError,
+        validate_feature_build(connection, artifact, error_cls=DashboardExportError)
+        require_reporting_identity(
+            connection,
+            "evaluation_run_identity",
+            artifact,
+            error_cls=DashboardExportError,
+        )
+        require_reporting_identity(
+            connection, "scoring_run_identity", artifact, error_cls=DashboardExportError
+        )
+        saved_calibration = load_calibration_artifact(
+            model_dir,
+            artifact,
+            CALIBRATION_ARTIFACT_NAME,
+            LIGHTGBM_MODEL_TYPE,
+            error_cls=DashboardExportError,
+        )
+        if "calibration_run_id" not in table_columns(
+            connection, "scoring_run_identity"
+        ):
+            raise DashboardExportError(
+                "Scoring identity lacks calibration lineage; rerun scoring"
             )
+        scored_calibration = connection.execute(
+            "SELECT calibration_run_id FROM scoring_run_identity"
+        ).fetchall()
+        if scored_calibration != [(saved_calibration["calibration_run_id"],)]:
+            raise DashboardExportError(
+                "Scored calibration does not match the saved calibrator; rerun scoring"
+            )
+        calibration_artifact = (
+            saved_calibration
             if use_calibrated_probability_quality
             else uncalibrated_calibration_artifact()
         )

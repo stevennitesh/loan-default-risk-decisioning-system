@@ -19,9 +19,19 @@ WITH bureau_status_delta AS (
             END
         ) AS bureau_balance_recent_status_delta
     FROM stg_bureau_balance AS balance
-    INNER JOIN stg_bureau AS bureau
+    INNER JOIN n_eligible_bureau AS bureau
         ON balance.SK_ID_BUREAU = bureau.SK_ID_BUREAU
+    WHERE balance.MONTHS_BALANCE <= -1
     GROUP BY bureau.SK_ID_CURR
+),
+pos_cash_pairs AS (
+    SELECT SK_ID_CURR, MONTHS_BALANCE,
+        CASE WHEN CNT_INSTALMENT > 0 AND CNT_INSTALMENT_FUTURE >= 0
+            THEN CNT_INSTALMENT END AS installment_count,
+        CASE WHEN CNT_INSTALMENT > 0 AND CNT_INSTALMENT_FUTURE >= 0
+            THEN CNT_INSTALMENT_FUTURE END AS future_count
+    FROM stg_pos_cash_balance
+    WHERE MONTHS_BALANCE <= -1
 ),
 pos_cash_installment_delta AS (
     -- Compare recent remaining-installment burden with the applicant's full POS history.
@@ -30,22 +40,22 @@ pos_cash_installment_delta AS (
         (
             SUM(
                 CASE
-                    WHEN MONTHS_BALANCE >= -12 THEN CNT_INSTALMENT_FUTURE
+                    WHEN MONTHS_BALANCE >= -12 THEN future_count
                     ELSE 0
                 END
             ) / NULLIF(
                 SUM(
                     CASE
-                        WHEN MONTHS_BALANCE >= -12 THEN CNT_INSTALMENT
+                        WHEN MONTHS_BALANCE >= -12 THEN installment_count
                         ELSE 0
                     END
                 ),
                 0
             )
         ) - (
-            SUM(CNT_INSTALMENT_FUTURE) / NULLIF(SUM(CNT_INSTALMENT), 0)
+            SUM(future_count) / NULLIF(SUM(installment_count), 0)
         ) AS pos_cash_remaining_installment_ratio_delta
-    FROM stg_pos_cash_balance
+    FROM pos_cash_pairs
     GROUP BY SK_ID_CURR
 ),
 credit_card_months AS (
@@ -55,14 +65,19 @@ credit_card_months AS (
         MONTHS_BALANCE,
         AMT_BALANCE,
         AMT_DRAWINGS_CURRENT,
+        CASE WHEN AMT_BALANCE>=0 AND AMT_CREDIT_LIMIT_ACTUAL>0 THEN AMT_CREDIT_LIMIT_ACTUAL END AS eligible_limit,
+        CASE WHEN AMT_BALANCE>=0 AND AMT_CREDIT_LIMIT_ACTUAL>0 THEN AMT_BALANCE END AS eligible_balance,
         AMT_BALANCE / NULLIF(AMT_CREDIT_LIMIT_ACTUAL, 0) AS credit_utilization
     FROM stg_credit_card_balance
+    WHERE MONTHS_BALANCE <= -1
 ),
 credit_card_delta AS (
     SELECT
         SK_ID_CURR,
-        AVG(CASE WHEN MONTHS_BALANCE >= -12 THEN credit_utilization END)
-            - AVG(credit_utilization) AS credit_card_recent_utilization_delta,
+        SUM(eligible_balance) FILTER (WHERE MONTHS_BALANCE>=-12)
+            / NULLIF(SUM(eligible_limit) FILTER (WHERE MONTHS_BALANCE>=-12), 0)
+            - SUM(eligible_balance)/NULLIF(SUM(eligible_limit), 0)
+            AS credit_card_recent_utilization_delta,
         AVG(CASE WHEN MONTHS_BALANCE >= -12 THEN AMT_BALANCE END)
             / NULLIF(AVG(AMT_BALANCE), 0)
             - 1 AS credit_card_recent_balance_ratio_delta,

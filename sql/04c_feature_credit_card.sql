@@ -20,6 +20,18 @@ WITH credit_card AS (
         -- Use NULLIF so zero-limit records do not create infinite utilization.
         AMT_BALANCE / NULLIF(AMT_CREDIT_LIMIT_ACTUAL, 0) AS credit_utilization
     FROM stg_credit_card_balance
+    WHERE MONTHS_BALANCE <= -1
+), months AS (
+    SELECT SK_ID_CURR, MONTHS_BALANCE,
+        CASE WHEN MAX(SK_DPD)>0 THEN 1
+            WHEN COUNT(SK_DPD)=COUNT(*) AND MIN(SK_DPD)>=0 THEN 0 END AS dpd,
+        CASE WHEN MAX(SK_DPD_DEF)>0 THEN 1
+            WHEN COUNT(SK_DPD_DEF)=COUNT(*) AND MIN(SK_DPD_DEF)>=0 THEN 0 END AS dpd_def
+    FROM credit_card GROUP BY SK_ID_CURR, MONTHS_BALANCE
+), rates AS (
+    SELECT SK_ID_CURR, AVG(dpd) AS dpd_rate, AVG(dpd_def) AS dpd_def_rate,
+        AVG(dpd) FILTER (WHERE MONTHS_BALANCE>=-12) AS recent_dpd_rate
+    FROM months GROUP BY SK_ID_CURR
 )
 SELECT
     SK_ID_CURR,
@@ -43,18 +55,23 @@ SELECT
     MAX(AMT_BALANCE) AS credit_card_max_balance,
     AVG(AMT_CREDIT_LIMIT_ACTUAL) AS credit_card_avg_credit_limit,
     MAX(AMT_CREDIT_LIMIT_ACTUAL) AS credit_card_max_credit_limit,
-    SUM(AMT_BALANCE) / NULLIF(SUM(AMT_CREDIT_LIMIT_ACTUAL), 0)
+    SUM(AMT_BALANCE) FILTER (WHERE AMT_BALANCE>=0 AND AMT_CREDIT_LIMIT_ACTUAL>0)
+        / NULLIF(SUM(AMT_CREDIT_LIMIT_ACTUAL) FILTER (WHERE AMT_BALANCE>=0 AND AMT_CREDIT_LIMIT_ACTUAL>0), 0)
         AS credit_card_balance_to_limit_ratio,
-    AVG(credit_utilization) AS credit_card_avg_credit_utilization,
+    SUM(AMT_BALANCE) FILTER (WHERE AMT_BALANCE>=0 AND AMT_CREDIT_LIMIT_ACTUAL>0)
+        / NULLIF(SUM(AMT_CREDIT_LIMIT_ACTUAL) FILTER (WHERE AMT_BALANCE>=0 AND AMT_CREDIT_LIMIT_ACTUAL>0), 0)
+        AS credit_card_avg_credit_utilization,
     AVG(AMT_DRAWINGS_CURRENT) AS credit_card_avg_drawings_current,
     SUM(AMT_DRAWINGS_CURRENT) AS credit_card_total_drawings_current,
     AVG(CNT_DRAWINGS_CURRENT) AS credit_card_avg_drawing_count,
     SUM(CNT_DRAWINGS_CURRENT) AS credit_card_total_drawing_count,
     AVG(AMT_TOTAL_RECEIVABLE) AS credit_card_avg_total_receivable,
     SUM(AMT_TOTAL_RECEIVABLE) AS credit_card_total_receivable,
-    SUM(AMT_PAYMENT_CURRENT) / NULLIF(SUM(AMT_INST_MIN_REGULARITY), 0)
+    SUM(AMT_PAYMENT_CURRENT) FILTER (WHERE AMT_PAYMENT_CURRENT>=0 AND AMT_INST_MIN_REGULARITY>0)
+        / NULLIF(SUM(AMT_INST_MIN_REGULARITY) FILTER (WHERE AMT_PAYMENT_CURRENT>=0 AND AMT_INST_MIN_REGULARITY>0), 0)
         AS credit_card_payment_to_min_ratio,
-    SUM(AMT_PAYMENT_TOTAL_CURRENT) / NULLIF(SUM(AMT_INST_MIN_REGULARITY), 0)
+    SUM(AMT_PAYMENT_TOTAL_CURRENT) FILTER (WHERE AMT_PAYMENT_TOTAL_CURRENT>=0 AND AMT_INST_MIN_REGULARITY>0)
+        / NULLIF(SUM(AMT_INST_MIN_REGULARITY) FILTER (WHERE AMT_PAYMENT_TOTAL_CURRENT>=0 AND AMT_INST_MIN_REGULARITY>0), 0)
         AS credit_card_total_payment_to_min_ratio,
     MAX(MONTHS_BALANCE) AS credit_card_latest_month,
     MIN(MONTHS_BALANCE) AS credit_card_earliest_month,
@@ -67,16 +84,12 @@ SELECT
     ) AS credit_card_recent_dpd_month_count,
     SUM(CASE WHEN contract_status = 'completed' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)
         AS credit_card_completed_month_rate,
-    SUM(CASE WHEN SK_DPD > 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)
+    MAX(rates.dpd_rate)
         AS credit_card_dpd_month_rate,
-    SUM(CASE WHEN SK_DPD_DEF > 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)
+    MAX(rates.dpd_def_rate)
         AS credit_card_dpd_def_month_rate,
-    SUM(
-        CASE
-            WHEN MONTHS_BALANCE >= -12 AND SK_DPD > 0 THEN 1
-            ELSE 0
-        END
-    ) / NULLIF(SUM(CASE WHEN MONTHS_BALANCE >= -12 THEN 1 ELSE 0 END), 0)
+    MAX(rates.recent_dpd_rate)
         AS credit_card_recent_dpd_month_rate
 FROM credit_card
+LEFT JOIN rates USING (SK_ID_CURR)
 GROUP BY SK_ID_CURR;

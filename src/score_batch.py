@@ -23,6 +23,8 @@ from src.model_artifacts import (
     load_selected_model_artifact,
     load_selected_model_type,
     normalize_split_ids,
+    require_reporting_identity,
+    validate_feature_build,
 )
 from src.model_contracts import (
     LIGHTGBM_MODEL_TYPE,
@@ -42,7 +44,7 @@ from src.thresholding import BALANCED_SCENARIO, assign_risk_bands
 ACTION_LABELS = {
     "approve": ("low_risk", "approve"),
     "manual_review": ("medium_risk", "manual_review"),
-    "high_risk": ("high_risk", "high_priority_review"),
+    "high_risk": ("high_risk", "simulated_decline"),
 }
 
 
@@ -70,6 +72,11 @@ def run_scoring(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
             selected_model_type,
             MODEL_ARTIFACTS,
             error_cls=ScoringError,
+        )
+        validate_feature_build(connection, artifact, error_cls=ScoringError)
+        require_table(connection, "model_threshold_metrics", error_cls=ScoringError)
+        require_reporting_identity(
+            connection, "evaluation_run_identity", artifact, error_cls=ScoringError
         )
         calibration_artifact = load_calibration_artifact(
             model_dir,
@@ -120,6 +127,17 @@ def run_scoring(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
         _validate_output_rows(score_rows)
         replace_duckdb_table(
             connection, "credit_risk_scores", score_rows, CREDIT_RISK_SCORE_COLUMNS
+        )
+        replace_duckdb_table(
+            connection,
+            "scoring_run_identity",
+            [
+                {
+                    "model_run_id": artifact["run_id"],
+                    "model_version": artifact["model_version"],
+                    "calibration_run_id": calibration_artifact["calibration_run_id"],
+                }
+            ],
         )
 
     return {

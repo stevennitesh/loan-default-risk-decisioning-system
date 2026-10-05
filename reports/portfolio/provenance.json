@@ -1,0 +1,72 @@
+{
+  "purpose": "Presentation only; no model fitting or scientific evidence replacement",
+  "assessment_run_id": "b45cb7fb871d4322bfdbb52e6e8d1d38",
+  "protocol": "nested_inner_cv_v3",
+  "assessment_config_sha256": "0b3f8cde14c0c613af424949773a5e4f4721f565fb85a06b5915017fd3610842",
+  "source_aggregates_sha256": {
+    "summary.csv": "eb32ae29ce41686be4c4c0f5e6a31c440dc33f221901cdb00e95b5142d954d0f",
+    "fold_metrics.csv": "a4a389c135976ec20a86c4a384401c4477650493b8631205d6f8b1e3bf31a4b9",
+    "reliability_bins.csv": "ed4e3b436264ee8c9ce1931c6b0d5090f4ed1a566c3fb683933d159723c17bba",
+    "prior_protocol_comparison.csv": "7bf41bddd651dc738a2410ab8f4d4be4feca3eb98cd9318b87802a8727f4528c",
+    "negative_control_summary.csv": "7fa5126ac61b85c1c9cd3511b6ec400b5612750c7e5c0035fede5615ed9f295d",
+    "selection_stability.csv": "113d6080ddf543a787a4e9a8c5fb40cb75896d485a9b77f75302506486083c31",
+    "history_segment_metrics.csv": "995182150091fd4fdc766bcb39bb561e3979d59c9072fbaabbd3b3c2ee0b38b0",
+    "utility_sensitivity.csv": "b9f818fa00cafd0d0fc71609e118fef3eb80c88e1e6571f533949425e2b8476f",
+    "provenance.json": "5567af8dcd0a50aebc8faa1a7606f1e3981bcb0531d97424569562dd11c16bef"
+  },
+  "weighting_run_id": "342d45efab0b405490cffc8e95b2be53",
+  "model_input_assessment_run_id": "b45cb7fb871d4322bfdbb52e6e8d1d38",
+  "model_input_aggregates_sha256": {
+    "fold_importance.csv": "3f012f52767061c01a7c4ad0332320098562d04165911267eb80073568084dbe",
+    "importance_summary.csv": "050417c68449ac5e8b8a48eef682f9c70776cd10b09bd67789a37b5d7ead36fd",
+    "input_dictionary.csv": "affe94d33575f09bbb02a8a95f79376eb3ab749a8c681e9a0bc9df2b8d3a6c27",
+    "provenance.json": "74a7a43cd8bd5cc672142d90d9f6b1b47b6db892a0acef4460df2e182034eaf5",
+    "methods.md": "c46e265ad6314165cfb981c2a61ffba07ae8f6756a3caa1d14357698cacbc726"
+  },
+  "weighting_aggregates_sha256": {
+    "fold_metrics.csv": "7379080a9167c813d912981b3408833aeeca35ce7b56171aa760db7b1fd5b4a5",
+    "summary.csv": "1f4d3a67ddd6552a75be51502faf9ccb5a232ac2666dd295fbdd3bc9ad85427c",
+    "paired_differences.csv": "3001a867ef7496db0f5940525860b2f0bfaa19d34c366044c275c1cbcb670daf",
+    "provenance.json": "360e9cd2174f175a529dad553cdedc26dd81c7b73b029c9e9e2c8e44a83c4e9e"
+  },
+  "renderer_sha256": {
+    "src/portfolio_report.py": "030a128335d0cf92d976ba2f03aaf8f273dcb80c4e7439078acbbb674648804e",
+    "src/portfolio_extensions.py": "b34c3b974e3510d71eed1b0878fd6f99a6590ef168ab07caca58af5437725c55",
+    "src/class_weighting_report.py": "fc3779719db550309c20c856c38563d916bf8afad84ff2a5e11b8946e3415428",
+    "src/presentation.py": "824ae94e05a1144e94b397d36de09b54cef7e636d0e49e655ab2d33dcfed2a4e",
+    "src/evaluation_reports.py": "301b26a31c100cc3d7d296a74fb11f5b2fc53b22f6c39b7d5ed7b2100ef73749",
+    "src/nested_assessment.py": "ad3138e0133a9f2ef1e1d373d5a1aac9f3f08b8aefcee00f6e394161442ebbbc",
+    "src/feature_selection.py": "7601f5e13f5555595430ce6d898f082ceed35b3a62214a4af8d052941fe8e303",
+    "src/model_stability.py": "bf7a486bbcfd6f8ecefa6ee89f3d312ff1f1a7feb2d3c038a673cad3ba61a716",
+    "src/correctness_summary.py": "752dc45ae56d5bec6fe2d4307aa60f7cc829e5cc2d379e4d22ed234bd3eb5e3c",
+    "src/tuning_summary.py": "2781b66f5e25b199a3a81f9fca2a9926d8e96ba8025e6a018842d66f6e45f2d8",
+    "src/explain.py": "fb0ca4be92836b9eab74e3e5372609dec6974be7939c707dabaaa07e160571ca"
+  },
+  "outputs_sha256": {
+    "case_study.md": "e32aed4b07585fca89f81a22658284167129f1eebcbb7d00367d4ed5ee00dfcf",
+    "class_weighting.png": "878d8a9de979f330c5d5e3785783ec1d1aeeedd9f53942cb7bce6bbf7f057fad",
+    "class_weighting.svg": "b8015636b4cb2037c760a1bf4d14136cce1c9ef3d8504e1c02214828cb523f87",
+    "index.html": "6b83121a491f055e4f3852956412e596c3ea3df1471b63af8de4693566ec007a",
+    "installment_segments.png": "53813ea3de339a09f586a9b87e8682eb6136961c862a2b7e6dc3007c90eef2eb",
+    "installment_segments.svg": "47c4336fa8a56bfc01b6c03eaf61af4f56df211a8850fe92368ca0ef7a618a4e",
+    "metrics.csv": "9c986adf315c4414126a0ba8792e5bad7f78564038d61d2aab5f1d26ff01ca07",
+    "metric_dictionary.csv": "c7e9eac4e3f684632dfc9276b196ad555281089bde60f3097b9fda3f2fa26768",
+    "model_comparison.png": "c63d7164304fad7a1e5f4eadcdc35678dbc0a7fb129bf094a1f3990ebce0aeb1",
+    "model_comparison.svg": "6accd233f004b4836fae7a9e16852a683716d7f08d21390b0e8cf693c7d764ee",
+    "model_inputs.png": "1b23b967d6a54170cc8ac1bd7a2473c93a5ee46b374af6853cd652e0e22fe21d",
+    "model_inputs.svg": "5c039acfe78e9b176d87eb356d6cd92ceab38694774649e11fa55c210bbda84a",
+    "model_input_dictionary.csv": "affe94d33575f09bbb02a8a95f79376eb3ab749a8c681e9a0bc9df2b8d3a6c27",
+    "model_input_fold_importance.csv": "3f012f52767061c01a7c4ad0332320098562d04165911267eb80073568084dbe",
+    "model_input_methods.md": "c46e265ad6314165cfb981c2a61ffba07ae8f6756a3caa1d14357698cacbc726",
+    "model_input_provenance.json": "74a7a43cd8bd5cc672142d90d9f6b1b47b6db892a0acef4460df2e182034eaf5",
+    "model_input_summary.csv": "050417c68449ac5e8b8a48eef682f9c70776cd10b09bd67789a37b5d7ead36fd",
+    "probability_reliability.png": "81559918f6e3829f97f69ee6bce7deb5670bbec19ec10bd9b8d13b458a0f4039",
+    "probability_reliability.svg": "a732afb13bfcb3081930178d4439ad1b7d59a4d96107f4d35e5abb42670f312c",
+    "risk_capture.png": "363aae2bb6199641f9537f3ef7ade013e5d878f62fa5cfef90f92f3ddcbc371d",
+    "risk_capture.svg": "e96b7f3ab9061a4aa0a5029a15c4d86ea51647125da0a33ac3ab15d67a0ae786",
+    "search_comparison.png": "b7c7ba2cd608614aadaf5b4b1255de962960bc51bd6afb3120c2c2d917591dda",
+    "search_comparison.svg": "6281dba3ff3c71b9dc08aaf6d4d39c12ad00287fda9a7486861b6c176948b0fe",
+    "utility_sensitivity.png": "2f21bbe773cae6a8801fba2f905fccd425fb0aa1c17546bfea117e8a2894317d",
+    "utility_sensitivity.svg": "eb65bbeacabd825f6f681d94b3aff0d46635debe93a9960692c60e6c7a46238c"
+  }
+}

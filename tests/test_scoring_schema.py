@@ -22,7 +22,7 @@ from tests.helpers import (
 )
 
 VALID_RISK_BANDS = {"low_risk", "medium_risk", "high_risk"}
-VALID_ACTIONS = {"approve", "manual_review", "high_priority_review"}
+VALID_ACTIONS = {"approve", "manual_review", "simulated_decline"}
 
 
 def test_scoring_fails_clearly_without_model_selection(
@@ -303,7 +303,7 @@ def test_run_scoring_creates_credit_risk_scores_for_holdout_and_kaggle_populatio
                     risk_band = 'medium_risk' AND recommended_action = 'manual_review'
                ))
                OR (score >= ? AND NOT (
-                    risk_band = 'high_risk' AND recommended_action = 'high_priority_review'
+                    risk_band = 'high_risk' AND recommended_action = 'simulated_decline'
                ))
             """,
                 [threshold_low, threshold_low, threshold_high, threshold_high],

@@ -125,6 +125,23 @@ def project_random_seed(config: dict[str, Any]) -> int:
     return int(config["project"]["random_seed"])
 
 
+def project_split_seed(config: dict[str, Any]) -> int:
+    """Read partition randomness independently of model randomness."""
+    return _project_seed(config, "split_seed")
+
+
+def project_model_seed(config: dict[str, Any]) -> int:
+    """Read model randomness independently of partition randomness."""
+    return _project_seed(config, "model_seed")
+
+
+def _project_seed(config: dict[str, Any], name: str) -> int:
+    value = config["project"].get(name, config["project"]["random_seed"])
+    if type(value) is not int or not 0 <= value < 2**32:
+        raise ConfigError(f"project.{name} must be an integer in [0, 2**32)")
+    return value
+
+
 def business_assumptions(config: dict[str, Any]) -> dict[str, Any]:
     """Return the business-value assumptions from the validated config."""
     return config["business_assumptions"]

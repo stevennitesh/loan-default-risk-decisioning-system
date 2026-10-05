@@ -13,8 +13,9 @@ WITH balance_status AS (
             ELSE NULL
         END AS numeric_status
     FROM stg_bureau_balance AS balance
-    INNER JOIN stg_bureau AS bureau
+    INNER JOIN n_eligible_bureau AS bureau
         ON balance.SK_ID_BUREAU = bureau.SK_ID_BUREAU
+    WHERE balance.MONTHS_BALANCE <= -1
 )
 SELECT
     SK_ID_CURR,
@@ -35,7 +36,7 @@ SELECT
     SUM(CASE WHEN MONTHS_BALANCE >= -12 THEN 1 ELSE 0 END) AS bureau_balance_recent_month_count,
     SUM(
         CASE
-            WHEN MONTHS_BALANCE >= -12 AND status_code <> 'X' THEN 1
+            WHEN MONTHS_BALANCE >= -12 AND status_code IN ('0','1','2','3','4','5','C') THEN 1
             ELSE 0
         END
     ) AS bureau_balance_recent_known_month_count,
@@ -45,9 +46,9 @@ SELECT
             ELSE 0
         END
     ) AS bureau_balance_recent_dpd_1plus_count,
-    SUM(CASE WHEN numeric_status >= 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)
+    SUM(CASE WHEN numeric_status >= 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*) FILTER (WHERE status_code IN ('0','1','2','3','4','5','C')), 0)
         AS bureau_balance_dpd_1plus_rate,
-    SUM(CASE WHEN numeric_status >= 2 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)
+    SUM(CASE WHEN numeric_status >= 2 THEN 1 ELSE 0 END) / NULLIF(COUNT(*) FILTER (WHERE status_code IN ('0','1','2','3','4','5','C')), 0)
         AS bureau_balance_dpd_2plus_rate,
     SUM(
         CASE
@@ -57,7 +58,7 @@ SELECT
     ) / NULLIF(
         SUM(
             CASE
-                WHEN MONTHS_BALANCE >= -12 AND status_code <> 'X' THEN 1
+                WHEN MONTHS_BALANCE >= -12 AND status_code IN ('0','1','2','3','4','5','C') THEN 1
                 ELSE 0
             END
         ),

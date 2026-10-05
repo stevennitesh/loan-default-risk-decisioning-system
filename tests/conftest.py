@@ -354,6 +354,7 @@ def create_staging_tables(database_path: Path) -> None:
                 SK_ID_PREV BIGINT,
                 SK_ID_CURR BIGINT,
                 NUM_INSTALMENT_NUMBER BIGINT,
+                NUM_INSTALMENT_VERSION BIGINT,
                 DAYS_INSTALMENT DOUBLE,
                 DAYS_ENTRY_PAYMENT DOUBLE,
                 AMT_INSTALMENT DOUBLE,
@@ -364,8 +365,8 @@ def create_staging_tables(database_path: Path) -> None:
         connection.execute(
             """
             INSERT INTO stg_installments_payments VALUES
-            (10, 100001, 1, -10, -8, 100, 90),
-            (10, 100001, 2, -5, -7, 100, 100),
-            (12, 100002, 1, -4, -1, 50, 25)
+            (10, 100001, 1, 1, -10, -8, 100, 90),
+            (10, 100001, 2, 1, -5, -7, 100, 100),
+            (12, 100002, 1, 1, -4, -1, 50, 25)
             """
         )

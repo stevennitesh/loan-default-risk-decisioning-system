@@ -100,6 +100,9 @@ def create_training_database(
     diagnostics["CNT_FAM_MEMBERS"] = 3
 
     with duckdb.connect(str(database_path)) as connection:
+        connection.execute(
+            "CREATE OR REPLACE TABLE feature_build_metadata AS SELECT 'synthetic_fixture' AS feature_build_id"
+        )
         _create_table_from_frame(connection, "stg_application_train", staging_train)
         _create_table_from_frame(connection, "stg_application_test", staging_test)
         _create_table_from_frame(

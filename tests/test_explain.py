@@ -172,7 +172,14 @@ def _create_lightgbm_training_state(database_path: Path, config_path: Path) -> N
             """
         )
     run_training(config_path)
+    artifact = joblib.load(
+        database_path.parents[1] / "models" / "lightgbm_credit_risk.joblib"
+    )
     with duckdb.connect(str(database_path)) as connection:
+        connection.execute(
+            "CREATE OR REPLACE TABLE evaluation_run_identity AS SELECT ? AS model_run_id, ? AS model_version",
+            [artifact["run_id"], artifact["model_version"]],
+        )
         connection.execute(
             "UPDATE model_comparison_summary SET selected_model_type = 'lightgbm'"
         )

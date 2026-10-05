@@ -1,9 +1,9 @@
 # Loan Default Risk Decisioning System — Implementation Plan
 
 **Version:** 0.1  
-**Status:** Historical build record and current command map; methodology repairs pending
+**Status:** Historical build record and current command map; bounded methodology corrections implemented
 **Owner:** Steven  
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-04
 **Aligned spec:** [PROJECT_SPEC.md](../spec/PROJECT_SPEC.md)
 
 ---
@@ -22,7 +22,7 @@ This document turns the project specification into an executable build plan. The
 
 The project should read as an applied financial decisioning system, not a notebook-only Kaggle exercise.
 
-The audience is recruiters and hiring managers. Milestones below preserve the original build sequence and intended gates; they are not an unexecuted setup queue or evidence that every correctness gate now passes. For current methodological limits, see [current evidence status](../validation/VALIDATION_PLAN.md#current-evidence-status). The separate [remediation plan](PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) proposes repairs that have not been implemented.
+The audience is recruiters and hiring managers. Milestones below preserve the original build sequence and intended gates; they are not an unexecuted setup queue or evidence that every correctness gate now passes. [Current evidence status](../validation/VALIDATION_PLAN.md#current-evidence-status) records the implemented methodology repairs and remaining limits. The separate [remediation plan](PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) retains broader proposed work.
 
 ---
 
@@ -142,6 +142,20 @@ requirements.txt or pyproject.toml
 - Config file parses successfully.
 
 ---
+
+## Named correctness command-to-artifact extension
+
+| Command | Output and boundary |
+|---|---|
+| `python -m src.correctness_run --config <fresh-scoped-config>` | Isolated ordered ingest/features/train/evaluate/calibrate (post-v1)/score/explain/export; phase manifest and logs. Seed the fresh model directory with the original scoped LightGBM artifact before fitting to preserve comparison IDs. |
+| `python -m src.source_reconciliation --config <scoped-config>` | Independent Python actual-source examples, full contracts, source coverage/availability counts, local row evidence and proof manifest. |
+| `python -m src.nested_assessment --config <scoped-config>` | Unique matched-fold history/prevalence/logistic/application-only artifacts, raw/calibrated metrics, reliability and frozen utility grid; no dashboard promotion. |
+| `python -m src.assessment_diagnostics --assessment-dir <complete-run>` | Frozen history-quality metrics and selection/feature stability; no fitting. |
+| `python -m src.assessment_reproduce --assessment-dir <complete-original-label-run>` | First declared fold complete history recipe refit in the chosen clean locked environment; settings/features/calibration/prediction comparison. |
+| `python -m src.correctness_summary --config <post-scope> --v1-config <v1-scope> --assessment-dir <run> --negative-control-dir <run>` | Verified anonymous aggregate report/CSV/PNG/HTML evidence under `reports/correctness_20261004/`; original PBIX/screenshots stay unchanged. |
+| `python -m src.verify_frozen_assessment --assessment-dir <run>` | Reload all fold/workflow joblibs, verify outer membership/exclusion and regenerate frozen raw/calibrated predictions without fitting. |
+
+CSV columns remain owned by `src/report_contracts.py`. Named `r2` configs record the strict bureau-origin correction; superseded partial evidence remains local. The README owns locked interpreter setup and exact scopes. `make assess-post-v1` remains the regular nested entry point; existing ordinary pipeline/export schemas are preserved.
 
 ## Milestone 1 — Data Ingestion and Parquet Conversion
 
@@ -657,13 +671,17 @@ The Makefile owns command behavior. Bare step targets use `configs/base.yaml` (p
 
 | Command | Primary outputs |
 |---|---|
+| `make portfolio` | case study, standalone offline HTML, PNG/SVG charts, aggregate metrics/dictionary and presentation hashes from committed anonymous evidence; no raw data or fitting |
+| `make portfolio-site` | exact reviewed static-file allowlist and hash verification; `.tmp/portfolio-site/` bundle for GitHub Pages; no data/model upload |
+| `make portfolio-inputs` | bounded target-blind native TreeSHAP diagnostic for five already frozen current models, anonymous final magnitudes/dictionary/provenance; read-only mart, no fitting |
 | `make setup` | dependency installation into the selected interpreter; does not create a virtual environment |
 | `make ingest` | Parquet files, DuckDB staging tables, ingestion summary |
-| `make features` | SQL feature tables, `mart_credit_risk_features`, feature profile |
-| `make train` | model artifacts, model run summary |
-| `make evaluate` | metrics, lift, calibration, threshold tables, validation figures |
-| `make score` | `credit_risk_scores` |
-| `make calibrate` | calibration comparison tables and selected calibration artifact |
+| `make features` | validated SQL feature tables and mart committed atomically, feature-build identity, feature profile |
+| `make train` | model artifacts bound to the feature build, role IDs/counts, fitted-run identity, model run summary |
+| `make evaluate` | raw metrics, lift, calibration bins, threshold tables, evaluation-run identity, figures/reports |
+| `make score` | `credit_risk_scores` and fitted-model/calibrator scoring identity; requires matching evaluation |
+| `make calibrate` | calibration comparison tables and parent-bound child artifact, fitted on reserved rows and selected on validation |
+| `make assess-post-v1` | separate nested LightGBM assessment run with fold/role manifest, selected artifacts, outer predictions/metrics, and readable explanation; does not update dashboard models |
 | `make explain` | SHAP feature importance and reason-code-style outputs |
 | `make dashboard-data` | exports existing v1 tables and recomputes segment diagnostics; no retraining |
 | `make dashboard-data-post-v1` | exports post-v1 tables with recomputed calibrated probability-quality metrics and diagnostics; no retraining |
@@ -706,7 +724,7 @@ segment_performance_summary
 
 ## 7. Definition of Done for v1
 
-The historical build was delivered around the following implementation requirements. A corrected evidence release additionally needs the pending validation gates; current artifact presence is not sufficient:
+The historical build was delivered around the following implementation requirements. Current corrected evidence is identified at the validation owner; artifact presence alone is not proof that a gate passed:
 
 - raw v1 Kaggle CSV files convert to Parquet;
 - DuckDB staging tables load successfully;
@@ -755,4 +773,15 @@ Completed post-v1 additions:
 2. Preserve the v1 and post-v1 command contracts in the Makefile as the main review interface.
 3. Use focused tests and validation reports to guard feature grain, leakage controls, scoring schema, and dashboard exports.
 4. Keep production extensions out of scope unless explicitly requested.
-5. Treat correctness repair as proposed work. Implement and verify each authorized repair before changing historical metrics or calling a new release validated.
+5. Read the validation owner and named correctness assessment for implemented repairs/evidence; retain this dated milestone sequence as history. Historical metrics stay preserved, and no native Power BI refresh is implied.
+
+## Current tuning commands and scopes
+
+`make assess-tuning` and `make assess-tuning-control` use named new configs,
+reading the corrected r2 mart and `paths.reference_model_dir` while writing new
+unique ignored assessment directories. `src/tuning.py` owns shared joint CV,
+stopping, fixed-round refit and logistic C search. Current training, feature
+selection, feature experiments, split stability and nested assessment consume
+that owner. Base/post-v1 configs explicitly choose `bounded_inner_cv`; historical
+r2 configs retain the pre-v3 interpretation. No r2 artifact or fingerprint is
+rewritten. See the methodology for artifacts and role boundaries.

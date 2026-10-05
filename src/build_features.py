@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import duckdb
 
@@ -25,6 +26,7 @@ from src.mart_access import (
 from src.report_contracts import FEATURE_PROFILE_COLUMNS
 from src.runtime import (
     REPO_ROOT,
+    configure_duckdb,
     created_at_utc,
     ensure_directories,
     resolve_config_path,
@@ -94,10 +96,32 @@ def run_feature_build(
     ensure_directories(report_dir, duckdb_path.parent)
 
     with duckdb.connect(str(duckdb_path)) as connection:
+        configure_duckdb(connection, config)
         _ensure_staging_tables(connection, config)
-        for sql_file in _feature_sql_files(config):
-            sql_path = REPO_ROOT / sql_file
-            connection.execute(sql_path.read_text(encoding="utf-8"))
+        if is_post_v1_scope(config):
+            for table in ("stg_pos_cash_balance", "stg_credit_card_balance"):
+                duplicates = connection.execute(
+                    f"SELECT 1 FROM {table} WHERE MONTHS_BALANCE <= -1 "
+                    "GROUP BY SK_ID_CURR, SK_ID_PREV, MONTHS_BALANCE HAVING COUNT(*) > 1 LIMIT 1"
+                ).fetchone()
+                if duplicates is not None:
+                    raise FeatureBuildError(
+                        f"Duplicate account-month history in {table}"
+                    )
+        connection.execute("BEGIN TRANSACTION")
+        try:
+            for sql_file in _feature_sql_files(config):
+                sql_path = REPO_ROOT / sql_file
+                connection.execute(sql_path.read_text(encoding="utf-8"))
+            validate_data_contracts(connection, config)
+            connection.execute(
+                "CREATE OR REPLACE TABLE feature_build_metadata AS SELECT ? AS feature_build_id",
+                [uuid4().hex],
+            )
+            connection.execute("COMMIT")
+        except Exception:
+            connection.execute("ROLLBACK")
+            raise
 
         profile_rows = _profile_feature_tables(connection, config)
         write_csv(
@@ -205,7 +229,7 @@ def _profile_key_columns(columns: list[str]) -> tuple[str, ...]:
 def main() -> None:
     """Run the feature-build CLI."""
     parser = argparse.ArgumentParser(
-        description="Build SQL feature tables and the final feature mart."
+        description="Build SQL model-input tables and the final one-applicant modeling table."
     )
     add_config_argument(parser)
     args = parser.parse_args()

@@ -1,0 +1,99 @@
+assessment:
+  calibration_fraction: 0.15
+  feature_limits:
+  - 40
+  - 80
+  fit_fraction: 0.7
+  include_full: true
+  outer_folds: 5
+  selection_fraction: 0.15
+  split_seeds:
+  - 42
+  negative_control_sample_size: 20000
+  negative_control_seed: 913
+  workflows:
+  - history_selected
+  - training_prevalence
+  - logistic_fixed
+  - application_only
+  utility_multipliers:
+  - 0.5
+  - 1.0
+  - 2.0
+business_assumptions:
+  expected_loss_per_bad_loan: 5000
+  expected_margin_per_good_loan: 1000
+  manual_review_capacity_rate: 0.1
+  manual_review_cost: 50
+excluded_features:
+  identifiers:
+  - SK_ID_CURR
+  - SK_ID_PREV
+  - SK_ID_BUREAU
+  sensitive_or_protected_status_like:
+  - CODE_GENDER
+  - NAME_FAMILY_STATUS
+  - DAYS_BIRTH
+  - applicant_age_years
+  - applicant_age_band
+  - employment_to_age_ratio
+  - CNT_CHILDREN
+  - CNT_FAM_MEMBERS
+  target:
+  - TARGET
+feature_selection:
+  ranking_seeds:
+  - 101
+  - 211
+  - 307
+model:
+  baseline_model: logistic_regression
+  calibrate_probabilities: false
+  lightgbm_tuning:
+    enabled: true
+    max_candidates: 8
+  primary_model: lightgbm
+  use_class_weighting: true
+paths:
+  dashboard_export_dir: reports/generated/correctness_20261004_post_v1_r2/dashboard
+  duckdb_path: data/db/correctness_20261004_post_v1_r2.duckdb
+  model_dir: models/correctness_20261004_post_v1_r2
+  parquet_dir: data/parquet/correctness_20261004_post_v1_r2
+  raw_dir: data/raw
+  report_dir: reports/generated/correctness_20261004_negative_control_r2
+project:
+  data_scope_version: post_v1_011_last_k_temporal
+  model_seed: 42
+  name: loan-default-decisioning
+  random_seed: 42
+  split_seed: 42
+resources:
+  duckdb_memory_limit: 6GB
+  duckdb_threads: 4
+  model_threads: 4
+source_files:
+  application_test: application_test.csv
+  application_train: application_train.csv
+  bureau: bureau.csv
+  bureau_balance: bureau_balance.csv
+  credit_card_balance: credit_card_balance.csv
+  installments_payments: installments_payments.csv
+  pos_cash_balance: POS_CASH_balance.csv
+  previous_application: previous_application.csv
+split:
+  stratify: true
+  test_size: 0.15
+  train_size: 0.7
+  validation_size: 0.15
+threshold_policy:
+  scenarios:
+    balanced:
+      threshold_high: null
+      threshold_low: null
+    growth_oriented:
+      threshold_high: null
+      threshold_low: null
+    risk_averse:
+      threshold_high: null
+      threshold_low: null
+  threshold_version: threshold_v1

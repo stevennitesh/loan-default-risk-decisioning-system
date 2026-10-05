@@ -271,6 +271,9 @@ SELECTED_FEATURE_COLUMNS = [
 
 MODEL_STABILITY_RUN_COLUMNS = [
     "seed",
+    "split_seed",
+    "model_seed",
+    "ranking_seeds",
     "feature_set",
     "seed_validation_winner",
     "feature_count",
@@ -341,4 +344,126 @@ MODEL_STABILITY_AGGREGATE_COLUMNS = [
     "balanced_ev_generalization_gap",
     "abs_balanced_ev_generalization_gap",
     "created_at",
+]
+
+MODEL_STABILITY_SELECTED_AGGREGATE_COLUMNS = [
+    *MODEL_STABILITY_AGGREGATE_COLUMNS,
+    "completed_split_count",
+    "metric_scope",
+]
+
+NESTED_CONTEXT_COLUMNS = [
+    "run_id",
+    "workflow",
+    "model_family",
+    "split_seed",
+    "outer_fold",
+    "model_seed",
+    "feature_set",
+    "calibration_method",
+    "created_at",
+]
+NESTED_METRIC_COLUMNS = [
+    *NESTED_CONTEXT_COLUMNS,
+    "score_kind",
+    "metric_name",
+    "metric_value",
+    "applicant_count",
+]
+NESTED_PREDICTION_COLUMNS = [
+    *NESTED_CONTEXT_COLUMNS,
+    "SK_ID_CURR",
+    "target",
+    "raw_score",
+    "calibrated_score",
+]
+NESTED_CANDIDATE_COLUMNS = [
+    *NESTED_CONTEXT_COLUMNS,
+    "feature_count",
+    "feature_limit",
+    "selected",
+    "selected_calibration_method",
+    "selected_candidate_name",
+    "validation_pr_auc",
+    "validation_roc_auc",
+    "validation_brier_score",
+    "validation_top_decile_lift",
+    "validation_recall_at_review_capacity",
+]
+NESTED_RANKING_COLUMNS = [
+    *NESTED_CONTEXT_COLUMNS,
+    "feature_name",
+    "mean_rank",
+    "rank_std",
+    "ranking_seed_count",
+]
+NESTED_SUMMARY_COLUMNS = [
+    "workflow",
+    "model_family",
+    "split_seed",
+    "score_kind",
+    "metric_name",
+    "fold_count",
+    "fold_mean",
+    "fold_std",
+]
+
+NESTED_RELIABILITY_COLUMNS = [
+    *NESTED_CONTEXT_COLUMNS,
+    "score_kind",
+    "bin_id",
+    "applicant_count",
+    "average_predicted_score",
+    "observed_default_rate",
+    "calibration_error",
+]
+NESTED_SENSITIVITY_COLUMNS = [
+    *NESTED_CONTEXT_COLUMNS,
+    "margin_multiplier",
+    "loss_multiplier",
+    "review_multiplier",
+    "utility_per_applicant",
+]
+
+NESTED_SEED_SENSITIVITY_COLUMNS = [
+    *NESTED_CONTEXT_COLUMNS,
+    "score_kind",
+    "candidate_name",
+    "evaluation_role",
+    "promotes_seed",
+    "roc_auc",
+    "pr_auc",
+    "brier_score",
+    "log_loss",
+    "min_predicted_probability",
+    "max_predicted_probability",
+    "top_decile_lift",
+    "precision_at_top_decile",
+    "recall_at_manual_review_capacity",
+]
+NESTED_PROBABILITY_ACCEPTANCE_COLUMNS = [
+    *NESTED_CONTEXT_COLUMNS,
+    "selection_probability_accepted",
+    "selection_brier_score",
+    "selection_log_loss",
+    "selection_prevalence_brier",
+    "selection_prevalence_log_loss",
+]
+TUNING_CV_SUMMARY_COLUMNS = [
+    "workflow",
+    "split_seed",
+    "outer_fold",
+    "candidate_name",
+    "feature_set",
+    "weight_fraction",
+    "selected",
+    "rounds_median",
+    "rounds_min",
+    "rounds_max",
+    "cv_seconds",
+    "mean_pr_auc",
+    "mean_brier_score",
+    "mean_log_loss",
+    "mean_prevalence_brier_score",
+    "mean_prevalence_log_loss",
 ]

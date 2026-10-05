@@ -1,3 +1,32 @@
+# Model card: public credit-risk portfolio
+
+## Current assessment and intended use
+
+This project asks whether prior loan and repayment history improves ranking beyond application fields. It is a local decision-support portfolio using public Home Credit data. The outcome, `TARGET`, records repayment difficulty; it does not measure financial loss. It is not an underwriting, compliance, fair-lending or adverse-action system.
+
+[The current case study](portfolio/case_study.md) explains the results; [the offline report](portfolio/index.html) contains current charts. The completed five-group assessment compares models on 261,384 labeled development applicants. Mean average precision is 0.266 for application and loan history LightGBM, 0.251 for history logistic regression, 0.231 for application-only LightGBM and 0.081 for the constant training-outcome-rate benchmark. Average precision measures ranking, not accuracy. The history model's mean Brier/log loss is 0.067/0.241 (lower is better), and ROC AUC is 0.776. [Exact results and identities](tuning_20261004/assessment_report.md) remain the numerical authority.
+
+All five history fits selected 174 eligible inputs and unchanged raw probabilities after probability-adjustment testing. Different model families have different declared search budgets. These results assess the selection procedure fitted inside each applicant group; they do not describe one promoted saved dashboard model. Each workflow predicts the same assessment applicants, with fitting, stopping, probability-adjustment and selection roles kept separate. No outer result promotes a recipe, input surface, model family or seed.
+
+## Controlled probability-quality follow-up
+
+[A controlled follow-up](class_weighting_20261004/assessment_report.md) identifies positive-class weighting as the dominant explanation for improved raw probabilities in these history-model recipes. With the earlier recipe otherwise fixed, removing weighting changes raw Brier/log loss from 0.157305/0.477672 to 0.066572/0.240121, essentially reproducing current losses of 0.066655/0.240720. The reverse intervention worsens the current recipe; both losses improve without weighting in all ten recipe/group pairs. This diagnostic preserves selected inputs, preprocessing, applicant roles, seed and other parameters. It does not retune or promote a model, separately assess the search screen's effect, or establish optimal weights for future populations. Earlier probability adjustment had already corrected much of the raw-scale error; final probability quality changed little.
+
+## Inputs and limits
+
+SQL owns applicant-level feature extraction; Python owns orchestration, models, scoring and reporting. Identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Diagnostic fields remain separate. Prior public-data exploration means this is not an untouched final test. Calendar application, input-availability and outcome-maturity timestamps are missing; random applicant groups do not establish future-cohort validity. Correlated or proxy inputs may remain, and exclusion alone is not fairness certification.
+
+Unlabeled Kaggle applications are scored only as a demonstration. Simulated approval/manual review/decline bands use fixed selection-derived cutoffs, with review cost in the middle band only. Utility weights are illustrative units, not dollars or profit. Reviewer effectiveness, rejected-loan outcomes and a hard review-queue limit are not estimated. SHAP contributions describe model behavior, not causal explanations or adverse-action notices.
+
+[Current evidence status](../docs/validation/VALIDATION_PLAN.md#current-evidence-status) owns the validation boundaries; [assessment methodology](../docs/validation/ASSESSMENT_METHODOLOGY.md) explains the applicant roles. The saved Power BI files/screenshots remain historical and unrefreshed. Current report regeneration requires only committed anonymous aggregates (`make portfolio`), not raw data or training.
+
+## Historical model card archive
+
+The text below preserves the earlier model identities and numeric history. Its dated model descriptions and next actions are historical context, not the current reader journey or instructions.
+
+<details>
+<summary>Earlier application-and-history model card</summary>
+
 # Model Card: Historical V1 and Post-v1 Credit-Risk Portfolio
 
 ## Model Summary
@@ -14,9 +43,19 @@
 
 This model card preserves the frozen v1 baseline and summarizes the post-v1 improvement path. Scores are used to demonstrate threshold tradeoffs, batch scoring, explainability, and Power BI reporting. v1 scores should be treated as ranking scores, not fitted calibrated default probabilities.
 
-**Evidence status (2026-10-03):** this is a resume portfolio for recruiters and hiring managers. The metrics below preserve historical experiments; they are not an independent final-test certification or live local metrics. Original test applicants entered fitting in repeated-seed runs, reporting-population SHAP fed feature selection, and post-v1 calibration fitting/selection shared validation rows. [Current evidence status](../docs/validation/VALIDATION_PLAN.md#current-evidence-status) owns these and the remaining feature, policy, and artifact limitations. The [remediation plan](../docs/implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) remains proposed work.
+**Evidence status (2026-10-04):** this is a resume portfolio for recruiters and hiring managers. The metrics below preserve historical experiments; they are not an independent final-test certification or live local metrics. Original test applicants entered fitting in repeated-seed runs, reporting-population SHAP fed feature selection, and post-v1 calibration fitting/selection shared validation rows. Current code fixes those reuse paths, counts normalized installment obligations, uses distinct pre-application months, enables row bagging, and checks local artifact identities. Post-v1 roles default to 70% training, 7.5% calibration fitting, 7.5% selection validation, and 15% historical comparison. New corrected full-data evidence and aggregate figures are in [the correctness assessment](correctness_20261004/assessment_report.md); historical PBIX/screenshots remain unchanged. [Current evidence status](../docs/validation/VALIDATION_PLAN.md#current-evidence-status) owns verification and limits; the [remediation plan](../docs/implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) retains broader proposed work.
 
 Legacy PR-AUC means average precision; recall at 10% review capacity means top-10% default capture, not actual middle-review recall. Expected-value fields contain retrospective utility units. "Held-out test" retains the saved within-run split label, but it is a reused comparison population across the historical experiment trail.
+
+## Current Assessment Protocol
+
+The code also provides a separate nested assessment of the declared LightGBM
+feature/model-setting/calibration selection procedure. Five outer folds hold out
+assessment applicants; inner fitting/calibration/selection roles remain disjoint.
+Feature ranking averages model-seed repeats within fitting rows. Partition and
+model seeds are separate. This protocol has real-data matched controls, a sampled shuffled-label diagnostic, reliability/segment sensitivities and locked same-host reproduction. It does not replace the historical
+numbers below or evaluate future application cohorts. Details belong to the
+[assessment methodology](../docs/validation/ASSESSMENT_METHODOLOGY.md).
 
 ## Intended Use
 
@@ -64,7 +103,7 @@ Feature groups include:
 
 Identifiers, target fields, and v1 demographic/protected-status-like exclusions are removed from the model feature list. Excluded diagnostic fields may be inspected separately for limitation checks, but they are not model drivers.
 
-The historically selected post-v1 candidate extends this scope with bureau-balance, POS-cash, credit-card, recency-deterioration, and last-k behavior features. POS/card last-k windows count account records, not distinct applicant months. Installment payment-row aggregation currently repeats obligation amounts for split payments; obligation identity, missingness, and availability require verification before stronger feature claims.
+The historically selected post-v1 candidate extends this scope with bureau-balance, POS-cash, credit-card, recency-deterioration, and last-k behavior features. Its windows counted account records and installment aggregation repeated owed amounts across split payments. Current SQL groups unambiguous due obligations, accumulates pre-application payments, distinguishes incomplete arrears from completed delays, and flags ambiguous versions/unknown amounts. POS/card windows now contain distinct applicant months strictly before month zero. Named corrected model fits use these features; conservative snapshot filtering does not prove production point-in-time availability.
 
 ## Training and Selection
 
@@ -73,11 +112,11 @@ The pipeline trains:
 1. logistic regression baseline;
 2. tuned LightGBM primary model.
 
-LightGBM tuning uses validation metrics with a non-degenerate score guard, then ranks by PR-AUC, top-decile lift, top-score capture, ROC-AUC, and lower Brier score. The baseline-versus-LightGBM family choice uses validation PR-AUC. Test reporting follows within-run selection, but the cross-run reuse described above prevents an independent final-test claim. Configured row subsampling is ineffective while `subsample_freq` remains zero.
+LightGBM tuning uses validation metrics with a non-degenerate score guard, then ranks by PR-AUC, top-decile lift, top-score capture, ROC-AUC, and lower Brier score. The baseline-versus-LightGBM family choice uses validation PR-AUC. Test reporting follows within-run selection, but historical cross-run reuse prevents an independent final-test claim. Historical fits left row subsampling disabled; current code sets `subsample_freq=1`. Retraining and stability preserve saved test membership, and stability varies training/calibration/validation roles with training-only gain ranking. None of these repairs changes the historical metrics below.
 
 No Platt/sigmoid or isotonic calibration layer is fitted in v1. Brier score and calibration bins are reported to evaluate score quality, but they do not make the raw LightGBM scores calibrated probabilities.
 
-Post-v1 historically selected a sigmoid calibration layer fitted on validation rows. The same rows assess and select the calibration method, so the recorded fit-set probability-quality gain needs independent assessment. The method preference logic also needs a per-candidate minimum-gain fix. Sigmoid preserves ranking in these historical outputs.
+Post-v1 historically selected a sigmoid layer fitted and assessed on shared validation rows. Current code fits transforms on reserved calibration rows and selects methods on disjoint validation rows, requiring each candidate's minimum gain before applying sigmoid preference. Saved calibrators bind to the parent model and have their own run identity; replacing one requires rescoring before export. Sigmoid preserved ranking in the historical outputs. These fixes do not re-estimate the recorded results or restore independent historical assessment.
 
 | Post-v1 calibration result | Uncalibrated | Sigmoid calibrated | Difference |
 |---|---:|---:|---:|
@@ -194,7 +233,7 @@ SHAP outputs are not adverse-action notices and should not be presented as legal
 - Expected-value assumptions are simplified scenario parameters.
 - Threshold actions are simulated and not policy-approved credit decisions.
 - No production monitoring, drift management, fair-lending review, compliance approval, or model governance is implemented.
-- The frozen v1 model excludes richer monthly history tables; post-v1 experiments now include them, including recency and last-k temporal candidates. The active post-v1 candidate is the 168-feature last-k temporal model; cleanup experiments did not justify a smaller promoted surface.
+- The frozen v1 model excludes richer monthly history tables; post-v1 experiments now include them, including recency and last-k temporal candidates. The historical post-v1 candidate was the 168-feature last-k temporal model; the corrected mart has 174 model fields and new fold choices are recorded separately; cleanup experiments did not justify a smaller promoted surface.
 - Calibration is evaluated with Brier score and calibration bins; no final Platt or isotonic calibration model is fitted in v1.
 
 ## Reproducibility
@@ -216,7 +255,7 @@ make test
 
 `configs/v1.yaml` writes frozen-v1 artifacts under `models/v1`, `reports/v1`, and `reports/dashboard_data`. `configs/post_v1.yaml` writes post-v1 artifacts under `models/post_v1`, `reports/post_v1`, and `reports/dashboard_data_post_v1`.
 
-See [the README run guide](../README.md#how-to-run) for dependency installation, explicit step configs, and the Windows `PYTHON=python` override. Export-only targets do not retrain, but can recompute probability-quality/segment views. Dependencies are unlocked; exact historical numbers and screenshot reconciliation are not certified. Model-version names, including the post-v1 dashboard display alias, do not guarantee exact fitted-run lineage.
+See [the README run guide](../README.md#how-to-run) for dependency installation, explicit step configs, and the Windows `PYTHON=python` override. The corrections require regenerating the full scoped pipeline from features through exports. Export-only targets require matching feature/model/evaluation/scoring/calibration identities. `requirements.lock` pins the named run, with clean same-host fold reproduction and CSV reconciliation. Exact historical numbers and native screenshot refresh are not certified. Model-version names, including the post-v1 dashboard display alias, do not guarantee exact fitted-run lineage.
 
 Key generated artifacts:
 
@@ -235,3 +274,16 @@ Key generated artifacts:
 - `reports/v1/`
 - `reports/post_v1/`
 - `powerbi/screenshots/`
+
+## Current tuning evidence
+
+The named [v3 tuning report](tuning_20261004/assessment_report.md) owns the new
+training-only joint-CV results, probability acceptance, seed variation and runtime
+limits. The [methodology](../docs/validation/ASSESSMENT_METHODOLOGY.md) specifies
+24 LightGBM candidates per workflow, three inner folds and disjoint stopping,
+calibration and selection roles. These results remain separate from the preserved
+r2 and historical numbers above. Tuned versus fixed logistic identity is explicit;
+no outer quality promotes a family. No true chronology, global optimality or
+native Power BI refresh is claimed.
+
+</details>

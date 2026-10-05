@@ -1,0 +1,110 @@
+{
+  "status": "complete",
+  "assessment_run_id": "f6b58bf8335645b3a1ece2ca3502e173",
+  "assessment_start_nested_source_sha256": "0168f4b5906a7a9527e7cec16457227a9fae90949229f19d969da3b08d4f3cff",
+  "current_nested_source_sha256": "4e48e9db6ee0538073cbe889982494194e46c406d09070da01709e85fbb7ec8d",
+  "snapshot_kind": "Byte-identical reconstruction by reversing the two known report-text edits; hash matches the immutable recorded start hash. Not an originally retained source backup.",
+  "post_start_nested_changes": [
+    "Only _write_report title changed from LightGBM selection procedure to matched declared workflows.",
+    "Only _write_report explanatory paragraph changed to describe four workflows, per-workflow prediction coverage, different comparator budgets and undefined prevalence utility; removed stale statement that logistic comparison remains outside the protocol."
+  ],
+  "non_report_module_ast_equal": true,
+  "chronology": "These report-text repairs followed completion of the full five-fold run; they did not alter model fitting, selection, calibration, outer assessment, seeds, role IDs or output metric calculations.",
+  "proof": "The reconstructed start module and current module have identical AST outside _write_report. Independent clean-environment fold-1 refit matched features/settings/calibration and both prediction arrays exactly. All 20 frozen artifacts regenerated 1045536 stored full-run predictions within 1e-10.",
+  "fingerprint_semantics": {
+    "fingerprints": "Immutable assessment-start snapshot, copied unchanged from the original complete run manifest.",
+    "delivery_fingerprints": "Current evidence-publication source/config/test/dependency snapshot; may include later reporting/proof-helper repairs."
+  },
+  "existing_start_source_differences": [
+    {
+      "file": "configs/correctness_20261004_negative_control.yaml",
+      "assessment_start_sha256": "a350fff6a2658aceae10c915d60b7285227e804871fa9dbb2e5b2257dac8330b",
+      "retained_local_path": ".tmp/superseded-correctness-configs/correctness_20261004_negative_control.yaml",
+      "retained_bytes_match_start_sha256": true,
+      "change_scope": "Superseded pre-eligibility-repair configuration moved to ignored local archive; completed r2 scope and original run-start manifest retain their declared settings."
+    },
+    {
+      "file": "configs/correctness_20261004_post_v1.yaml",
+      "assessment_start_sha256": "88363bcdd0d4a813238a504c2bd8399e0cea5b3507c8e94c40a41f8d4d57ad6c",
+      "retained_local_path": ".tmp/superseded-correctness-configs/correctness_20261004_post_v1.yaml",
+      "retained_bytes_match_start_sha256": true,
+      "change_scope": "Superseded pre-eligibility-repair configuration moved to ignored local archive; completed r2 scope and original run-start manifest retain their declared settings."
+    },
+    {
+      "file": "configs/correctness_20261004_v1.yaml",
+      "assessment_start_sha256": "a7ef5b167e60d79a3ff530bc8cd28f7b94f8818af688ef883ca0517ea3557f3e",
+      "retained_local_path": ".tmp/superseded-correctness-configs/correctness_20261004_v1.yaml",
+      "retained_bytes_match_start_sha256": true,
+      "change_scope": "Superseded pre-eligibility-repair configuration moved to ignored local archive; completed r2 scope and original run-start manifest retain their declared settings."
+    },
+    {
+      "file": "src/assessment_diagnostics.py",
+      "assessment_start_sha256": "90a6ffac55ac13ecda66fe9b040b8af6d41442fb9c10b82718bbb1574c1c9e9f",
+      "current_sha256": "7059d7316ded16039c4456e1c9180d4333dd6bf308364b7b16b8ffe26aedb063",
+      "change_scope": "Review repair replaces hardcoded capture rate 0.1 with config owner getter. Runs only on frozen outputs; does not fit/select models. Recorded 10% results unchanged."
+    },
+    {
+      "file": "src/assessment_reproduce.py",
+      "assessment_start_sha256": "1ed204c6221c3237269bd9ad2457e72a43670bd18c090d7c8b67fb1cba1f962e",
+      "current_sha256": "07ab6ad2b2b199607b9292b3d833f55983613752474675eae8dae15b90a14fc4",
+      "change_scope": "Added Python executable, requirements-lock SHA256 and dependency-version fields/imports to the proof result. No change to the refit recipe or prediction/selection comparison."
+    },
+    {
+      "file": "src/correctness_summary.py",
+      "assessment_start_sha256": "a7acbda3422d1b85db170183b12a214fd2e872469d32919c92a33eed546553d2",
+      "current_sha256": "5908e4286b2a313e17cb41626bf3735b921358be56d16ebf3e642e861cba07c4",
+      "change_scope": "Completed the post-run publisher/reconciliation/prose/plots and metadata; later repaired its capture-rate getter and added this provenance explanation. This module is not invoked by inner fitting/selection or outer assessment."
+    },
+    {
+      "file": "src/evidence.py",
+      "assessment_start_sha256": "59f38fd362e34475d5e755cb8fffe84780bd31a478588a4e5ac1e5a89842e254",
+      "current_sha256": "5fd0dcb0cf26f8d02552fb6df6634a3ad398b63581c9a0c7a623093b74c85e24",
+      "change_scope": "Expanded fingerprint coverage to tests, Makefile and pyproject.toml. Scientific feature extraction, fitting and metrics do not depend on these fingerprint fields."
+    },
+    {
+      "file": "src/nested_assessment.py",
+      "assessment_start_sha256": "0168f4b5906a7a9527e7cec16457227a9fae90949229f19d969da3b08d4f3cff",
+      "current_sha256": "4e48e9db6ee0538073cbe889982494194e46c406d09070da01709e85fbb7ec8d",
+      "change_scope": "Two _write_report text edits only, after run completion. Exact start-source reconstruction hash and non-report AST equality verified."
+    }
+  ],
+  "unchanged_existing_source_modules": [
+    "src/__init__.py",
+    "src/build_features.py",
+    "src/calibrate.py",
+    "src/calibration.py",
+    "src/cli.py",
+    "src/config.py",
+    "src/correctness_run.py",
+    "src/dashboard_exports.py",
+    "src/dashboard_probability_quality.py",
+    "src/dashboard_segments.py",
+    "src/data_contracts.py",
+    "src/evaluate.py",
+    "src/evaluation_reports.py",
+    "src/explain.py",
+    "src/feature_experiments.py",
+    "src/feature_labels.py",
+    "src/feature_selection.py",
+    "src/ingest.py",
+    "src/mart_access.py",
+    "src/metrics.py",
+    "src/model_artifacts.py",
+    "src/model_contracts.py",
+    "src/model_stability.py",
+    "src/modeling.py",
+    "src/report_contracts.py",
+    "src/runtime.py",
+    "src/score_batch.py",
+    "src/source_reconciliation.py",
+    "src/thresholding.py",
+    "src/train.py"
+  ],
+  "fitting_selection_calibration_metric_dependencies_sha256_unchanged": true,
+  "new_post_start_source_module": "src/verify_frozen_assessment.py: post-run reload/prediction proof only; not imported by fitting/selection.",
+  "local_reconstruction_path": ".tmp/assessment-start-source/nested_assessment.py",
+  "local_exact_diff_path": ".tmp/assessment-start-source/nested_assessment.diff",
+  "review_capacity_regression": "Both post-fit paths now use manual_review_capacity_rate(config). With ten descending scores and the first two labels positive, capture is 0.5 at 10% and 1.0 at 20%; both 20% regressions fail under restored constant-10% behavior.",
+  "recorded_default_capacity": 0.1,
+  "default_results_invariance": "Recorded full/control numeric CSVs and all frozen joblibs are checked against the pre-repair hashes in verification.json; original run-start manifest hashes remain unchanged."
+}

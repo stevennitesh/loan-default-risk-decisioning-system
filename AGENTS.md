@@ -27,7 +27,7 @@ accepted behavior or claims.
 
 | When the task involves | Load |
 |---|---|
-| Portfolio story, presentation, or running the project | [README.md](README.md); its run guide owns config scopes and the Windows interpreter override. |
+| Portfolio story, presentation, or running the project | [README.md](README.md); its current case-study/report path owns presentation; its run guide owns config scopes and the Windows interpreter override. |
 | Domain meaning, scope, architecture, SQL features, or population contracts | [Project spec](docs/spec/PROJECT_SPEC.md); read the sections governing the change. |
 | Training, calibration, scoring, experiments, metrics, or result claims | [Current evidence status](docs/validation/VALIDATION_PLAN.md#current-evidence-status), then the relevant validation gates. |
 | Orchestration, config, or command behavior | [Makefile](Makefile), the applicable file in `configs/`, and the [command-to-artifact map](docs/implementation/IMPLEMENTATION_PLAN.md#5-command-to-artifact-map). |
@@ -37,5 +37,5 @@ accepted behavior or claims.
 | Generated artifacts, curated evidence, or Git inclusion | [Reports policy](reports/README.md); use `.tmp/` for scratch work. |
 | Power BI reports, visuals, screenshots, or refresh | [Power BI guide](powerbi/README.md). |
 | Interpreting or recording experiments | [Experiment guide](reports/experiments/README.md); preserve historical numbers and identify new evidence separately. |
-| Explicitly requested remediation work | [Remediation proposal](docs/implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md); proposed methodology and commands are not implemented. |
+| Explicitly requested remediation work | [Remediation proposal](docs/implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md); its status note distinguishes implemented repairs from remaining recommendations. |
 | An assigned issue or other tracker-backed work | [Tracker guide](docs/agents/issue-tracker.md), then its linked label mapping. Ordinary coding requires no issue. |

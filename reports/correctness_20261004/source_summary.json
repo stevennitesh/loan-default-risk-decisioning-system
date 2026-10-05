@@ -1,0 +1,128 @@
+{
+  "status": "complete",
+  "repayment_cases": [
+    {
+      "category": "identical_payment_records",
+      "applicant_count": 0,
+      "agreement": "no actual source example"
+    },
+    {
+      "category": "split_payments",
+      "applicant_count": 3,
+      "agreement": "passed"
+    },
+    {
+      "category": "on_time",
+      "applicant_count": 3,
+      "agreement": "passed"
+    },
+    {
+      "category": "completed_late",
+      "applicant_count": 3,
+      "agreement": "passed"
+    },
+    {
+      "category": "ongoing_arrears",
+      "applicant_count": 3,
+      "agreement": "passed"
+    },
+    {
+      "category": "competing_or_conflicting",
+      "applicant_count": 3,
+      "agreement": "passed"
+    },
+    {
+      "category": "unknown_payments",
+      "applicant_count": 3,
+      "agreement": "passed"
+    },
+    {
+      "category": "future_payments",
+      "applicant_count": 0,
+      "agreement": "no actual source example"
+    },
+    {
+      "category": "future_schedules",
+      "applicant_count": 0,
+      "agreement": "no actual source example"
+    }
+  ],
+  "repayment_source_rows": 684,
+  "repayment_obligations": 645,
+  "repayment_numeric_checks": 4515,
+  "identical_source_record_count": 0,
+  "duplicate_policy": "Retain identical payment records: no unique cashflow identifier proves duplication",
+  "coverage_by_target": [
+    {
+      "TARGET": 0,
+      "applicants": 282686,
+      "ambiguous": 34915,
+      "unknown_payment": 860,
+      "no_installment_history": 14919
+    },
+    {
+      "TARGET": 1,
+      "applicants": 24825,
+      "ambiguous": 2442,
+      "unknown_payment": 192,
+      "no_installment_history": 949
+    }
+  ],
+  "schedule_counts": {
+    "schedule_groups": 12951918,
+    "ambiguous_groups": 180085,
+    "unknown_payment_groups": 2831
+  },
+  "feature_count": 174,
+  "excluded_model_features": [
+    "CNT_CHILDREN",
+    "CNT_FAM_MEMBERS",
+    "CODE_GENDER",
+    "DAYS_BIRTH",
+    "NAME_FAMILY_STATUS",
+    "SK_ID_BUREAU",
+    "SK_ID_CURR",
+    "SK_ID_PREV",
+    "TARGET",
+    "applicant_age_band",
+    "applicant_age_years",
+    "employment_to_age_ratio"
+  ],
+  "availability_counts": {
+    "bureau_eligible_prior_origins": 1716403,
+    "bureau_day_zero_origins_excluded": 25,
+    "bureau_positive_origins_excluded": 0,
+    "bureau_unknown_origins_excluded": 0,
+    "bureau_credit_origin_nonnegative": 25,
+    "bureau_actual_end_after_application": 0,
+    "previous_decision_nonnegative": 0,
+    "pos_current_future_excluded": 0,
+    "card_current_future_excluded": 0,
+    "installment_current_future_payments_excluded": 0
+  },
+  "bureau_origin_coverage_by_target": [
+    {
+      "TARGET": 0,
+      "day_zero_loans": 4.0,
+      "applicants_with_day_zero_origins": 4,
+      "unknown_origin_loans": 0.0
+    },
+    {
+      "TARGET": 1,
+      "day_zero_loans": 0.0,
+      "applicants_with_day_zero_origins": 0,
+      "unknown_origin_loans": 0.0
+    }
+  ],
+  "verification_source_sha256": {
+    "src/source_reconciliation.py": "2efeeecc2a43ffe80ba8af719ad31dbba4790967a7c5f20fc40d14663fa3e70c",
+    "sql/03_feature_bureau.sql": "d895fffff84fbee21bd2725975a20e94bcf7351b9258ebe7cb5f960376d2c0eb",
+    "sql/03b_feature_bureau_balance.sql": "eaa05b634985566166e1906cb1c2ecacfa49f2b52512218ddd1dae6191e5f390",
+    "sql/05c_feature_recency_deterioration.sql": "5b8231915e55e0efd36884967fbcb1079eb68014af82430e94c979d0ba5a9ac3",
+    "sql/05_feature_installments.sql": "13157999f91cb874d4fa407e6fc1316dc406e50915cc41261bb0ac802635bcaa",
+    "sql/05d_feature_last_k_temporal.sql": "e18269a6c05fdae7dcfa5e807dcfde6860606925a8aaf132883e4186e90aa238"
+  },
+  "limitations": "Relative offsets support declared pre-application censoring, but no reliable calendar application dates or amendment timestamps exist. Anonymized application external-score/vendor availability cannot be independently established. Selected Python examples are independent numeric checks, not exhaustive validation of every source group.",
+  "monthly_applicant_count": 12,
+  "monthly_numeric_checks": 42
+}

@@ -9,6 +9,21 @@ from src.metrics import target_class_values
 from src.runtime import sql_identifier, sql_literal
 
 
+def feature_build_id(
+    connection: Any, *, error_cls: type[Exception] = ValueError
+) -> str:
+    """Require one identified feature build before fitting or reusing a model."""
+    require_table(connection, "feature_build_metadata", error_cls=error_cls)
+    rows = connection.execute(
+        "SELECT feature_build_id FROM feature_build_metadata"
+    ).fetchall()
+    if len(rows) != 1 or not isinstance(rows[0][0], str) or not rows[0][0]:
+        raise error_cls(
+            "Feature build metadata must identify exactly one build; rerun features"
+        )
+    return rows[0][0]
+
+
 def fetch_count(
     connection: duckdb.DuckDBPyConnection,
     sql: str,
@@ -157,12 +172,11 @@ def load_labeled_split_frame(
     )
     if frame["TARGET"].isna().any():
         raise error_cls(f"{split_name} rows must have observed TARGET values")
-    if require_both_target_classes:
-        targets = target_class_values(frame["TARGET"])
-        if targets != {0, 1}:
-            raise error_cls(
-                f"{split_name} split must contain binary TARGET classes, got {sorted(targets)}"
-            )
+    targets = target_class_values(frame["TARGET"], error_cls=error_cls)
+    if require_both_target_classes and targets != {0, 1}:
+        raise error_cls(
+            f"{split_name} split must contain binary TARGET classes, got {sorted(targets)}"
+        )
     return frame.reset_index(drop=True)
 
 
@@ -246,7 +260,7 @@ def load_labeled_segment_split_frame(
         error_cls,
         f"Saved split IDs no longer reconcile for {split_name} dashboard export: missing {{missing_ids}}",
     )
-    target_values = target_class_values(frame["TARGET"], dropna=True)
+    target_values = target_class_values(frame["TARGET"], error_cls=error_cls)
     if target_values != {0, 1}:
         raise error_cls(
             f"{split_name} dashboard segment rows must contain both target classes"

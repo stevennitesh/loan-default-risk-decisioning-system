@@ -241,6 +241,7 @@ def test_dashboard_export_uses_selected_calibration_for_probability_quality_tabl
     assert all(
         float(row["average_predicted_score"]) == pytest.approx(0.10)
         for row in calibration_rows
+        if row["average_predicted_score"]
     )
 
     segment_rows = read_csv_rows(
@@ -389,6 +390,11 @@ def _create_dashboard_ready_state(
         connection.execute(
             "UPDATE model_comparison_summary SET selected_model_type = 'lightgbm'"
         )
+        for table in ("evaluation_run_identity", "scoring_run_identity"):
+            connection.execute(
+                f"CREATE OR REPLACE TABLE {table} AS SELECT ? AS model_run_id, ? AS model_version, 'uncalibrated' AS calibration_run_id",
+                [artifact["run_id"], artifact["model_version"]],
+            )
         _create_credit_risk_scores(connection, artifact)
         _create_model_threshold_metrics(connection, split_sizes)
         _create_lift_rows(connection, split_sizes)
@@ -424,12 +430,24 @@ def _create_credit_risk_scores(
 
 
 def _write_constant_sigmoid_calibration_artifact(model_dir: Path) -> None:
+    model = joblib.load(model_dir / "lightgbm_credit_risk.joblib")
     calibration_artifact = {
+        "calibration_run_id": "fixture_calibration",
         "base_model_version": LIGHTGBM_MODEL_VERSION,
+        "base_model_run_id": model["run_id"],
         "selected_method": "sigmoid",
         "calibrators": {"sigmoid": ConstantSigmoidCalibrator()},
     }
     joblib.dump(calibration_artifact, model_dir / CALIBRATION_ARTIFACT_NAME)
+    with duckdb.connect(
+        str(model_dir.parent / "db" / "credit_risk.duckdb")
+    ) as connection:
+        connection.execute(
+            "UPDATE scoring_run_identity SET calibration_run_id='fixture_calibration'"
+        )
+        connection.execute(
+            "UPDATE credit_risk_scores SET calibrated_risk_score=0.1,calibration_method='sigmoid'"
+        )
 
 
 def _mart_frame(

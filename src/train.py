@@ -4,6 +4,7 @@ import argparse
 import warnings
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import duckdb
 import joblib
@@ -15,14 +16,17 @@ from src.config import (
     data_scope_version,
     load_config,
     manual_review_capacity_rate,
-    project_random_seed,
+    project_model_seed,
+    project_split_seed,
 )
 from src.data_contracts import (
     DataContractError,
     get_model_feature_columns,
     validate_data_contracts,
 )
+from src.mart_access import feature_build_id
 from src.metrics import build_probability_metric_rows
+from src.model_artifacts import normalize_split_ids
 from src.model_contracts import (
     BASELINE_MODEL_ARTIFACT_NAME,
     BASELINE_MODEL_TYPE,
@@ -75,6 +79,10 @@ warnings.filterwarnings(
 def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     """Train baseline and LightGBM models and persist artifacts plus reports."""
     config = load_config(config_path)
+    if "reference_model_dir" in config["paths"]:
+        raise TrainingError(
+            "Reference-model configs are assessment-only; use base/post-v1 training scopes to preserve r2 inputs"
+        )
     duckdb_path = resolve_config_path(config, "duckdb_path")
     model_dir = resolve_config_path(config, "model_dir")
     report_dir = resolve_config_path(config, "report_dir")
@@ -82,8 +90,9 @@ def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any
     require_existing_path(duckdb_path, "DuckDB database", TrainingError)
 
     created_at = created_at_utc()
-    run_id = f"model_training_v1_{created_at.replace('-', '').replace(':', '').replace('Z', '')}"
-    random_seed = project_random_seed(config)
+    run_id = f"model_training_v1_{uuid4().hex}"
+    random_seed = project_model_seed(config)
+    split_seed = project_split_seed(config)
     review_capacity_rate = manual_review_capacity_rate(config)
 
     with duckdb.connect(str(duckdb_path)) as connection:
@@ -103,11 +112,23 @@ def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any
         )
 
         # Baseline and LightGBM share the exact split so model comparisons are apples-to-apples.
+        previous_path = model_dir / LIGHTGBM_MODEL_ARTIFACT_NAME
+        frozen_test_ids = None
+        if previous_path.exists():
+            previous = joblib.load(previous_path)
+            if not isinstance(previous, dict):
+                raise TrainingError(
+                    "Previous model must preserve a valid comparison split manifest"
+                )
+            frozen_test_ids = normalize_split_ids(
+                previous.get("split_applicant_ids"), ("test",), error_cls=TrainingError
+            )["test"]
         split_frames = split_labeled_frame(
             training_frame,
             config,
-            random_seed,
+            split_seed,
             error_cls=TrainingError,
+            frozen_test_ids=frozen_test_ids,
         )
         numeric_features, categorical_features = classify_feature_columns(
             split_frames["train"],
@@ -127,7 +148,15 @@ def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any
 
         x_train = feature_frame(split_frames["train"], feature_columns)
         y_train = split_frames["train"]["TARGET"].astype(int)
-        baseline_pipeline.fit(x_train, y_train)
+        from src.tuning import tuned_logistic, uses_inner_cv
+
+        baseline_selection = None
+        if uses_inner_cv(config):
+            baseline_pipeline, baseline_selection = tuned_logistic(
+                config, split_frames["train"], feature_columns, review_capacity_rate
+            )
+        else:
+            baseline_pipeline.fit(x_train, y_train)
         lightgbm_tuning = fit_tuned_lightgbm(
             config,
             numeric_features,
@@ -154,7 +183,7 @@ def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any
             LIGHTGBM_MODEL_VERSION,
             lightgbm_pipeline,
             split_frames,
-            feature_columns,
+            lightgbm_tuning.get("feature_columns", feature_columns),
             created_at,
             review_capacity_rate,
         )
@@ -182,7 +211,7 @@ def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any
                 LIGHTGBM_MODEL_VERSION,
                 LIGHTGBM_MODEL_TYPE,
                 split_summary_rows,
-                len(feature_columns),
+                len(lightgbm_tuning.get("feature_columns", feature_columns)),
                 created_at,
                 random_seed,
             ),
@@ -192,6 +221,9 @@ def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any
         # Downstream evaluation, scoring, and explainability depend on these persisted split IDs.
         common_artifact_fields = {
             "run_id": run_id,
+            "split_seed": split_seed,
+            "model_seed": random_seed,
+            "feature_build_id": feature_build_id(connection, error_cls=TrainingError),
             "feature_columns": feature_columns,
             "numeric_feature_columns": numeric_features,
             "categorical_feature_columns": categorical_features,
@@ -202,17 +234,34 @@ def run_training(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any
                 for split_name, frame in split_frames.items()
             },
             "created_at": created_at,
+            "methodology_version": "nested_inner_cv_v3"
+            if uses_inner_cv(config)
+            else (
+                "disjoint_calibration_v2" if "calibration" in split_frames else "raw_v1"
+            ),
         }
         baseline_artifact = {
             **common_artifact_fields,
             "pipeline": baseline_pipeline,
+            "baseline_selection": baseline_selection,
             "model_version": BASELINE_MODEL_VERSION,
             "model_type": BASELINE_MODEL_TYPE,
             "metric_rows": baseline_metric_rows,
         }
+        selected_features = lightgbm_tuning.get("feature_columns", feature_columns)
+        selected_numeric, selected_categorical = classify_feature_columns(
+            split_frames["train"], selected_features
+        )
         lightgbm_artifact = {
             **common_artifact_fields,
             "pipeline": lightgbm_pipeline,
+            "eligible_feature_columns": feature_columns,
+            "feature_columns": selected_features,
+            "numeric_feature_columns": selected_numeric,
+            "categorical_feature_columns": selected_categorical,
+            "methodology_version": "nested_inner_cv_v3"
+            if uses_inner_cv(config)
+            else common_artifact_fields["methodology_version"],
             "model_version": LIGHTGBM_MODEL_VERSION,
             "model_type": LIGHTGBM_MODEL_TYPE,
             "metric_rows": lightgbm_metric_rows,
@@ -345,7 +394,8 @@ def _build_metric_rows(
     """Predict each split and build probability metric rows for one model."""
     artifact = {"pipeline": pipeline, "model_version": model_version}
     prediction_frames = {}
-    for split_name, frame in split_frames.items():
+    for split_name in ("train", "validation", "test"):
+        frame = split_frames[split_name]
         probabilities = predict_probabilities(
             artifact,
             frame,

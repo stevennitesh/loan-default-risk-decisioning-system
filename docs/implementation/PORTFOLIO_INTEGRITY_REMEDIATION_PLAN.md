@@ -4,9 +4,37 @@ Date: 2026-09-06
 
 Planning baseline: `f457777aab793cd2c4d54c3e16f80de03491343b` plus the existing working-tree documentation edits listed below.
 
-Status: saved plan; implementation and new model evidence have not started.
+Status: historical proposal; implemented local repairs and named correctness evidence are recorded by the validation owner. Remaining recommendations do not start work.
+
+2026-10-04 implementation note: bug-fix passes added strict labels/manifests, fixed comparison membership for retraining/stability, training-only per-seed feature ranking, reserved calibration fitting separate from validation selection, per-method eligibility, effective row bagging, and raw-score scenario utility. SQL now normalizes unambiguous installment obligations, preserves unknowns, uses distinct pre-application applicant months, and matches ratio support. High-band actions explicitly simulate decline, aligning with the existing utility formula. Local build/fit/calibrator identities reject stale dependent outputs; feature rebuilds roll back on failure. Synthetic regressions and a temporary-table full-data SQL contract check support these changes. That initial bug-fix note preceded the subsequently implemented nested runner and named real-data correctness evidence. Nested assessment and locked same-host reproduction are now implemented; hard queue capacity and broader release infrastructure remain historical recommendations. Historical numeric snapshots are preserved. [Current evidence status](../validation/VALIDATION_PLAN.md#current-evidence-status) owns the live interpretation.
 
 Context reconciled: 2026-10-03. The README, spec, validation/testing owners, model card, and dashboard/experiment guides now qualify historical evidence and identify pending repairs. This documentation maintenance does not implement the proposed evaluation protocol, feature normalization, capacity policy, component lineage, locked environment, or new commands below. [Current evidence status](../validation/VALIDATION_PLAN.md#current-evidence-status) owns the live interpretation; this plan retains the recommended design and historical planning record.
+
+2026-10-04 prior v2 nested implementation note: the user authorized nested
+assessment and seed separation. The preserved `nested_matched_holdout_v2` runs
+used five outer folds with inner 70%/15%/15% fitting/calibration/selection holdouts,
+training-only mean-rank repeats, explicit seed types and manifests. This prior
+bounded preset procedure is documented in
+[CORRECTNESS_V2_METHODOLOGY.md](../validation/CORRECTNESS_V2_METHODOLOGY.md),
+and its [correctness assessment](../../reports/correctness_20261004/assessment_report.md)
+retains matched controls, negative control, source reconciliation and locked
+same-host reproduction. It did not implement the full three-fold inner-CV design
+proposed below.
+
+2026-10-04 current v3 tuning implementation note: subsequent explicit authorization
+implemented `nested_inner_cv_v3`. Current base/post-v1 callers and
+`make assess-post-v1` use one 24-candidate joint feature/parameter budget per
+LightGBM workflow with three inner CV folds inside the base-fitting role,
+additional disjoint stopping rows and fixed median chosen iterations. Calibration
+fitting and method/threshold selection remain separate reserved roles. Tuned
+logistic, probability acceptance and fixed-recipe seed sensitivity are declared
+in [ASSESSMENT_METHODOLOGY.md](../validation/ASSESSMENT_METHODOLOGY.md).
+`make assess-tuning` and `make assess-tuning-control` read the preserved corrected
+mart/reference and write separate named scopes; their completed full-data and
+sampled-control evidence is in the
+[tuning report](../../reports/tuning_20261004/assessment_report.md).
+Bootstrap and broader policy/release recommendations remain outside the completed
+local scope. The design sections below retain the historical proposal.
 
 Owner: Steven. This plan was prepared with the requested `shape-work` workflow.
 
@@ -47,6 +75,8 @@ Source inspection during planning reconfirmed the behavioral findings below. Loc
 - The prior local profile found payment/due-day values no later than -1. This does not establish actual post-application leakage or real-world availability-time correctness.
 
 ## Audit disposition
+
+The rows below retain the planning-baseline audit, including its original present-tense descriptions. They are historical evidence; the 2026-10-04 implementation note and validation owner govern current behavior.
 
 | Finding | Decision and change |
 |---|---|

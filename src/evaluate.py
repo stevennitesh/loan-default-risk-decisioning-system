@@ -16,6 +16,7 @@ from src.config import (
     threshold_policy,
     threshold_version,
 )
+from src.data_contracts import get_model_feature_columns
 from src.evaluation_reports import (
     write_business_value_report,
     write_figures,
@@ -32,6 +33,7 @@ from src.model_artifacts import (
     load_model_artifact,
     normalize_split_ids,
     selected_model_types,
+    validate_feature_build,
 )
 from src.model_contracts import (
     BASELINE_MODEL_TYPE,
@@ -91,11 +93,23 @@ def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, A
         )
         for model_type, (model_version, artifact_name) in MODEL_ARTIFACTS.items()
     }
-    # Evaluation compares model families only when they were trained on the same features and split IDs.
+    # Model families share evaluation roles but may use different selected features.
     feature_columns, split_applicant_ids = _validate_artifacts(artifacts)
 
     created_at = created_at_utc()
     with duckdb.connect(str(duckdb_path)) as connection:
+        for artifact in artifacts.values():
+            validate_feature_build(connection, artifact, error_cls=EvaluationError)
+        eligible = set(get_model_feature_columns(connection, config))
+        for artifact in artifacts.values():
+            selected = set(artifact["feature_columns"])
+            declared = set(
+                artifact.get("eligible_feature_columns", artifact["feature_columns"])
+            )
+            if not selected <= declared <= eligible:
+                raise EvaluationError(
+                    "Model feature_columns must belong to its eligible current mart features"
+                )
         split_frames = load_labeled_split_frames(
             connection,
             split_applicant_ids,
@@ -103,9 +117,7 @@ def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, A
             error_cls=EvaluationError,
         )
         prediction_frames = {
-            model_type: _build_prediction_frames(
-                artifact, split_frames, feature_columns
-            )
+            model_type: _build_prediction_frames(artifact, split_frames)
             for model_type, artifact in artifacts.items()
         }
         metric_rows = _build_metric_rows(prediction_frames, created_at, config)
@@ -203,6 +215,16 @@ def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, A
         replace_duckdb_table(connection, "model_calibration_bins", calibration_rows)
         replace_duckdb_table(connection, "model_confusion_matrix", confusion_rows)
         replace_duckdb_table(connection, "model_threshold_metrics", threshold_rows)
+        replace_duckdb_table(
+            connection,
+            "evaluation_run_identity",
+            [
+                {
+                    "model_run_id": selected_artifact["run_id"],
+                    "model_version": selected_model_version,
+                }
+            ],
+        )
 
     return {
         "selected_model_type": selected_model_type,
@@ -219,35 +241,42 @@ def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, A
 def _validate_artifacts(
     artifacts: dict[str, dict[str, Any]],
 ) -> tuple[list[str], dict[str, list[int]]]:
-    """Validate that competing model artifacts share features and split IDs."""
-    baseline = artifacts[BASELINE_MODEL_TYPE]
-    lightgbm = artifacts[LIGHTGBM_MODEL_TYPE]
-
-    feature_columns = list(baseline["feature_columns"])
-    if feature_columns != list(lightgbm["feature_columns"]):
-        raise EvaluationError("Model artifacts must use the same feature_columns")
-    if not feature_columns:
-        raise EvaluationError("Model artifacts do not contain any feature_columns")
-
-    split_applicant_ids = normalize_split_ids(
-        baseline["split_applicant_ids"],
-        EVALUATION_SPLITS,
-        error_cls=EvaluationError,
-    )
-    lightgbm_split_applicant_ids = normalize_split_ids(
-        lightgbm["split_applicant_ids"],
-        EVALUATION_SPLITS,
-        error_cls=EvaluationError,
-    )
-    if split_applicant_ids != lightgbm_split_applicant_ids:
-        raise EvaluationError("Model artifacts must use the same split_applicant_ids")
-    return feature_columns, split_applicant_ids
+    """Validate each feature list and shared roles; load the required union."""
+    feature_columns = []
+    split_applicant_ids = None
+    for artifact in artifacts.values():
+        columns = artifact["feature_columns"]
+        if (
+            not isinstance(columns, (list, tuple))
+            or not columns
+            or any(not isinstance(name, str) or not name for name in columns)
+            or len(set(columns)) != len(columns)
+        ):
+            raise EvaluationError(
+                "Model artifacts require nonempty unique feature_columns"
+            )
+        feature_columns.extend(name for name in columns if name not in feature_columns)
+        roles = (
+            (*EVALUATION_SPLITS, "calibration")
+            if "calibration" in artifact["split_applicant_ids"]
+            else EVALUATION_SPLITS
+        )
+        current_ids = normalize_split_ids(
+            artifact["split_applicant_ids"], roles, error_cls=EvaluationError
+        )
+        if split_applicant_ids is not None and current_ids != split_applicant_ids:
+            raise EvaluationError(
+                "Model artifacts must use the same split_applicant_ids"
+            )
+        split_applicant_ids = current_ids
+    return feature_columns, {
+        name: split_applicant_ids[name] for name in EVALUATION_SPLITS
+    }
 
 
 def _build_prediction_frames(
     artifact: dict[str, Any],
     split_frames: dict[str, pd.DataFrame],
-    feature_columns: list[str],
 ) -> dict[str, pd.DataFrame]:
     """Build prediction frames for all evaluation splits for one artifact."""
     prediction_frames = {}
@@ -255,7 +284,7 @@ def _build_prediction_frames(
         probabilities = predict_probabilities(
             artifact,
             frame,
-            feature_columns,
+            list(artifact["feature_columns"]),
             f"{artifact['model_version']} {split_name}",
             EvaluationError,
         )
@@ -376,7 +405,7 @@ def main() -> None:
     parser.add_argument(
         "--use-calibrated-dashboard-metrics",
         action="store_true",
-        help="Apply the selected calibration artifact to Power BI probability-quality tables.",
+        help="Apply the selected probability method (possibly unchanged raw probabilities) to export quality tables.",
     )
     args = parser.parse_args()
 

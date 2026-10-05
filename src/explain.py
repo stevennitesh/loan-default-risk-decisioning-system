@@ -14,7 +14,12 @@ from src.cli import add_config_argument, exit_with_error
 from src.config import DEFAULT_CONFIG_PATH, load_config, project_random_seed
 from src.feature_labels import readable_feature_label
 from src.mart_access import fetch_count, require_table, require_table_columns
-from src.model_artifacts import load_model_artifact, load_selected_model_type
+from src.model_artifacts import (
+    load_model_artifact,
+    load_selected_model_type,
+    require_reporting_identity,
+    validate_feature_build,
+)
 from src.model_contracts import (
     LIGHTGBM_MODEL_ARTIFACT_NAME,
     LIGHTGBM_MODEL_TYPE,
@@ -79,6 +84,11 @@ def run_explain(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]
             )
 
         artifact = _load_lightgbm_artifact(model_dir)
+        validate_feature_build(connection, artifact, error_cls=ExplainabilityError)
+        require_table(connection, "credit_risk_scores", error_cls=ExplainabilityError)
+        require_reporting_identity(
+            connection, "scoring_run_identity", artifact, error_cls=ExplainabilityError
+        )
         model_version = str(artifact["model_version"])
         feature_columns = list(artifact["feature_columns"])
         scored_frame = _load_scored_feature_frame(
@@ -509,12 +519,12 @@ def _write_shap_summary(
     axis.axvline(0, color="gray", linewidth=1, alpha=0.7)
     axis.set_yticks(range(len(feature_order)))
     axis.set_yticklabels([feature_labels[index] for index in reversed(feature_order)])
-    axis.set_xlabel("SHAP contribution to default-risk score")
-    axis.set_title("LightGBM SHAP Summary")
+    axis.set_xlabel("Model contribution to repayment-difficulty score (SHAP)")
+    axis.set_title("Model inputs and their score contributions")
     axis.grid(True, axis="x", alpha=0.25)
     if len(feature_order):
         colorbar = figure.colorbar(scatter, ax=axis, pad=0.02)
-        colorbar.set_label("Transformed feature value")
+        colorbar.set_label("Encoded model-input value")
     _save_shap_figure(path, figure)
 
 
@@ -540,13 +550,25 @@ def _write_shap_package_summary(
         show=False,
     )
     figure = plt.gcf()
+    if figure.axes:
+        figure.axes[0].set_xlabel(
+            "Model contribution to repayment-difficulty score (SHAP)"
+        )
+        figure.axes[0].set_title("Model inputs and their score contributions")
     _save_shap_figure(path, figure)
     return True
 
 
 def _save_shap_figure(path: Path, figure: Any) -> None:
     """Persist and validate a SHAP figure file."""
-    figure.tight_layout()
+    figure.text(
+        0.5,
+        0.005,
+        "Model behavior, not causal effects or adverse-action reasons; scoring populations may be combined.",
+        ha="center",
+        fontsize=8,
+    )
+    figure.tight_layout(rect=(0, 0.04, 1, 1))
     figure.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(figure)
     if not path.exists() or path.stat().st_size == 0:

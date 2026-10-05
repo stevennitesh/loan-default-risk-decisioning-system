@@ -14,11 +14,13 @@ from src.feature_experiments import (
     load_lightgbm_artifact,
     load_split_frames,
     prepare_feature_set_specs,
+    run_joint_feature_sets,
     run_single_feature_set,
     select_feature_set,
 )
-from src.model_artifacts import normalize_split_ids
+from src.model_artifacts import normalize_split_ids, validate_feature_build
 from src.model_contracts import EVALUATION_SPLITS
+from src.presentation import feature_set_label, method_label
 from src.report_contracts import (
     FEATURE_SELECTION_COMPARISON_COLUMNS,
     SELECTED_FEATURE_COLUMNS,
@@ -56,55 +58,77 @@ def run_feature_selection_experiment(
     require_existing_path(duckdb_path, "DuckDB database", FeatureSelectionError)
 
     base_artifact = load_lightgbm_artifact(model_dir, error_cls=FeatureSelectionError)
-    full_feature_columns = list(base_artifact["feature_columns"])
+    full_feature_columns = list(
+        base_artifact.get("eligible_feature_columns", base_artifact["feature_columns"])
+    )
     split_applicant_ids = normalize_split_ids(
         base_artifact["split_applicant_ids"],
-        EVALUATION_SPLITS,
+        (*EVALUATION_SPLITS, "calibration"),
         error_cls=FeatureSelectionError,
     )
 
     created_at = created_at_utc()
     review_capacity_rate = manual_review_capacity_rate(config)
     rows: list[dict[str, Any]] = []
-    feature_set_specs = prepare_feature_set_specs(
-        report_dir,
-        full_feature_columns,
-        feature_limits,
-        include_full,
-        error_cls=FeatureSelectionError,
-    )
-    features_by_set = {
-        feature_set_name: feature_columns
-        for feature_set_name, feature_columns, _feature_limit in feature_set_specs
-    }
     with duckdb.connect(str(duckdb_path)) as connection:
-        for feature_set_name, feature_columns, feature_limit in feature_set_specs:
-            split_frames = load_split_frames(
-                connection,
-                split_applicant_ids,
-                feature_columns,
-                error_cls=FeatureSelectionError,
-            )
-            rows.append(
-                run_single_feature_set(
-                    config,
-                    feature_set_name,
-                    feature_columns,
-                    feature_limit,
-                    split_frames,
-                    review_capacity_rate,
-                    created_at,
-                    error_cls=FeatureSelectionError,
-                )
-            )
+        validate_feature_build(
+            connection, base_artifact, error_cls=FeatureSelectionError
+        )
+        all_split_frames = load_split_frames(
+            connection,
+            split_applicant_ids,
+            full_feature_columns,
+            error_cls=FeatureSelectionError,
+        )
+        from src.tuning import uses_inner_cv
 
+        if uses_inner_cv(config):
+            rows, features_by_set = run_joint_feature_sets(
+                config,
+                all_split_frames,
+                full_feature_columns,
+                feature_limits,
+                include_full,
+                review_capacity_rate,
+                created_at,
+                FeatureSelectionError,
+            )
+        else:
+            feature_set_specs = prepare_feature_set_specs(
+                report_dir,
+                full_feature_columns,
+                feature_limits,
+                include_full,
+                error_cls=FeatureSelectionError,
+                training_frame=all_split_frames["train"],
+                config=config,
+            )
+            features_by_set = {
+                name: columns for name, columns, _limit in feature_set_specs
+            }
+            for feature_set_name, feature_columns, feature_limit in feature_set_specs:
+                split_frames = all_split_frames
+                rows.append(
+                    run_single_feature_set(
+                        config,
+                        feature_set_name,
+                        feature_columns,
+                        feature_limit,
+                        split_frames,
+                        review_capacity_rate,
+                        created_at,
+                        error_cls=FeatureSelectionError,
+                    )
+                )
     selected_feature_set = select_feature_set(rows)
     for row in rows:
         row["selected"] = row["feature_set"] == selected_feature_set
 
-    experiments_dir = report_dir / "experiments"
-    ensure_directories(report_dir, experiments_dir)
-    comparison_path = report_dir / comparison_name
+    current = uses_inner_cv(config)
+    output_dir = report_dir / "tuning" / "feature_selection" if current else report_dir
+    experiments_dir = output_dir if current else report_dir / "experiments"
+    ensure_directories(output_dir, experiments_dir)
+    comparison_path = output_dir / comparison_name
     report_path = experiments_dir / report_name
     selected_features_path = experiments_dir / selected_features_name
     write_csv(comparison_path, FEATURE_SELECTION_COMPARISON_COLUMNS, rows)
@@ -115,7 +139,9 @@ def run_feature_selection_experiment(
             selected_feature_set, features_by_set[selected_feature_set]
         ),
     )
-    _write_report(report_path, rows, selected_feature_set, selected_features_name)
+    _write_report(
+        report_path, rows, selected_feature_set, selected_features_name, current=current
+    )
 
     return {
         "selected_feature_set": selected_feature_set,
@@ -145,15 +171,19 @@ def _write_report(
     rows: list[dict[str, Any]],
     selected_feature_set: str,
     selected_features_name: str = SELECTED_FEATURES_NAME,
+    *,
+    current: bool = False,
 ) -> None:
     """Write the markdown feature-selection experiment report."""
     table_lines = "\n".join(
-        "| {feature_set} | {feature_count} | {selected_calibration_method} | "
+        "| {feature_display} | {feature_count} | {method_display} | "
         "{validation_pr_auc:.6f} | {validation_brier_score:.6f} | "
         "{validation_top_decile_lift:.6f} | {validation_balanced_ev_per_applicant:.2f} | "
         "{test_pr_auc:.6f} | {test_brier_score:.6f} | "
         "{test_top_decile_lift:.6f} | {test_balanced_ev_per_applicant:.2f} | {selected} |".format(
-            **row
+            **row,
+            feature_display=feature_set_label(row["feature_set"]),
+            method_display=method_label(row["selected_calibration_method"]),
         )
         for row in rows
     )
@@ -161,25 +191,25 @@ def _write_report(
         row for row in rows if row["feature_set"] == selected_feature_set
     )
     interpretation_text = _interpretation_text(rows, selected_row)
-    text = f"""# Experiment 005: Feature Selection
+    text = f"""# Model-input selection experiment
 
 ## Purpose
 
-Compare top-N feature subsets against the full post-v1 feature set to see whether the model can keep most of the ranking and calibration gains with a cleaner feature surface.
+Compare smaller groups of model inputs (features) with all eligible application and loan-history inputs. Average precision measures ranking, not accuracy; Brier score measures probability error (lower is better). Calibration means probability adjustment and can leave raw probabilities unchanged.
 
 ## Selection Rule
 
-Feature subsets are selected from `reports/model_feature_importance.csv`, mapping human-readable SHAP labels back to raw model columns. The selected setup is chosen on validation results using PR-AUC first, then top-decile lift, recall at review capacity, ROC-AUC, lower Brier score, and finally fewer features as a tie-breaker. Held-out test is not the optimization target; test metrics are reported only after selection to check whether the validation-selected setup generalizes closely enough.
+Feature subsets use mean model-input ranks from several LightGBM gain rankings fitted exclusively on the same training applicants, with independently configured ranking seeds. Reporting SHAP is not consumed. The selected setup follows the validation-only rule using average precision first, then top-decile lift, highest-score case capture (separate from middle-band manual review), ROC-AUC, lower Brier score, and fewer features. Calibrators fit on separate reserved applicants. Historical comparison is not the optimization target; its results are historically exposed comparison diagnostics reported after selection. This is development selection, not nested assessment.
 
 ## Results
 
-| Feature set | Feature count | Calibration | Val PR-AUC | Val Brier | Val lift | Val EV/app | Test PR-AUC | Test Brier | Test lift | Test EV/app | Selected |
+| Input group | Inputs | Probability method | Selection average precision | Selection Brier | Selection lift | Selection utility (units/applicant) | Historical average precision | Historical Brier | Historical lift | Historical utility (units/applicant) | Selected |
 |---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
 {table_lines}
 
 ## Selected Setup
 
-Selected feature set: `{selected_feature_set}` with {selected_row["feature_count"]} features and `{selected_row["selected_calibration_method"]}` calibration.
+Selected input group: {feature_set_label(selected_feature_set)}, with {selected_row["feature_count"]} inputs. Probability method: `{selected_row["selected_calibration_method"]}` (`uncalibrated` means raw probabilities unchanged).
 
 Selected raw feature columns are written to `reports/experiments/{selected_features_name}`.
 
@@ -191,6 +221,25 @@ Selected raw feature columns are written to `reports/experiments/{selected_featu
 
 This experiment changes the model feature surface only. It does not add new source tables, demographic/protected-status-like fields, or a new decision policy.
 """
+    if current:
+        text = text.replace(
+            f"reports/experiments/{selected_features_name}", selected_features_name
+        )
+        start = text.index("## Selection Rule")
+        end = text.index("## Results")
+        text = (
+            text[:start]
+            + "## Selection Rule\n\nThe current bounded search jointly selects model inputs and settings using three-group cross-validation entirely within fitting applicants, with disjoint stopping subsets and fold-local raw rankings/preprocessing. This row describes the CV-chosen recipe. Reserved calibration and method selection follow; their metrics never choose another feature surface. Historical comparison metrics remain descriptive. Exact search evidence is stored in the ignored tuning scope. No historical experiment is refreshed.\n\n"
+            + text[end:]
+        )
+    if current:
+        start = text.index("## Interpretation")
+        end = text.index("## Notes")
+        text = (
+            text[:start]
+            + "## Interpretation\n\nThis is the recipe chosen within training-only cross-validation. Reserved selection rows choose the probability method and score thresholds, not a different input group. Historical comparison metrics remain descriptive and do not establish independent performance.\n\n"
+            + text[end:]
+        )
     path.write_text(text, encoding="utf-8")
 
 
@@ -201,9 +250,9 @@ def _interpretation_text(
     selected_name = str(selected_row["feature_set"])
     full_row = next((row for row in rows if row["feature_set"] == "full"), None)
     first_paragraph = (
-        f"`{selected_name}` is the selected setup under the validation-only rule. "
-        "It has the strongest validation selection score across PR-AUC, top-decile lift, "
-        "recall at review capacity, ROC-AUC, Brier score, and feature-count tie-breaks."
+        f"{feature_set_label(selected_name)} is the selected setup under the development selection rule. "
+        "It has the strongest validation selection score across average precision, top-decile lift, "
+        "highest-score case capture (separate from middle-band manual review), ROC-AUC, Brier score, and feature-count tie-breaks."
     )
     if full_row is None or selected_name == "full":
         return first_paragraph
@@ -217,13 +266,13 @@ def _interpretation_text(
     selected_test_ev = float(selected_row["test_balanced_ev_per_applicant"])
     full_test_edges = []
     if full_test_pr_auc > selected_test_pr_auc:
-        full_test_edges.append("PR-AUC")
+        full_test_edges.append("Average precision")
     if full_test_ev > selected_test_ev:
         full_test_edges.append("balanced expected value")
     if full_test_edges:
         test_caveat = (
-            f"The full model has the stronger {' and '.join(full_test_edges)} on held-out test, "
-            "but held-out test is a final generalization check, not the optimization target. "
+            f"The full model has the stronger {' and '.join(full_test_edges)} on historical comparison, "
+            "but historical comparison is a reused diagnostic, not the optimization target. "
             f"This does not override the validation-selected `{selected_name}` choice; it means the "
             "test gap should be recorded as stability evidence. The current gap is small enough to report, "
             "not large enough to overrule validation selection; a larger or repeated gap would point to a "
@@ -243,7 +292,7 @@ def _interpretation_text(
 def main() -> None:
     """Run the feature-selection experiment CLI."""
     parser = argparse.ArgumentParser(
-        description="Compare top-N feature-selection variants for the LightGBM risk model.",
+        description="Compare smaller groups of model inputs with all eligible LightGBM inputs.",
     )
     add_config_argument(parser)
     parser.add_argument(

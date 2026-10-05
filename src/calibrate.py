@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import duckdb
 import joblib
@@ -21,11 +22,15 @@ from src.config import (
     DEFAULT_CONFIG_PATH,
     load_config,
     manual_review_capacity_rate,
-    project_random_seed,
+    project_model_seed,
 )
 from src.mart_access import load_labeled_split_frames
 from src.metrics import build_calibration_bin_rows, probability_metrics
-from src.model_artifacts import load_model_artifact, normalize_split_ids
+from src.model_artifacts import (
+    load_model_artifact,
+    normalize_split_ids,
+    validate_feature_build,
+)
 from src.model_contracts import (
     EVALUATION_SPLITS,
     LIGHTGBM_MODEL_ARTIFACT_NAME,
@@ -78,13 +83,14 @@ def run_calibration_experiment(
     feature_columns = list(artifact["feature_columns"])
     split_applicant_ids = normalize_split_ids(
         artifact["split_applicant_ids"],
-        EVALUATION_SPLITS,
+        (*EVALUATION_SPLITS, CALIBRATION_FIT_SPLIT),
         error_cls=CalibrationError,
     )
     created_at = created_at_utc()
     review_capacity_rate = manual_review_capacity_rate(config)
 
     with duckdb.connect(str(duckdb_path)) as connection:
+        validate_feature_build(connection, artifact, error_cls=CalibrationError)
         split_frames = load_labeled_split_frames(
             connection,
             split_applicant_ids,
@@ -99,7 +105,7 @@ def run_calibration_experiment(
         calibrators = fit_calibrators(
             uncalibrated_predictions[CALIBRATION_FIT_SPLIT]["probability"].to_numpy(),
             uncalibrated_predictions[CALIBRATION_FIT_SPLIT]["target"].to_numpy(),
-            project_random_seed(config),
+            project_model_seed(config),
             error_cls=CalibrationError,
         )
         calibrated_predictions = {
@@ -137,14 +143,17 @@ def run_calibration_experiment(
         replace_duckdb_table(connection, "model_calibration_bins_comparison", bin_rows)
 
     calibration_artifact = {
+        "calibration_run_id": uuid4().hex,
         "base_model_version": LIGHTGBM_MODEL_VERSION,
+        "base_model_run_id": artifact["run_id"],
         "base_model_type": LIGHTGBM_MODEL_TYPE,
         "calibration_fit_split": CALIBRATION_FIT_SPLIT,
         "selected_method": selected_method,
         "selection_rule": (
             "Require at least 0.0005 validation Brier improvement over uncalibrated scores; "
             "prefer sigmoid when it is within 0.0005 Brier of isotonic because it is simpler and "
-            "rank-preserving. Test metrics are held out for reporting only."
+            "rank-preserving. Calibration fitting uses separate reserved rows. "
+            "Test metrics are historical comparisons reported after selection."
         ),
         "calibrators": calibrators,
         "fit_applicant_ids": split_applicant_ids[CALIBRATION_FIT_SPLIT],
@@ -292,7 +301,7 @@ def _bin_error_summary(bin_rows: list[dict[str, Any]]) -> dict[str, dict[str, fl
 def main() -> None:
     """Run the calibration experiment CLI."""
     parser = argparse.ArgumentParser(
-        description="Run post-v1 probability calibration comparison for the LightGBM model.",
+        description="Compare probability adjustments (calibration), including unchanged raw LightGBM probabilities.",
     )
     add_config_argument(parser)
     args = parser.parse_args()

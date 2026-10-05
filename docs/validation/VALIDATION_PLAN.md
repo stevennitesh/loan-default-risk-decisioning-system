@@ -1,10 +1,13 @@
 # Loan Default Risk Decisioning System — Validation Plan
 
+The [current case study](../../reports/portfolio/case_study.md) and [standalone offline report](../../reports/portfolio/index.html) translate current anonymous aggregate results into reader-facing terms. Exact assessment tables remain authoritative. Final probabilities can be unchanged raw probabilities when no adjustment wins. Highest-risk 10% capture is a ranking check, separate from middle-band manual review.
+
+
 **Version:** 0.1  
-**Status:** Validation requirements and historical evidence; correctness gaps remain open
+**Status:** Named corrected protocol evidence, preserved historical comparisons, and native Power BI refresh limit
 **Owner:** Steven  
 **Aligned spec:** [PROJECT_SPEC.md](../spec/PROJECT_SPEC.md)
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-04
 
 ---
 
@@ -24,31 +27,36 @@ This project is not a production underwriting model and does not claim regulator
 
 ## Current Evidence Status
 
-As of 2026-10-03, the local pipeline is implemented and the repository preserves historical v1/post-v1 experiments for recruiter and hiring-manager review. This is not a certification that every gate below passes. The gates are requirements; report presence and passing fixture tests alone do not establish scientific correctness.
+The completed [2026-10-04 tuning assessment](../../reports/tuning_20261004/assessment_report.md) owns current `nested_inner_cv_v3` results and anonymous evidence. Its matched five-fold assessment covers 261,384 development applicants and four workflows; the complete sampled-20k shuffled-label control, frozen artifact verification and locked same-host first-fold refit also completed. The [prior correctness assessment](../../reports/correctness_20261004/assessment_report.md) retains `nested_matched_holdout_v2` numeric evidence, source/mart reconciliation and artifact identities unchanged. Prior SQL/mart proofs are reused with hashes; current source fingerprints do not replace prior fingerprints. Only completed manifests are evidence.
 
-| Area | Verified current behavior and evidence limit | Required repair or assessment |
+| Area | Current behavior and evidence | Limit |
 |---|---|---|
-| Assessment populations | [Repeated-seed stability](../../src/model_stability.py) re-splits all labeled applicants; original seed-42 test applicants enter training/validation under other seeds. Test results were also repeatedly observed. | Treat saved test results as historical comparisons. Enforce a development/assessment boundary before new adaptive selection; the exact protocol in the remediation plan remains a proposal. |
-| Feature selection | [SHAP export](../../src/explain.py) aggregates holdout and Kaggle scoring populations; [feature experiments](../../src/feature_experiments.py) consume that ranking. | Generate selection importance within development fitting data. Post-selection reporting SHAP can remain an interpretation aid. |
-| Calibration | [Calibration fitting and selection](../../src/calibrate.py) share validation rows. [Method selection](../../src/calibration.py) can prefer sigmoid even when its individual gain is below the configured minimum. | Separate calibration fitting from method assessment; apply eligibility to each method before preference. Do not present fit-set calibration gains as independent evidence. |
-| SQL feature meaning | [Installment aggregation](../../sql/05_feature_installments.sql) repeats owed amounts across split-payment rows and evaluates underpayment per payment row. [Last-k features](../../sql/05d_feature_last_k_temporal.sql) rank POS/card account records, not distinct applicant months. | Resolve obligation identity/version semantics and normalize split payments; label record windows accurately or implement distinct-month windows. Review missing-value handling and pre-application availability. No actual future-data leakage has been established by this audit. |
-| Ranking vs policy | [Recall-at-capacity](../../src/metrics.py) measures capture among the highest scores. [Threshold scenarios](../../src/thresholding.py) use fixed validation quantiles; they do not enforce a hard capacity on a new population. | Separate ranking capture from actual queue capture and test capacity under ties and distribution shifts before claiming constrained review. |
-| Action vs utility | [Scoring](../../src/score_batch.py) labels the high band `high_priority_review`, while the utility formula charges only the middle review band and gives the high band no disposition/value. | Reconcile action meaning, review cost, and disposition before calling the scenario an operational policy. Legacy expected-value fields are retrospective utility units, not measured currency profit. |
-| Artifact integrity | [Artifact loading](../../src/model_artifacts.py) does not reject cross-split ID overlap and binds calibration by a reusable model-version string rather than exact fitted-run identity. | Reject invalid split manifests and bind dependent artifacts to the fitted parent. Dashboard display aliases are not release identifiers. |
-| Training controls | [LightGBM presets](../../src/modeling.py) specify `subsample`, but leave `subsample_freq` at zero, disabling row bagging. | Reconcile configured tuning claims with effective fitted parameters before rerunning comparisons. |
-| Reporting and reproduction | [Dashboard export](../../src/dashboard_exports.py) recomputes segment diagnostics and can replace selected-model probability metrics with calibrated values. Local generated bundles differ from curated snapshots; dependencies have lower bounds, not a lock. | Preserve snapshot lineage, distinguish raw/calibrated score views, and reconcile one deliberately generated bundle with PBIX visuals. Exact historical numerical reproduction is not currently certified. |
+| Populations | Original 46,127 historical comparison IDs remain fixed. Nested assessment uses 261,384 development applicants, one outer prediction per declared workflow per repeat. Unlabeled Kaggle rows are scoring-only. | Prior dataset exploration remains; historical comparison is not an untouched lockbox. Random folds do not establish future-cohort validity. |
+| Selection | Five outer folds retain disjoint 70% base fitting / 15% calibration / 15% method-threshold selection. Three inner folds within base fitting search 24 unique joint feature/parameter recipes per LightGBM workflow. Each inner fit reserves separate stopping rows; preprocessing/raw ranking use fitting rows alone. Final rounds are median inner best iterations. History surfaces are 40/80/full 174; application uses 31 SQL static fields. | Bounded search does not establish global optimality. No reserved or outer label enters search/stopping or post-calibration refit. Fold SD is descriptive, not a confidence interval; no pooled cross-fold average precision. |
+| Matched controls | Independent training-prevalence, tuned unweighted logistic (four C values) and SQL-origin application-only LightGBM use the same roles/outer IDs. Fold-paired differences retain workflow/family identities. | Different workflows have declared different optimization budgets. The preserved r2 balanced fixed-C1 logistic has a different identity/recipe. Outer results do not select/promote a family. Ablation is conditional engineering evidence, not causal attribution. |
+| Calibration and metrics | Mean inner Brier/log loss must be within +0.002/+0.01 of fitting-prevalence losses for candidate acceptance; AP then leads the declared ranking ties. All-failed fallback reports failure without retuning. Reserved calibration fitting and disjoint method selection retain minimum gain and sigmoid simplicity rules; calibrated selection-role acceptance is recorded. Log loss accompanies Brier/AP/ROC. Top-rate metrics average fractional boundary-tie membership with `ceil(n*rate)`. Reliability bins keep identical scores together and show counts. | Brier alone does not establish reliability. Rank-bin display ordering by score/ID remains a separate target-blind rule. Legacy metric names remain qualified below. |
+| Source meaning | SQL normalizes unambiguous obligations, preserves ambiguous/unknown support, uses distinct applicant months and matched ratio operands. Independent Python checks actual split, on-time/late, arrears, competing-version, unknown and multi-account records. Full contracts pass. | No amendment timestamps or unique cashflow ID permit optimistic version guesses or silent deduplication. Actual future/identical-record examples are absent; synthetic regressions check these boundaries. |
+| Bureau eligibility | One SQL owner admits only finite loan origins before application day; bureau, child balance and recency consume it. Separate coverage retains 25 rejected day-zero origins, with no positive/unknown origins in the actual source. Planned future maturities on eligible loans remain known contract information. | Day zero is not proven future leakage. Relative offsets cannot establish intraday/vendor ingestion availability; application external-score availability cannot be independently certified. |
+| Leakage control | A predeclared stratified 20,000-development-row seed-913 shuffled-label control executes the complete five-fold inner recipe and independent comparators. Outer label/covariate mutation regressions leave frozen choices/preprocessors unchanged. | Chance behavior is interpreted with sampling variation; this sampled diagnostic cannot prove real-world availability or erase historical exploration. |
+| Sensitivities | Predeclared selected-recipe model seeds 101/211/307 measure selection-role variation without choosing a seed. Ranking seeds 101/211/307 have a separate fitting-only role. Frozen known/unknown/no-history segments and all 27 margin/loss/review multiplier combinations 0.5/1/2 around 1000/5000/50. | Conditional population comparisons; no schedule guessing or outer-cost tuning. Utility is retrospective, with no real profit, reviewer effectiveness or rejected-loan counterfactual estimate. |
+| Policy and artifacts | Raw-score quantile bands simulate approve/review/decline; only middle review incurs cost. Feature/model/calibrator/evaluation identities reject stale dependent outputs. Historical inputs remain recoverable in separate scopes. | No hard queue capacity is promised. Local checks/fingerprints are scientific reproducibility evidence, not a production immutable release/tamper system. |
+| Reproduction and presentation | Project dependency closure is hash-locked. A second isolated environment refits declared first fold, same roles/seeds/inputs, matching choices and predictions within 1e-10. Raw/config/source hashes plus dirty Git identity qualify provenance. Corrected CSV model/split/scenario/score/actions/counts reconcile; new anonymous PNG/HTML evidence is generated. | Same-host numeric proof does not certify cross-hardware portability. Power BI Desktop/tooling is absent; native PBIX refresh and opaque DAX/relationship/import queries remain unverified. Original PBIX/screenshots are byte-identical historical assets. |
 
-The [remediation plan](../implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) proposes a concrete repair sequence. None of its new population protocol, policy, lineage machinery, or proposed commands is implemented by this documentation update. Preserve historical results; do not silently replace them with locally regenerated metrics.
+The [remediation proposal](../implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) retains dated historical designs. Inner CV is now implemented under the explicitly authorized bounded procedure described in the [methodology](ASSESSMENT_METHODOLOGY.md); hard capacity, broader release/lineage infrastructure and bootstrap remain outside this scope. History calibrated AP is 0.265862 versus prior 0.265750, essentially unchanged; application-only AP is 0.231021 versus 0.232638, and tuned logistic AP is 0.251083 versus prior fixed logistic 0.248427. These descriptive comparisons do not establish significance or guaranteed improvement. V3 history raw Brier/log loss are 0.066655/0.240720 versus prior raw 0.157305/0.477672; calibrated history probability losses are similar to prior. The search comparison alone cannot attribute this difference to one parameter; the separate controlled weighting follow-up below addresses that question.
 
-Terminology for current documentation:
+The separate [class-weighting diagnostic](../../reports/class_weighting_20261004/assessment_report.md) now resolves the main raw-probability attribution question conditional on the frozen history recipes. Twenty fixed-recipe fits change only positive-class weighting on the same five applicant groups. Removing weighting improves Brier/log loss in every recipe/group pair and essentially reproduces the original loss reduction; adding the earlier weight to the current recipe reverses it. All ten reference refits reproduce frozen scores exactly. This retrospective model-setting intervention is distinct from feature-set comparison, population causal claims and tuning-policy assessment. It does not promote a model or change prior numeric evidence.
 
-- **PR-AUC** is the legacy name for scikit-learn average precision, not trapezoidal PR-curve area.
-- **Recall at manual review capacity** is the legacy top-score ranking metric; use **top-10% default capture** for its 10% presentation, distinct from the middle review band.
-- **Brier score** measures overall probability quality; it does not establish calibration on its own.
-- **Expected value** is the legacy name for retrospective scenario utility using `1000`, `5000`, and `50` weights. No reviewer effectiveness or real loan economics is estimated.
-- **Held-out test** is a saved within-run split label. Across this experiment history it is a reused comparison population, not an independent final lockbox.
+The separate [current model-input diagnostic](../../reports/model_inputs_20261004/methods.md) reuses all five frozen current history models and saved fitting-only preprocessing, without fitting or selection. A predeclared uniform target-blind sample of 1,000 assessment rows per fold (seed 20261004) supports native TreeSHAP magnitudes. Absolute encoded effects sum by raw field and source group, then average within fold and equally across folds, in natural-log-odds units. Intercept-inclusive signed additivity is checked separately. Imported scores lead individual magnitudes; group size and correlated/derived fields limit cumulative attribution. This is sampled fitted-model behavior, not causality, predictive-value ablation or adverse-action reasons. Anonymous final tables and source identities remain separate from original empirical assessment fingerprints. The presentation also shows matched installment-only segment comparisons and all 27 existing fixed-policy utility assumptions without cost optimization.
 
-Historical metric sources are curated [experiment-log](../../reports/experiments/experiment_log.csv) rows `000` and `015` and the numbered reports. Runtime outputs, PBIX snapshots, and screenshots must be identified separately; their existence does not prove mutual reconciliation.
+Terminology:
+
+- **PR-AUC** is legacy scikit-learn average precision, not trapezoidal PR area.
+- **Recall at manual review capacity** means top-score capture, distinct from the middle review band; boundary ties receive equal expected membership.
+- **Brier/log loss** assess probability quality; reliability bins provide a separate descriptive check.
+- **Expected value** is legacy retrospective scenario utility in illustrative weight units.
+- **Held-out test** remains the saved within-run label for a reused historical comparison.
+
+Historical numbers stay in [experiment-log](../../reports/experiments/experiment_log.csv) rows `000` and `015`. The separate named reports identify corrected source/model and current tuning evidence without rewriting that history or claiming a refreshed Power BI report.
 
 ---
 
@@ -57,7 +65,7 @@ Historical metric sources are curated [experiment-log](../../reports/experiments
 Validation covers:
 
 - data and target sanity;
-- train/validation/test split integrity;
+- training/calibration/validation/test split integrity;
 - leakage checks;
 - baseline comparison;
 - LightGBM performance;
@@ -91,7 +99,7 @@ Runtime report paths below are relative to the configured `reports_dir`. Scoped 
 | `reports/model_card.md` | Intended use, non-use, data, metrics, limitations |
 | `reports/business_value_analysis.md` | Threshold and expected-value interpretation |
 | `model_run_summary` | Model version, data version, config, feature count, split info |
-| `model_metrics_summary` | ROC-AUC, PR-AUC, Brier score, lift, recall-at-capacity |
+| `model_metrics_summary` | ROC-AUC, average precision, Brier/log loss, tie-aware lift/top-score capture |
 | `model_threshold_metrics` | Threshold scenario comparison |
 | `model_lift_by_decile` | Decile-level ranking performance |
 | `model_calibration_bins` | Predicted vs observed default by score bucket |
@@ -138,8 +146,8 @@ The data is suitable for baseline modeling, or issues are documented with mitiga
 
 **Checks:**
 
-- Train/validation/test splits are disjoint by `SK_ID_CURR`.
-- Split proportions match config.
+- Training, calibration, validation, and test roles are disjoint by `SK_ID_CURR` (v1 omits calibration).
+- Split proportions match config; post-v1 divides the configured validation budget equally between calibration fitting and selection validation.
 - Positive-class rate is similar across splits.
 - Preprocessing is fit only on the appropriate training data.
 - Calibration and threshold selection are not fit on held-out test data.
@@ -156,7 +164,7 @@ model_run_summary split metadata
 
 Splits are valid and leakage controls are documented.
 
-Current gap: ordinary split generation is disjoint within a run, but saved-artifact loading lacks a cross-split overlap check and repeated-seed experiments do not preserve a common assessment boundary. This gate is not satisfied across the historical experiment trail.
+Current safeguards reject cross-split overlap, preserve saved test membership across retraining/stability seeds, rank features only within training, and reserve separate calibration-fitting rows. Historical cross-run reuse and repeated dataset exploration still prevent an independent-assessment claim across the experiment trail.
 
 ---
 
@@ -239,7 +247,7 @@ LightGBM becomes the primary model only if it improves the decisioning story. If
 
 The selected score representation is documented. If uncalibrated scores are used, state that they are treated primarily as risk scores, not perfect probabilities.
 
-Current post-v1 fitting/selection shares validation data; documentation of sigmoid gains does not satisfy independent method assessment.
+Historical post-v1 fitting/selection shared validation data. Current fitting uses a reserved calibration role and disjoint method selection; named outer assessment evaluates the frozen choice independently within each fold.
 
 ---
 
@@ -251,7 +259,7 @@ Current post-v1 fitting/selection shares validation data; documentation of sigmo
 
 - Validation-derived threshold scenarios are evaluated on validation data.
 - Growth-oriented, balanced, and risk-averse scenarios are defined.
-- Report actual middle-review and high-priority-review volumes separately. Fixed quantiles are not a hard capacity guarantee.
+- Report simulated middle-review and decline volumes separately. Fixed quantiles are not a hard capacity guarantee.
 - Expected-value assumptions are explicit and configurable.
 - Threshold choices are fixed before test-set reporting.
 - Business-value tables reconcile to confusion matrix/action counts.
@@ -280,7 +288,7 @@ expected_value
 
 **Pass condition:**
 
-At least three predefined threshold scenarios are reported with counts, utility units, and action assumptions. "Balanced" is the displayed reference scenario, not an optimized policy. Capacity enforcement and the high-priority-review cost/disposition mismatch remain open.
+At least three predefined threshold scenarios are reported with counts, utility units, and action assumptions. "Balanced" is the displayed reference scenario, not an optimized policy. The high band now simulates decline with zero modeled value/cost, aligning action and utility. Quantiles are a rate reference; hard capacity enforcement is outside the declared scope.
 
 ---
 
@@ -312,7 +320,7 @@ gaps are explained honestly. Because this set has been observed across post-v1
 experiments, it is a comparison/generalization set rather than a completely
 untouched final lockbox.
 
-The limitation goes beyond repeated observation: original test applicants enter fitting under the stability seeds, and reporting-population SHAP importance feeds feature selection. Similar validation/test metrics therefore do not demonstrate independent generalization.
+Historically, original test applicants entered fitting under stability seeds and reporting-population SHAP fed feature selection. Corrected code removes those paths, while prior exploration still prevents untouched external-generalization claims.
 
 ---
 
@@ -561,18 +569,19 @@ This records the historical artifact checklist, not a current validation sign-of
 - [x] segment diagnostics are included;
 - [x] SHAP/global driver outputs are reviewed;
 - [x] scoring output is validated;
-- [ ] current generated bundle, report narrative, PBIX visuals, and screenshots reconcile to one identified run;
+- [x] corrected CSV bundle, report narrative and newly generated static evidence reconcile to one identified run;
+- [ ] native PBIX visuals and refreshed screenshots reconcile; required native tooling is unavailable here and original historical assets are preserved;
 - [x] README limitations are clear.
 
-Pending correctness requirements:
+Correctness gates for the named protocol:
 
-- [ ] assessment applicants remain outside adaptive fitting and selection across runs;
-- [ ] feature selection importance is confined to development data;
-- [ ] calibration fitting and method assessment are separated, with per-method eligibility;
-- [ ] installment obligations, observation windows, missingness, and availability semantics are verified;
-- [ ] actual action queues and utility assumptions agree, with tested capacity semantics;
-- [ ] split manifests and dependent artifacts identify and validate the exact fitted parent;
-- [ ] effective tuning parameters and a controlled reproduction are verified.
+- [x] each outer prediction excludes its applicant from that workflow's fitting/selection; original comparison IDs never enter nested/control fitting;
+- [x] feature selection importance uses only base-fitting rows;
+- [x] calibration fitting and method assessment are separated, with per-method eligibility;
+- [x] declared obligation/window/missingness/relative-availability semantics pass actual-source and distinguishing synthetic checks; real ingestion/intraday availability remains unproven;
+- [x] simulated actions and utility assumptions agree; quantile rate references and tie-aware rank metrics are tested without a hard-capacity claim;
+- [x] split manifests and dependent artifacts identify and validate the fitted parent;
+- [x] effective tuning parameters and a controlled locked same-host fold reproduction are recorded by the named evidence report.
 
 ---
 

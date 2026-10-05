@@ -1,4 +1,4 @@
-.PHONY: setup ingest features train evaluate score calibrate explain dashboard-data dashboard-data-post-v1 pipeline-v1 pipeline-post-v1 lint format-check format test
+.PHONY: portfolio setup ingest features train evaluate score calibrate explain assess-post-v1 assess-tuning assess-tuning-control dashboard-data dashboard-data-post-v1 pipeline-v1 pipeline-post-v1 lint format-check format test
 
 CONFIG ?= configs/base.yaml
 CONFIG_V1 ?= configs/v1.yaml
@@ -25,6 +25,15 @@ score:
 
 calibrate:
 	$(PYTHON) -m src.calibrate --config $(CONFIG)
+
+assess-post-v1:
+	$(PYTHON) -m src.nested_assessment --config $(CONFIG_POST_V1)
+
+assess-tuning:
+	$(PYTHON) -m src.nested_assessment --config configs/tuning_20261004.yaml
+
+assess-tuning-control:
+	$(PYTHON) -m src.nested_assessment --config configs/tuning_20261004_negative_control.yaml
 
 explain:
 	$(PYTHON) -m src.explain --config $(CONFIG)
@@ -65,3 +74,14 @@ pipeline-post-v1:
 
 test:
 	$(PYTHON) -m pytest -q
+
+portfolio:
+	$(PYTHON) -m src.portfolio_report
+
+.PHONY: portfolio-site portfolio-inputs
+
+portfolio-site:
+	$(PYTHON) -m src.portfolio_site
+
+portfolio-inputs:
+	$(PYTHON) -m src.assessment_model_inputs

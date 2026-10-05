@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
+from numbers import Integral
 from pathlib import Path
 from typing import Any
 
 import joblib
 
 from src.calibration import CALIBRATION_METHODS, UNCALIBRATED_METHOD
-from src.mart_access import existing_tables
+from src.mart_access import existing_tables, feature_build_id, table_columns
+from src.model_contracts import EVALUATION_SPLITS
 
 REQUIRED_MODEL_ARTIFACT_KEYS = {
     "pipeline",
@@ -15,9 +17,12 @@ REQUIRED_MODEL_ARTIFACT_KEYS = {
     "model_type",
     "feature_columns",
     "split_applicant_ids",
+    "run_id",
 }
 REQUIRED_CALIBRATION_ARTIFACT_KEYS = {
+    "calibration_run_id",
     "base_model_version",
+    "base_model_run_id",
     "selected_method",
     "calibrators",
 }
@@ -58,7 +63,47 @@ def load_model_artifact(
         raise error_cls(f"{artifact_label} does not contain feature_columns")
     if require_predict_proba and not hasattr(artifact["pipeline"], "predict_proba"):
         raise error_cls(f"{artifact_label} pipeline does not expose predict_proba")
+    if not isinstance(artifact["run_id"], str) or not artifact["run_id"].strip():
+        raise error_cls(f"{artifact_label} must contain a nonempty run_id")
+    artifact["split_applicant_ids"] = normalize_split_ids(
+        artifact["split_applicant_ids"],
+        (*EVALUATION_SPLITS, "calibration")
+        if isinstance(artifact["split_applicant_ids"], dict)
+        and "calibration" in artifact["split_applicant_ids"]
+        else EVALUATION_SPLITS,
+        error_cls=error_cls,
+        label=f"{artifact_label} split_applicant_ids",
+    )
     return artifact
+
+
+def validate_feature_build(
+    connection: Any, artifact: dict[str, Any], *, error_cls: type[Exception]
+) -> None:
+    if artifact.get("feature_build_id") != feature_build_id(
+        connection, error_cls=error_cls
+    ):
+        raise error_cls(
+            "Model does not match the current feature build; retrain and regenerate downstream artifacts"
+        )
+
+
+def require_reporting_identity(
+    connection: Any, table: str, artifact: dict[str, Any], *, error_cls: type[Exception]
+) -> None:
+    if table not in existing_tables(connection):
+        raise error_cls(
+            f"Missing {table}; regenerate evaluation/scoring for the fitted model"
+        )
+    if not {"model_run_id", "model_version"}.issubset(table_columns(connection, table)):
+        raise error_cls(f"Invalid {table} schema; regenerate evaluation/scoring")
+    rows = connection.execute(
+        f"SELECT model_run_id, model_version FROM {table}"
+    ).fetchall()
+    if rows != [(artifact["run_id"], artifact["model_version"])]:
+        raise error_cls(
+            f"{table} does not match the fitted model; regenerate evaluation/scoring"
+        )
 
 
 def normalize_split_ids(
@@ -77,14 +122,37 @@ def normalize_split_ids(
         raise error_cls(f"{label} is missing splits: {missing_splits}")
 
     split_ids: dict[str, list[int]] = {}
-    for split_name in required_splits:
-        ids = [int(value) for value in raw_split_ids[split_name]]
+    applicant_splits: dict[int, str] = {}
+    # Validate the complete manifest even when a caller only needs test IDs.
+    for split_name, raw_ids in raw_split_ids.items():
+        if not isinstance(raw_ids, Collection) or isinstance(
+            raw_ids, (str, bytes, Mapping, set, frozenset)
+        ):
+            raise error_cls(f"{label}[{split_name}] must be a sequence")
+        ids = []
+        for value in raw_ids:
+            if isinstance(value, bool) or not isinstance(value, (Integral, str)):
+                raise error_cls(
+                    f"{label}[{split_name}] must contain integer applicant IDs"
+                )
+            try:
+                ids.append(int(value))
+            except ValueError as error:
+                raise error_cls(
+                    f"{label}[{split_name}] must contain integer applicant IDs"
+                ) from error
         if not ids:
             raise error_cls(f"{label}[{split_name}] must not be empty")
         if len(ids) != len(set(ids)):
             raise error_cls(f"{label}[{split_name}] contains duplicate applicants")
+        for applicant_id in ids:
+            if applicant_id in applicant_splits:
+                raise error_cls(
+                    f"{label} splits overlap: {applicant_splits[applicant_id]} and {split_name}"
+                )
+            applicant_splits[applicant_id] = split_name
         split_ids[split_name] = ids
-    return split_ids
+    return {split: split_ids[split] for split in required_splits}
 
 
 def selected_model_types(connection: Any) -> set[str]:
@@ -173,11 +241,26 @@ def load_calibration_artifact(
             "Calibration artifact base_model_version does not match selected model_version: "
             f"{calibration_artifact['base_model_version']} != {selected_artifact['model_version']}"
         )
+    parent_run = calibration_artifact["base_model_run_id"]
+    calibration_run = calibration_artifact["calibration_run_id"]
+    if not isinstance(calibration_run, str) or not calibration_run.strip():
+        raise error_cls("Calibration artifact requires a nonempty calibration_run_id")
+    if (
+        not isinstance(parent_run, str)
+        or not parent_run.strip()
+        or parent_run != selected_artifact.get("run_id")
+    ):
+        raise error_cls(
+            "Calibration artifact base_model_run_id does not match the fitted model. "
+            "Regenerate calibration for the selected model."
+        )
 
     selected_method = str(calibration_artifact["selected_method"])
     if selected_method not in CALIBRATION_METHODS:
         raise error_cls(f"Unsupported calibration method: {selected_method}")
     calibrators = calibration_artifact["calibrators"]
+    if not isinstance(calibrators, dict):
+        raise error_cls("Calibration artifact calibrators must be a mapping")
     if selected_method != UNCALIBRATED_METHOD and selected_method not in calibrators:
         raise error_cls(
             f"Calibration artifact does not contain selected calibrator: {selected_method}"
@@ -187,4 +270,8 @@ def load_calibration_artifact(
 
 def uncalibrated_calibration_artifact() -> dict[str, Any]:
     """Return the no-op calibration artifact used when calibration is unavailable."""
-    return {"selected_method": UNCALIBRATED_METHOD, "calibrators": {}}
+    return {
+        "selected_method": UNCALIBRATED_METHOD,
+        "calibrators": {},
+        "calibration_run_id": "uncalibrated",
+    }

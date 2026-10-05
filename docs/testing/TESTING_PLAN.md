@@ -1,10 +1,19 @@
 # Loan Default Risk Decisioning System — Testing Plan
 
+## Current presentation verification
+
+`tests/test_assessment_model_inputs.py` checks target-blind deterministic sampling, one-hot ownership despite category/input prefix collisions, cumulative absolute grouping and separate signed additivity failure. The portfolio tests reject mismatched model-input identities, applicant-level columns, changed summaries, inconsistent segment populations and incomplete utility grids. Static-bundle tests reject unexpected files and changed hashes; all eight charts and local downloads render without source data or models. These are synthetic/anonymous verification checks, distinct from the completed bounded real-data interpretation.
+
+`tests/test_class_weighting_ablation.py` checks that the diagnostic changes only class weighting and rejects incompatible or overlapping applicant roles. `tests/test_class_weighting_report.py` independently reconciles anonymous fold/paired summaries and rejects stale run identities, bad reference reproduction and applicant-level input. The portfolio test also checks the controlled-comparison chart and explanation. The completed real-data diagnostic is separate evidence; these tests require only synthetic structures and curated anonymous aggregates.
+
+`tests/test_portfolio_report.py` verifies anonymous aggregate inputs, numerical fold-summary reconciliation, matched applicant counts, preserved metric keys and standalone offline rendering without raw data/models. `make portfolio` regenerates final presentation only. Fixture workflows exercise runtime reports/charts and preserve export schemas. These checks do not establish future-cohort performance or native Power BI refresh.
+
+
 **Version:** 0.1  
 **Status:** Existing fixture coverage and required checks; missing correctness regressions identified
 **Owner:** Steven  
 **Aligned spec:** [PROJECT_SPEC.md](../spec/PROJECT_SPEC.md)
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-04
 
 ---
 
@@ -80,6 +89,11 @@ Low volume
 | `tests/test_dashboard_exports.py` | Dashboard export files and schemas |
 | `tests/test_powerbi_artifacts.py` | Committed Power BI report artifacts |
 | `tests/test_repo_contract.py` | Repository command, path, SQL, and ignore contracts |
+| `tests/test_methodology_boundaries.py` | Reserved calibration, training-only selection, fixed comparison membership, CLI execution, and stale-output rejection |
+| `tests/test_nested_assessment.py` | Outer-fold coverage, candidate/assessment isolation, mean-rank repeats, seed separation, frozen predictions under changed assessment labels, CLI artifacts, and failed-run status |
+| `tests/test_repayment_methodology.py` | Split payments, ambiguous schedules, unknown payments, month grain, matched ratios, duplicates, and transactional rebuilds |
+| `tests/test_model_artifacts.py` | Split manifests and parent/child calibration contracts |
+| `tests/test_metrics.py` | Strict label validation before integer conversion |
 
 The current suite uses pytest fixtures and small in-memory/staged datasets so it can run without the full Kaggle dataset.
 
@@ -254,7 +268,7 @@ Test expectations:
 - validation/test labels are not used in training transformations;
 - thresholds are selected on validation, not final test.
 
-Missing protections: loading a saved split manifest does not currently reject cross-split overlap; repeated-seed runs reuse original test applicants in fitting; SHAP-ranked selection uses reporting-population importance. Add regressions at those actual boundaries when implementing repairs. Calibration fit/assessment separation is also required before claiming independent method selection.
+Saved-artifact loading rejects malformed/overlapping split IDs; retraining and stability seeds preserve saved test membership. Feature selection uses current training rows, including per-seed ranking. Metamorphic tests change labels outside training and verify unchanged selected features; changing labels outside reserved calibration leaves fitted transforms unchanged. These repairs do not establish an independent historical assessment population or nested assessment.
 
 ---
 
@@ -517,19 +531,29 @@ Existing fixture coverage includes the following checks. These are implementatio
 - [x] dashboard export files exist and are readable;
 - [x] SHAP/reason-code outputs exclude diagnostic-only fields.
 
-Required regressions for proposed correctness repairs (not currently complete):
+Correctness-repair regressions and remaining requirements:
 
-- [ ] split overlap and invalid identifier manifests fail on artifact load;
-- [ ] assessment IDs remain outside all adaptive fitting and selection paths;
-- [ ] selection importance excludes reporting populations;
-- [ ] a fully paid obligation split across payment rows is not underpaid or double-counted; version changes and unknown amounts are explicit;
-- [ ] last-k windows distinguish records from distinct applicant months, with availability and missingness cases;
-- [ ] calibration candidates meet their own minimum gain and are assessed outside calibration-fitting rows;
-- [ ] ties, empty/small batches, and distribution shifts obey any newly implemented capacity rule, with actual review capture separate from top-score capture;
-- [ ] action disposition and review costing reconcile, including the high band;
-- [ ] calibration, thresholds, and exports reject a mismatched fitted parent;
-- [ ] raw/calibrated metrics and dashboard display filters reconcile to one identified bundle;
-- [ ] effective LightGBM row-bagging parameters match the intended experiment.
+- [x] split overlap and invalid identifier manifests fail on artifact load;
+- [x] fractional, non-binary, and missing target labels fail before integer conversion in shared label validation;
+- [x] stability seeds preserve saved test membership and exclude it from train/validation;
+- [x] full-only feature experiments run without a SHAP ranking, and an empty feature-set request fails clearly;
+- [x] feature-experiment utility uses raw scores even when calibrated scores are flat;
+- [x] nested outer-assessment IDs remain outside that fold's adaptive fitting/selection paths, with exactly one prediction per development applicant per declared workflow per repeat;
+- [x] model seed changes leave partition membership unchanged; ranking repeats see only the current fitting rows;
+- [x] changed assessment labels leave the frozen workflow and scores unchanged, and failed assessment runs retain a failed manifest;
+- [x] selection importance excludes reporting populations;
+- [x] a fully paid obligation split across payment rows is not underpaid or double-counted; competing versions and unknown amounts are explicit;
+- [x] last-k windows use distinct applicant months and due obligations; current/future rows are excluded and burden ratios use matched known operands;
+- [x] duplicate account-month records fail and a failed feature rebuild preserves the previous mart/build identity;
+- [x] calibration candidates meet their own minimum gain before sigmoid preference;
+- [x] calibration candidates are assessed outside calibration-fitting rows;
+- [x] tie-aware evaluation covers boundary, flat, reordered and mixed scores; reliability keeps score ties together; no hard-capacity queue is claimed or implemented;
+- [x] action disposition and review costing reconcile: high band is simulated decline, middle band alone incurs review cost;
+- [x] training runs receive distinct IDs even with the same timestamp, and calibration rejects a mismatched fitted parent;
+- [x] thresholds and exports reject a mismatched fitted parent; replacing the feature build or calibrator also invalidates dependent outputs;
+- [x] evaluation reports ignore stale calibration CSVs and identify the fitted model/feature build;
+- [x] corrected CSV raw/calibrated metrics, actions, model/split/scenario and counts reconcile to one identified bundle; native PBIX DAX/filter propagation remains unverified;
+- [x] LightGBM classifier parameters enable the configured row bagging; named corrected full-data fits remain separate from historical snapshots.
 
 ---
 
@@ -546,3 +570,13 @@ The following are required checks for the existing local pipeline. Completing th
 - dashboard exports load cleanly.
 
 This is a portfolio-grade testing standard, not production bank-grade QA. The README should not claim production readiness.
+
+## Named real-data verification
+
+The [2026-10-04 correctness assessment](../../reports/correctness_20261004/assessment_report.md) records full corrected raw-to-dashboard v1/post-v1 runs, an independent Python actual-source oracle, matched full-data outer assessment, the declared 20,000-row shuffled-label diagnostic and a second locked same-host fold refit. Runtime manifests/logs and exact role IDs remain local; curated evidence contains no applicant IDs. Future and identical-payment source examples are absent in the real files, so distinguishing synthetic regressions explicitly cover their inclusion/retention behavior. Native PBIX numeric refresh remains unverified because required tooling is unavailable; CSV and newly generated anonymous static evidence are checked separately. Use `make lint format-check test PYTHON=.tmp/assessment-env/Scripts/python.exe` in the verified locked environment.
+
+## Current tuning verification
+
+The [v3 tuning evidence](../../reports/tuning_20261004/assessment_report.md) records the completed matched five-fold original-label assessment and complete sampled-20k shuffled-label control. `tests/test_tuning.py` verifies deterministic budgets beyond eight, unweighted/lighter cases, inner fitting/stopping/scoring boundaries, fitting-only preprocessing/raw rankings, actual best-iteration use and seed roles. `tests/test_tuning_integration.py` covers shared current train, feature-selection, split-stability and nested callers, eligible/selected field identities, named artifact schemas and historical-ID exclusion. Curating verifies complete CV evidence, fixed rounds, prior membership equality and preserved files. Independent recomputation checks coverage and paired metrics; all frozen scores and a first-fold locked-environment refit reproduce. These are local scientific checks, with native Power BI and chronology limitations unchanged.
+
+Review regressions force genuine CV-selected top-40/top-80 training artifacts through evaluation alongside a full-field logistic artifact, verify each prediction uses its own fitted fields, and exercise downstream calibration/scoring/dashboard consumers. A separate legacy equal-field persisted-artifact regression retains compatibility; split/build/eligibility mismatches still fail. Current winner-only stability reports selection frequencies over all completed splits, conditional metric support and unavailable absent/singleton uncertainty; a faithful three-split case verifies 1/3 versus 2/3 and no aggregate promotion. Legacy all-surface aggregation remains separate.

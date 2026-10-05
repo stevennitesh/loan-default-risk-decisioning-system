@@ -12,6 +12,7 @@ from src.mart_access import fetch_count
 from src.report_contracts import INGESTION_SUMMARY_COLUMNS
 from src.runtime import (
     REPO_ROOT,
+    configure_duckdb,
     created_at_utc,
     ensure_directories,
     resolve_config_path,
@@ -61,6 +62,7 @@ def run_ingestion(
     summary_rows: list[dict[str, Any]] = []
 
     with duckdb.connect(str(duckdb_path)) as connection:
+        configure_duckdb(connection, config)
         for source_name, source_file in config["source_files"].items():
             _validate_source_name(source_name)
 
