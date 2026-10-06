@@ -4,6 +4,8 @@
 
 Start with [the case study](portfolio/case_study.md) or [standalone offline report](portfolio/index.html). They explain the current matched assessment with human labels, exportable PNG/SVG charts and an exact numeric appendix. `make portfolio` derives these final outputs from the existing committed anonymous tuning aggregates, without raw data or model fitting. `portfolio/provenance.json` records presentation-input, renderer and output hashes separately from scientific execution identities. Only the exact final-file exceptions in `.gitignore` admit these files.
 
+The report opens with the implemented pipeline and matched ranking result. Supporting assessment, segment, model-input and utility details remain in an expandable section; direct section links open that evidence. Phone charts use portrait layouts with stacked panels, keeping labels beside their values. An embedded enlargement view provides the original landscape chart. The case study uses GitHub URLs for supporting documents outside the published bundle. Exported model-input methods name `model_input_provenance.json` for scientific checks; `provenance.json` records presentation files, including the adapted methods note. Original model-input evidence and its source hashes remain unchanged.
+
 The named tuning/correctness evidence below remains the technical appendix. Numbered experiments and saved Power BI visuals remain explicitly historical. Active report generators use [shared presentation vocabulary](../src/presentation.py); machine CSV keys remain unchanged under [report contracts](../src/report_contracts.py).
 
 

@@ -2,7 +2,7 @@
 
 **Can prior loan and repayment history improve risk ranking beyond an application form?**
 
-This public Home Credit portfolio joins relational credit data with SQL, builds and compares risk models in Python, and turns the results into readable decision-support reporting. It demonstrates data engineering, careful assessment and clear communication for recruiters and hiring managers.
+I built a SQL/DuckDB and Python pipeline that joins public Home Credit loan and repayment tables, compares risk models, and produces an offline report. The work includes normalizing split payments, separating modeling roles, and explaining how class weighting changes probability quality.
 
 The current five-group assessment covers **261,384 labeled applicants**. Application and loan history achieved **0.266 average precision**, compared with **0.231** using application fields only and **0.251** for logistic regression. Average precision measures ranking of repayment-difficulty cases; it is not accuracy. These are means of five matched applicant test-group metrics. Prior public-data exploration prevents an untouched final-test claim, and random groups do not establish future-cohort performance.
 
@@ -35,6 +35,8 @@ flowchart LR
     models --> demo[Unlabeled batch-scoring demonstration]
 ```
 
+**A concrete engineering check:** a [synthetic repayment fixture](tests/test_repayment_methodology.py#L26) records payments of 40 and 60 against one 100-unit obligation. SQL keeps 100 units due and 100 paid, rather than summing the repeated amount due twice, and excludes a payment made after the application day. These fixture values illustrate the accounting rule; they are not applicant records or dollars.
+
 The outcome records **repayment difficulty**, a proxy rather than measured financial loss. Applicant identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Diagnostic fields stay separate. Unlabeled Kaggle applications demonstrate scoring and contribute no outcome metrics.
 
 ## What the results mean
@@ -65,7 +67,7 @@ On Windows where `python3` is unavailable:
 make portfolio PYTHON=python
 ```
 
-The renderer reads only the committed anonymous results in `reports/tuning_20261004/` and the controlled weighting evidence in `reports/class_weighting_20261004/` and anonymous frozen-model input magnitudes in `reports/model_inputs_20261004/`. It writes `reports/portfolio/`, checks matched population counts, fold-summary agreement and weighting-run identity, and records input/renderer/output hashes. It does not download data, load model artifacts, fit models or replace frozen scientific evidence. The HTML embeds images and styles; PNG/SVG files support GitHub viewing and reuse. Exact technical keys remain in the numeric appendix and metric dictionary. `make portfolio-site` verifies the reviewed final-file allowlist and hashes, then copies only the static presentation into `.tmp/portfolio-site/`; the Pages workflow publishes this folder. Repository-wide data/models/scratch files are never uploaded. Source evidence links point to GitHub; adjacent downloads work online and offline when the presentation folder is retained. The HTML alone keeps all eight charts and text offline.
+The renderer reads only the committed anonymous results in `reports/tuning_20261004/` and the controlled weighting evidence in `reports/class_weighting_20261004/` and anonymous frozen-model input magnitudes in `reports/model_inputs_20261004/`. It writes `reports/portfolio/`, checks matched population counts, fold-summary agreement and weighting-run identity, and records input/renderer/output hashes. It does not download data, load model artifacts, fit models or replace frozen scientific evidence. The HTML embeds images and styles; PNG/SVG files support GitHub viewing and reuse. A short main story leads to expandable supporting evidence. Phone charts use portrait layouts with stacked panels, keeping labels beside their values. Charts can also be enlarged within the report. Both layouts preserve the plotted values, axis limits and units. Exact technical keys remain in the numeric appendix and metric dictionary. `make portfolio-site` verifies the reviewed final-file allowlist and hashes, then copies only the static presentation into `.tmp/portfolio-site/`; the Pages workflow publishes this folder. Repository-wide data/models/scratch files are never uploaded. Source evidence links point to GitHub; adjacent downloads work online and offline when the presentation folder is retained. The HTML alone keeps all eight charts and text offline.
 
 `make portfolio-inputs` is a separate local diagnostic requiring the completed current five frozen models and identified mart. It reads the database in read-only mode and reuses saved preprocessing/native TreeSHAP on 1,000 target-blind assessment rows per fold (seed 20261004), with no fitting or selection. Only anonymous per-fold/mean magnitudes, the input dictionary and provenance are curated; the ordinary presentation renderer does not need those models or data.
 

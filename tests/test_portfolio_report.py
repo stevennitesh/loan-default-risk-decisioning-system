@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from html.parser import HTMLParser
 from pathlib import Path
@@ -92,7 +93,9 @@ class Resources(HTMLParser):
         self.references = []
 
     def handle_starttag(self, tag, attrs):
-        self.references.extend(value for key, value in attrs if key in {"src", "href"})
+        self.references.extend(
+            value for key, value in attrs if key in {"src", "srcset", "href"}
+        )
 
 
 def test_render_is_offline_preserves_keys_and_is_deterministic(tmp_path: Path) -> None:
@@ -120,7 +123,8 @@ def test_render_is_offline_preserves_keys_and_is_deterministic(tmp_path: Path) -
 
     parser = Resources()
     parser.feed((destination / "index.html").read_text(encoding="utf-8"))
-    assert len([v for v in parser.references if v.startswith("data:image/png")]) == 8
+    # Both desktop and portrait phone charts must remain embedded offline.
+    assert len([v for v in parser.references if v.startswith("data:image/png")]) == 16
     assert all(
         v.startswith(("data:", "#", "https://github.com/"))
         or (destination / v).is_file()
@@ -138,6 +142,22 @@ def test_render_is_offline_preserves_keys_and_is_deterministic(tmp_path: Path) -
     ]:
         assert (destination / f"{name}.svg").exists()
     report = (destination / "case_study.md").read_text(encoding="utf-8")
+    methods = (destination / "model_input_methods.md").read_text(encoding="utf-8")
+    for document in (report, methods):
+        for reference in re.findall(r"\]\(([^)]+)\)", document):
+            assert not reference.startswith("../"), reference
+            assert (
+                reference.startswith("https://")
+                or (destination / reference.split("#")[0]).is_file()
+            ), reference
+    assert "in provenance.json." not in methods
+    assert "[model_input_provenance.json](model_input_provenance.json)" in methods
+    assert (destination / "model_input_provenance.json").read_bytes() == (
+        INPUT_SOURCE / "provenance.json"
+    ).read_bytes()
+    assert "in provenance.json." in (INPUT_SOURCE / "methods.md").read_text(
+        encoding="utf-8"
+    )
     assert "not accuracy" in report
     assert "middle manual-review band" in report
     assert "not dollars or profit" in report

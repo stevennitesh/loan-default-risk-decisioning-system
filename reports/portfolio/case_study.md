@@ -1,22 +1,26 @@
 # Credit risk from application and repayment history
 
-Can prior loan and repayment history improve risk ranking beyond an application form?
+I built a SQL/DuckDB and Python pipeline that joins public loan and repayment tables, compares risk models, and produces an offline report.
+
+Application and loan history reached 0.266 average precision, compared with 0.231 using application fields only.
+
+These are means from five matched applicant test groups covering 261,384 labeled applicants. Average precision measures ranking, not accuracy. Prior exploration and random groups limit claims about future cohorts.
 
 ## The question
 
 Loan applications contain current financial information, while separate tables record previous loans, monthly balances and repayments. This public Home Credit project asks whether joining that history improves ranking of applicants with observed repayment difficulty. The recorded target is a proxy for repayment difficulty, not measured financial loss.
 
-## Build one trustworthy applicant table
+## What I built
 
-SQL converts several relational tables into one modeling-table row per applicant and source population. Installment obligations are counted once across split payments; ambiguous schedules and unknown payments remain explicit. Monthly history uses distinct applicant months, and bureau loans must originate before the application day. Python coordinates the steps, models, scoring, interpretation and exports. Identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Relative dates cannot certify the exact time a lender could have obtained each field.
+SQL builds one modeling record per applicant, separately for labeled assessment and unlabeled scoring. Installment obligations are counted once across split payments; ambiguous schedules and unknown payments remain explicit. Monthly history uses distinct applicant months, and bureau loans must originate before the application day.
 
-## Compare models on the same applicants
+Python coordinates ingestion, model selection, scoring, SHAP interpretation and exports. Identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Relative dates cannot certify when a lender could have obtained each field.
 
-The assessment covers 261,384 labeled development applicants in five applicant test groups. Each group is predicted by models whose fitting and selection used the other groups. A constant outcome-rate benchmark, logistic regression, application-only LightGBM and history LightGBM predict the same test applicants. Logistic regression is the simpler linear benchmark; LightGBM combines decision trees. Means summarize five separate metrics, not one pooled cross-model score.
+Public tables → SQL/DuckDB features → Python models → Reporting and batch scoring.
 
-Prior public-data exploration remains: this is not an untouched final test or a future-cohort assessment.
+**Counting one obligation once — synthetic example.** A synthetic test records payments of 40 and 60 against one 100-unit obligation. The SQL result contains 100 units due and 100 paid, rather than counting the repeated amount due twice. The same test excludes a payment recorded after the application day. These are fixture values, not applicant records or dollars.
 
-[How fitting, selection and assessment are separated](../../docs/validation/ASSESSMENT_METHODOLOGY.md).
+[Inspect the repayment fixture](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/tests/test_repayment_methodology.py).
 
 ## History improves ranking in this assessment
 
@@ -34,6 +38,48 @@ Equal scores at the boundary receive equal expected membership; the methods reta
 ![Model comparison](model_comparison.png)
 
 ![Highest-risk group capture](risk_capture.png)
+
+## Check probabilities separately
+
+The history model's Brier score is 0.067 and log loss is 0.241; lower is better for both. These measure probability errors, while the reliability chart compares predicted and observed rates within each test group's own score bins. All five history models selected the full 174 eligible inputs and raw probabilities; no probability-adjustment transform was selected.
+
+The 50 displayed bins contain 5,227 to 5,228 applicants each; score ties stay together. Reliability is descriptive, not a guarantee for a new lending population.
+
+![Predicted and observed repayment-difficulty rates in each test group's own bins.](probability_reliability.png)
+
+## A broader search did not materially improve ranking
+
+The earlier corrected history search had average precision 0.265750; the current search has 0.265862. That is a practical ranking plateau in these descriptive results. Raw probability errors improved substantially, while final probability quality stayed similar. Multiple settings and search budgets changed together, so this search comparison alone cannot attribute the change to one parameter. The separate controlled comparison below tests class weighting. A 20,000-applicant shuffled-outcome diagnostic returned roughly chance ranking; it does not establish real-world field availability or erase earlier exploration.
+
+![Earlier and current search: ranking and raw/final probability quality.](search_comparison.png)
+
+## Test why the raw probabilities improved
+
+Class weighting gives repayment-difficulty cases more influence during fitting. It can improve attention to a rare outcome while distorting the probability scale. The controlled comparison changes only that weight within each frozen recipe and applicant group.
+
+Removing class weighting is the dominant explanation for the better raw probabilities in these recipes. Probability errors improved in all ten recipe/group pairs, and putting the earlier weight into the current recipe reversed the benefit. Using the earlier recipe, mean predicted risk fell from 34.2% to 7.94%, against an observed difficulty rate of 8.07%. Raw Brier score fell from 0.1573 to 0.0666; log loss improved too. Average-rate agreement alone does not prove calibration.
+
+Earlier probability adjustment had already repaired much of the scale error, so final probability quality changed little. This retrospective check does not promote a model, establish optimal weights for future cohorts or isolate the search screen's separate selection effect.
+
+![Controlled class-weighting comparison: two fixed recipes, weighted and unweighted, on five matched groups.](class_weighting.png)
+
+[Controlled comparison methods and exact results](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md).
+
+## What this demonstrates—and what remains unknown
+
+The contribution is disciplined SQL data engineering, benchmark comparison, bounded model selection, reproducible assessment and readable reporting. Historical comparisons remain an archive. Unlabeled Kaggle applications demonstrate batch scoring only and contribute no outcome metrics. Calendar application, field-availability and outcome-maturity timestamps are missing; random applicant groups cannot validate performance in a future cohort. This portfolio does not establish underwriting, compliance, fair-lending or adverse-action readiness. The saved Power BI files and screenshots are unrefreshed historical demonstrations; the current charts and offline report are separate presentation artifacts.
+
+## Supporting evidence and methods
+
+The sections below retain the assessment details, segment checks, model-input explanations and simulated decision assumptions.
+
+## Compare models on the same applicants
+
+The assessment covers 261,384 labeled development applicants in five applicant test groups. Each group is predicted by models whose fitting and selection used the other groups. A constant outcome-rate benchmark, logistic regression, application-only LightGBM and history LightGBM predict the same test applicants. Logistic regression is the simpler linear benchmark; LightGBM combines decision trees. Means summarize five separate metrics, not one pooled cross-model score.
+
+Prior public-data exploration remains: this is not an untouched final test or a future-cohort assessment.
+
+[How fitting, selection and assessment are separated](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/docs/validation/ASSESSMENT_METHODOLOGY.md).
 
 ## Check the installment-history boundary
 
@@ -64,32 +110,6 @@ The diagnostic reuses the five frozen models on target-blind samples without fit
 | Previous loan applications | 13 | Prior Home Credit application outcomes, requested and granted amounts, approval/refusal rates and relative decision dates. |
 | Combined financial pressure | 4 | Ratios combining external scores or application income/credit with bureau debt and installment payment shortfall. These groups overlap information sources. |
 
-## Check probabilities separately
-
-The history model's Brier score is 0.067 and log loss is 0.241; lower is better for both. These measure probability errors, while the reliability chart compares predicted and observed rates within each test group's own score bins. All five history models selected the full 174 eligible inputs and raw probabilities; no probability-adjustment transform was selected.
-
-The 50 displayed bins contain 5,227 to 5,228 applicants each; score ties stay together. Reliability is descriptive, not a guarantee for a new lending population.
-
-![Predicted and observed repayment-difficulty rates in each test group's own bins.](probability_reliability.png)
-
-## A broader search did not materially improve ranking
-
-The earlier corrected history search had average precision 0.265750; the current search has 0.265862. That is a practical ranking plateau in these descriptive results. Raw probability errors improved substantially, while final probability quality stayed similar. Multiple settings and search budgets changed together, so this search comparison alone cannot attribute the change to one parameter. The separate controlled comparison below tests class weighting. A 20,000-applicant shuffled-outcome diagnostic returned roughly chance ranking; it does not establish real-world field availability or erase earlier exploration.
-
-![Earlier and current search: ranking and raw/final probability quality.](search_comparison.png)
-
-## Test why the raw probabilities improved
-
-Class weighting gives repayment-difficulty cases more influence during fitting. It can improve attention to a rare outcome while distorting the probability scale. The controlled comparison changes only that weight within each frozen recipe and applicant group.
-
-Removing class weighting is the dominant explanation for the better raw probabilities in these recipes. Probability errors improved in all ten recipe/group pairs, and putting the earlier weight into the current recipe reversed the benefit. Using the earlier recipe, mean predicted risk fell from 34.2% to 7.94%, against an observed difficulty rate of 8.07%. Raw Brier score fell from 0.1573 to 0.0666; log loss improved too. Average-rate agreement alone does not prove calibration.
-
-Earlier probability adjustment had already repaired much of the scale error, so final probability quality changed little. This retrospective check does not promote a model, establish optimal weights for future cohorts or isolate the search screen's separate selection effect.
-
-![Controlled class-weighting comparison: two fixed recipes, weighted and unweighted, on five matched groups.](class_weighting.png)
-
-[Controlled comparison methods and exact results](../class_weighting_20261004/assessment_report.md).
-
 ## Show decisions as assumptions, not lending advice
 
 A lower score cutoff separates simulated approval from manual review; an upper cutoff separates manual review from simulated decline. Cutoffs come from model-selection applicants and are applied unchanged to assessment applicants. Only the middle band incurs review cost. Simulated declines issue no loan and contribute zero modeled margin, loss or review cost. The example weights are 1,000 units for an approved applicant without recorded difficulty, 5,000 units of loss for an approved applicant with difficulty and 50 units per review. Utility is in illustrative units, not dollars or profit. Sensitivity checks vary each weight by 0.5, 1 and 2. No reviewer effectiveness, rejected-loan counterfactual or hard review-queue limit is estimated.
@@ -101,10 +121,6 @@ Application and loan history has the highest mean simulated utility among the th
 Only the middle manual-review band incurs review cost; simulated declines contribute zero modeled utility. These descriptive results remain conditional on the illustrative formula and public-data population.
 
 ![Three model workflows, each with five fixed simulated policies, across all 27 cost assumptions; five-group means.](utility_sensitivity.png)
-
-## What this demonstrates—and what remains unknown
-
-The contribution is disciplined SQL data engineering, benchmark comparison, bounded model selection, reproducible assessment and readable reporting. Historical comparisons remain an archive. Unlabeled Kaggle applications demonstrate batch scoring only and contribute no outcome metrics. Calendar application, field-availability and outcome-maturity timestamps are missing; random applicant groups cannot validate performance in a future cohort. This portfolio does not establish underwriting, compliance, fair-lending or adverse-action readiness. The saved Power BI files and screenshots are unrefreshed historical demonstrations; the current charts and offline report are separate presentation artifacts.
 
 ## Metric glossary
 
@@ -125,4 +141,4 @@ The contribution is disciplined SQL data engineering, benchmark comparison, boun
 - Read the technical assessment: [current procedure](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md) and [controlled weighting follow-up](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md).
 - Follow the development trail: [historical experiment archive](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/experiments/README.md).
 
-Install the dependencies using [How To Run](../../README.md#how-to-run), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregates are read; no raw data, saved model or new fitting is required.
+Install the dependencies using [How To Run](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/README.md#how-to-run), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregates are read; no raw data, saved model or new fitting is required.

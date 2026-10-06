@@ -6,8 +6,10 @@ import argparse
 import base64
 import hashlib
 import html
+import io
 import json
 import shutil
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -40,6 +42,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
+PROJECT_URL = "https://stevennitesh.github.io/loan-default-risk-decisioning-system/"
+REPOSITORY_URL = "https://github.com/stevennitesh/loan-default-risk-decisioning-system"
+ACCOUNTING_EXAMPLE = (
+    "A synthetic test records payments of 40 and 60 against one 100-unit obligation. "
+    "The SQL result contains 100 units due and 100 paid, rather than counting the "
+    "repeated amount due twice. The same test excludes a payment recorded after "
+    "the application day. These are fixture values, not applicant records or dollars."
+)
 SOURCE = ROOT / "reports/tuning_20261004"
 DESTINATION = ROOT / "reports/portfolio"
 WEIGHTING_SOURCE = ROOT / "reports/class_weighting_20261004"
@@ -152,7 +162,64 @@ def save_chart(figure, destination: Path, name: str) -> None:
     plt.close(figure)
 
 
-def comparison_chart(evidence: dict, destination: Path, metric: str, name: str) -> None:
+def portrait_chart(figure) -> str:
+    """Reflow the existing plotted artists; retain their values, limits and units."""
+    axes = figure.axes
+    limits = [(axis.get_xlim(), axis.get_ylim()) for axis in axes]
+    wrapped_labels = []
+    heights = []
+    for axis in axes:
+        axis.tick_params(axis="y", labelleft=True)
+        labels = [label.get_text() for label in axis.get_yticklabels()]
+        categorical = any(any(c.isalpha() for c in label) for label in labels)
+        wrapped = [textwrap.fill(label.replace("\n", " "), 18) for label in labels]
+        wrapped_labels.append(wrapped if categorical else None)
+        # Leave room between rows even when a label needs several lines.
+        label_height = len(labels) * max(
+            (label.count("\n") + 1 for label in wrapped), default=1
+        )
+        heights.append(
+            max(6.1, label_height * 14 * 1.3 / 72 + 1.7) if categorical else 4.5
+        )
+    figure.set_size_inches(4.8, sum(heights) + 1.2)
+    grid = figure.add_gridspec(len(axes), 1, height_ratios=heights)
+    for index, axis in enumerate(axes):
+        axis.set_subplotspec(grid[index, 0])
+        axis.tick_params(axis="both", labelsize=14, labelleft=True)
+        if wrapped_labels[index] is not None:
+            axis.set_yticks(axis.get_yticks(), wrapped_labels[index])
+        for location in ("left", "center", "right"):
+            axis.set_title(
+                textwrap.fill(axis.get_title(loc=location).replace("\n", " "), 30),
+                loc=location,
+                fontsize=15,
+            )
+        axis.set_xlabel(textwrap.fill(axis.get_xlabel(), 35), fontsize=13)
+        axis.set_ylabel(textwrap.fill(axis.get_ylabel(), 40), fontsize=13)
+        for text in axis.texts:
+            text.set_fontsize(14)
+        legend = axis.get_legend()
+        if legend:
+            for text in legend.get_texts():
+                text.set_text(textwrap.fill(text.get_text().replace("\n", " "), 24))
+                text.set_fontsize(11)
+    for text in (figure._suptitle, figure._supxlabel):
+        if text:
+            text.set_text(textwrap.fill(text.get_text().replace("\n", " "), 52))
+            text.set_fontsize(12 if text is figure._suptitle else 10)
+    output = io.BytesIO()
+    figure.savefig(output, format="png", dpi=180, facecolor="white")
+    if any(
+        axis.get_xlim() != x or axis.get_ylim() != y
+        for axis, (x, y) in zip(axes, limits, strict=True)
+    ):
+        raise ValueError("Portrait layout changed plotted axis limits")
+    return base64.b64encode(output.getvalue()).decode("ascii")
+
+
+def comparison_chart(
+    evidence: dict, destination: Path, metric: str, name: str, writer=save_chart
+) -> None:
     figure, axis = plt.subplots(figsize=(10.6, 5.2), layout="constrained")
     folds = evidence["fold_metrics"]
     for index, (workflow, color) in enumerate(zip(WORKFLOWS, COLORS, strict=True)):
@@ -193,7 +260,11 @@ def comparison_chart(evidence: dict, destination: Path, metric: str, name: str) 
         axis.set_xlabel(
             "Share of all repayment-difficulty cases captured · higher is better"
         )
-        caption = "10% dashed line: random ranking reference. Boundary ties receive equal expected membership.\nThis is a ranking check, not capture in the middle manual-review band."
+        caption = (
+            "Small dots: individual test-group results. Diamonds: five-group means; variation is descriptive.\n"
+            "Dashed line: 10% random-ranking reference. Boundary ties receive equal expected membership.\n"
+            "Public labeled applications. Highest-risk capture is separate from middle-band manual review."
+        )
     else:
         axis.set_title(
             "Loan history adds useful ranking information",
@@ -206,10 +277,10 @@ def comparison_chart(evidence: dict, destination: Path, metric: str, name: str) 
         )
         caption = "Public labeled applications · same five applicant test groups for every model.\nSmall dots: individual group results. Diamonds: mean of five metrics; variation is descriptive."
     figure.supxlabel(caption, fontsize=9, color="#475467")
-    save_chart(figure, destination, name)
+    writer(figure, destination, name)
 
 
-def reliability_chart(evidence: dict, destination: Path) -> None:
+def reliability_chart(evidence: dict, destination: Path, writer=save_chart) -> None:
     figure, axis = plt.subplots(figsize=(8, 6), layout="constrained")
     bins = evidence["reliability_bins"]
     bins = bins.loc[
@@ -257,10 +328,10 @@ def reliability_chart(evidence: dict, destination: Path) -> None:
         fontsize=9,
         color="#475467",
     )
-    save_chart(figure, destination, "probability_reliability")
+    writer(figure, destination, "probability_reliability")
 
 
-def search_chart(evidence: dict, destination: Path) -> None:
+def search_chart(evidence: dict, destination: Path, writer=save_chart) -> None:
     frame = evidence["prior_protocol_comparison"]
     figure, axes = plt.subplots(1, 3, figsize=(11, 4.8), layout="constrained")
     for axis, metric, title in zip(
@@ -304,10 +375,10 @@ def search_chart(evidence: dict, destination: Path) -> None:
         fontsize=9,
         color="#475467",
     )
-    save_chart(figure, destination, "search_comparison")
+    writer(figure, destination, "search_comparison")
 
 
-def weighting_chart(evidence: dict, destination: Path) -> None:
+def weighting_chart(evidence: dict, destination: Path, writer=save_chart) -> None:
     frame = evidence["weighting"]["fold_metrics"]
     figure, axes = plt.subplots(1, 3, figsize=(11, 5.2), layout="constrained")
     for axis, metric, title in zip(
@@ -368,7 +439,7 @@ def weighting_chart(evidence: dict, destination: Path) -> None:
         fontsize=9,
         color="#475467",
     )
-    save_chart(figure, destination, "class_weighting")
+    writer(figure, destination, "class_weighting")
 
 
 def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
@@ -408,7 +479,7 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         )
         else "Input counts and probability-adjustment choices vary by applicant test group; see the technical evidence."
     )
-    intro = "Can prior loan and repayment history improve risk ranking beyond an application form?"
+    intro = "I built a SQL/DuckDB and Python pipeline that joins public loan and repayment tables, compares risk models, and produces an offline report."
     sections = [
         (
             "problem",
@@ -417,8 +488,8 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         ),
         (
             "engineering",
-            "Build one trustworthy applicant table",
-            "SQL converts several relational tables into one modeling-table row per applicant and source population. Installment obligations are counted once across split payments; ambiguous schedules and unknown payments remain explicit. Monthly history uses distinct applicant months, and bureau loans must originate before the application day. Python coordinates the steps, models, scoring, interpretation and exports. Identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Relative dates cannot certify the exact time a lender could have obtained each field.",
+            "What I built",
+            "SQL builds one modeling record per applicant, separately for labeled assessment and unlabeled scoring. Installment obligations are counted once across split payments; ambiguous schedules and unknown payments remain explicit. Monthly history uses distinct applicant months, and bureau loans must originate before the application day.\n\nPython coordinates ingestion, model selection, scoring, SHAP interpretation and exports. Identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Relative dates cannot certify when a lender could have obtained each field.",
         ),
         (
             "assessment",
@@ -492,21 +563,61 @@ def render(
             "svg.hashsalt": "home-credit-portfolio",
         }
     )
-    comparison_chart(evidence, destination, "pr_auc", "model_comparison")
+    mobile_images = {}
+
+    def write_chart(figure, output, name):
+        save_chart(figure, output, name)
+        mobile_images[name] = portrait_chart(figure)
+
+    comparison_chart(evidence, destination, "pr_auc", "model_comparison", write_chart)
     comparison_chart(
-        evidence, destination, "recall_at_manual_review_capacity", "risk_capture"
+        evidence,
+        destination,
+        "recall_at_manual_review_capacity",
+        "risk_capture",
+        write_chart,
     )
-    reliability_chart(evidence, destination)
-    search_chart(evidence, destination)
-    weighting_chart(evidence, destination)
-    segment_chart(evidence, destination, save_chart)
-    utility_chart(evidence, destination, save_chart)
-    input_chart(evidence, destination, save_chart)
+    reliability_chart(evidence, destination, write_chart)
+    search_chart(evidence, destination, write_chart)
+    weighting_chart(evidence, destination, write_chart)
+    segment_chart(evidence, destination, write_chart)
+    utility_chart(evidence, destination, write_chart)
+    input_chart(evidence, destination, write_chart)
     intro, sections = narrative(evidence)
     extras = extra_narrative(evidence)
     sections.insert(4, extras[0])
     sections.insert(5, extras[1])
     sections.insert(-1, extras[2])
+    section_by_key = {
+        key: (key, title, paragraph) for key, title, paragraph in sections
+    }
+    sections = [
+        section_by_key[key]
+        for key in (
+            "problem",
+            "engineering",
+            "ranking",
+            "probabilities",
+            "search",
+            "weighting",
+            "limits",
+            "assessment",
+            "segments",
+            "inputs",
+            "actions",
+            "utility",
+        )
+    ]
+    headline = (
+        f"Application and loan history reached {mean(evidence, 'history_selected', 'pr_auc'):.3f} "
+        f"average precision, compared with {mean(evidence, 'application_only', 'pr_auc'):.3f} "
+        "using application fields only."
+    )
+    boundary = (
+        f"These are means from five matched applicant test groups covering {evidence['applicant_count']:,} "
+        "labeled applicants. Average precision measures ranking, not accuracy. "
+        "Prior exploration and random groups limit claims about future cohorts."
+    )
     input_dictionary = evidence["inputs"]["input_dictionary"]
     group_table = input_dictionary.groupby("source_group", sort=False).agg(
         label=("group_label", "first"),
@@ -583,9 +694,27 @@ def render(
             "Controlled class-weighting comparison: two fixed recipes, weighted and unweighted, on five matched groups.",
         ),
     }
-    md = "# Credit risk from application and repayment history\n\n" + intro + "\n\n"
+    md = (
+        "# Credit risk from application and repayment history\n\n"
+        + intro
+        + "\n\n"
+        + headline
+        + "\n\n"
+        + boundary
+        + "\n\n"
+    )
     for key, title, paragraph in sections:
+        if key == "assessment":
+            md += "## Supporting evidence and methods\n\nThe sections below retain the assessment details, segment checks, model-input explanations and simulated decision assumptions.\n\n"
         md += f"## {title}\n\n{paragraph}\n\n"
+        if key == "engineering":
+            md += (
+                "Public tables → SQL/DuckDB features → Python models → Reporting and batch scoring.\n\n"
+                "**Counting one obligation once — synthetic example.** "
+                + ACCOUNTING_EXAMPLE
+                + "\n\n"
+                f"[Inspect the repayment fixture]({REPOSITORY_URL}/blob/main/tests/test_repayment_methodology.py).\n\n"
+            )
         if key == "ranking":
             md += (
                 table_md
@@ -600,9 +729,9 @@ def render(
                 + group_md
             )
         elif key == "assessment":
-            md += "[How fitting, selection and assessment are separated](../../docs/validation/ASSESSMENT_METHODOLOGY.md).\n\n"
+            md += f"[How fitting, selection and assessment are separated]({REPOSITORY_URL}/blob/main/docs/validation/ASSESSMENT_METHODOLOGY.md).\n\n"
         elif key == "weighting":
-            md += "[Controlled comparison methods and exact results](../class_weighting_20261004/assessment_report.md).\n\n"
+            md += f"[Controlled comparison methods and exact results]({REPOSITORY_URL}/blob/main/reports/class_weighting_20261004/assessment_report.md).\n\n"
     glossary_keys = [
         "pr_auc",
         "roc_auc",
@@ -624,14 +753,19 @@ def render(
 - Read the technical assessment: [current procedure](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md) and [controlled weighting follow-up](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md).
 - Follow the development trail: [historical experiment archive](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/experiments/README.md).
 
-Install the dependencies using [How To Run](../../README.md#how-to-run), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregates are read; no raw data, saved model or new fitting is required.
+Install the dependencies using [How To Run](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/README.md#how-to-run), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregates are read; no raw data, saved model or new fitting is required.
 """
     (destination / "case_study.md").write_text(md, encoding="utf-8")
-    nav = (
-        " ".join(
-            f'<a href="#{key}">{html.escape(title)}</a>' for key, title, _ in sections
+    nav = " ".join(
+        f'<a href="#{key}">{title}</a>'
+        for key, title in (
+            ("engineering", "Build"),
+            ("ranking", "Results"),
+            ("probabilities", "Probabilities"),
+            ("lessons", "Lessons"),
+            ("limits", "Limits"),
+            ("supporting-evidence", "Evidence and methods"),
         )
-        + ' <a href="#metric-glossary">Metric glossary</a>'
     )
     chart_titles = {
         "model_comparison": "Model ranking comparison",
@@ -646,12 +780,25 @@ Install the dependencies using [How To Run](../../README.md#how-to-run), then re
     figure_number = 0
     body = ""
     for key, title, paragraph in sections:
+        if key == "search":
+            body += '<div id="lessons" class="lesson-group" aria-label="Lessons from model selection and probability checks">'
+        elif key == "assessment":
+            body += '<details id="supporting-evidence" class="supporting-evidence"><summary>Supporting evidence and methods</summary><p>Open the assessment design, installment-history segments, model-input explanations and simulated decision assumptions.</p>'
         body += f'<section id="{key}"><h2>{html.escape(title)}</h2>'
         body += "".join(
             f"<p>{html.escape(part)}</p>" for part in paragraph.split("\n\n")
         )
         if key == "inputs":
             body += group_html
+        elif key == "engineering":
+            body += (
+                '<ol class="pipeline" aria-label="Implemented pipeline"><li>Public tables</li>'
+                "<li>SQL / DuckDB features</li><li>Python models</li><li>Reporting and batch scoring</li></ol>"
+                '<aside class="accounting-example" aria-label="Synthetic repayment example">'
+                "<h3>Counting one obligation once</h3>"
+                f"<p>{html.escape(ACCOUNTING_EXAMPLE)}</p>"
+                f'<p><a href="{REPOSITORY_URL}/blob/main/tests/test_repayment_methodology.py">Inspect the repayment fixture</a></p></aside>'
+            )
         if key == "ranking":
             body += (
                 '<div class="table-wrap"><table><thead><tr>'
@@ -695,8 +842,10 @@ Install the dependencies using [How To Run](../../README.md#how-to-run), then re
                 f'<figure class="report-figure" aria-labelledby="{name}-title" aria-describedby="{name}-caption">'
                 f'<div class="figure-heading"><div><p class="figure-number">Figure {figure_number}</p>'
                 f'<h3 id="{name}-title">{html.escape(chart_titles[name])}</h3></div>'
-                f'<a class="figure-download" href="{name}.png">Full-size chart</a></div>'
-                f'<div class="chart-panel"><img src="data:image/png;base64,{encoded}" alt="{html.escape(alt)}"></div>'
+                '<div class="figure-tools">'
+                f'<button class="chart-enlarge" type="button" data-chart="{name}" aria-haspopup="dialog" aria-controls="chart-viewer">Enlarge chart</button>'
+                f'<a class="figure-download" href="{name}.png">Full-size PNG</a></div></div>'
+                f'<div class="chart-panel" tabindex="0" role="region" aria-label="{html.escape(chart_titles[name])}; chart"><picture><source media="(max-width:600px)" srcset="data:image/png;base64,{mobile_images[name]}"><img src="data:image/png;base64,{encoded}" alt="{html.escape(alt)}"></picture></div>'
                 f'<figcaption id="{name}-caption"><p class="figure-description">{html.escape(alt)}</p>'
                 f'<p class="figure-source"><strong>Source and interpretation:</strong> Completed public labeled-applicant assessment; '
                 f"five matched test groups. {html.escape(score_note)}</p></figcaption></figure>"
@@ -708,6 +857,9 @@ Install the dependencies using [How To Run](../../README.md#how-to-run), then re
         elif key == "weighting":
             body += '<p><a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md">Controlled comparison methods and exact results</a></p>'
         body += "</section>"
+        if key == "weighting":
+            body += "</div>"
+    body += "</details>"
     appendix = f"Assessment {evidence['provenance']['assessment_run_id']}; protocol {evidence['provenance']['protocol']}; shuffled-label diagnostic {evidence['provenance']['control_run_id']}. Exact means, descriptive fold variation and preserved machine metric keys are in metrics.csv. The CSV score-kind key calibrated means the final method-choice view; it does not imply that a transform was selected. The presentation provenance lists aggregate and renderer hashes; scientific execution fingerprints remain unchanged."
     dictionary = "".join(
         f"<tr><td><code>{html.escape(key)}</code></td><td>{html.escape(label)}</td><td>{html.escape(METRIC_DETAILS[key][0])}</td><td>{html.escape(METRIC_DETAILS[key][1])}</td><td>{html.escape(METRIC_DETAILS[key][2])}</td></tr>"
@@ -743,12 +895,15 @@ Install the dependencies using [How To Run](../../README.md#how-to-run), then re
         f'<dl class="metric-definitions">{glossary}</dl></section>'
     )
     body += evidence_links
-    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Credit risk from application and repayment history</title><style>
+    description = "SQL/DuckDB and Python credit-risk portfolio: repayment-history engineering, matched model comparison, probability checks and clearly bounded public-data results."
+    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="{description}"><meta name="author" content="Steven"><meta property="og:title" content="Credit risk from application and repayment history"><meta property="og:description" content="{description}"><meta property="og:type" content="website"><meta property="og:url" content="{PROJECT_URL}"><meta property="og:image" content="{PROJECT_URL}model_comparison.png"><meta name="twitter:card" content="summary_large_image"><title>Credit risk from application and repayment history</title><style>
 *{{box-sizing:border-box}}
 html{{scroll-behavior:smooth}}
 body{{margin:0;background:#f6f8fa;color:#182230;font:17px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}}
 main{{width:100%;max-width:1000px;margin:auto;padding:2rem 1.5rem}}
 header{{padding:2rem;background:#123e4b;color:white;border-radius:14px}}
+.hero-result{{font-size:1.15rem;font-weight:650}}
+.hero-boundary{{font-size:.9rem;line-height:1.55;color:#d3e6ed}}
 h1{{font-size:clamp(2rem,5vw,3.1rem);line-height:1.15;margin:.6rem 0 1.2rem}}
 h2{{font-size:1.55rem;line-height:1.3;color:#123e4b;margin:0 0 1rem}}
 p{{margin:0 0 1rem;overflow-wrap:anywhere}}
@@ -757,13 +912,22 @@ p:last-child{{margin-bottom:0}}
 nav{{display:flex;flex-wrap:wrap;gap:.5rem 1rem;margin:1.5rem 0}}
 a{{color:#076c76;text-underline-offset:3px;overflow-wrap:anywhere}}
 a:focus-visible,summary:focus-visible{{outline:3px solid #087f82;outline-offset:4px}}
+button:focus-visible,.chart-panel:focus-visible,.viewer-content:focus-visible{{outline:3px solid #087f82;outline-offset:3px}}
+.pipeline{{display:flex;flex-wrap:wrap;gap:.65rem;list-style:none;padding:0;margin:1.3rem 0}}
+.pipeline li{{padding:.4rem .7rem;border:1px solid #cad6df;border-radius:6px;background:#edf5f6;font-size:.9rem}}
+.accounting-example{{padding:1rem;background:#edf5f6;border-left:4px solid #087f82;border-radius:6px}}
+.accounting-example h3{{margin:0 0 .6rem;font-size:1.1rem}}
+.lesson-group{{scroll-margin-top:1rem}}
 section{{min-width:0;background:white;padding:1.7rem 1.75rem;border:1px solid #dde4eb;border-radius:12px;margin:1.2rem 0;scroll-margin-top:1rem}}
 .report-figure{{width:100%;margin:1.8rem 0;border:1px solid #cad6df;border-radius:12px;background:#f0f4f6;overflow:hidden}}
 .figure-heading{{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem}}
 .figure-number{{margin:0 0 .2rem;color:#475467;font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase}}
 .figure-heading h3{{margin:0;color:#123e4b;font-size:1.1rem;line-height:1.35}}
 .figure-download{{flex-shrink:0;font-size:.8rem}}
-.chart-panel{{margin:0 .75rem .75rem;padding:.75rem;background:white;border:1px solid #dde4eb;border-radius:8px}}
+.figure-tools{{display:flex;align-items:center;flex-wrap:wrap;gap:.65rem}}
+.chart-enlarge{{display:none;font:inherit;font-size:.8rem;color:#076c76;background:white;border:1px solid #87aeb8;border-radius:5px;padding:.35rem .6rem;cursor:pointer}}
+.interactive .chart-enlarge{{display:inline-block}}
+.chart-panel{{margin:0 .75rem .75rem;padding:.75rem;background:white;border:1px solid #dde4eb;border-radius:8px;overflow-x:auto}}
 .chart-panel img{{display:block;width:100%;height:auto}}
 figcaption{{padding:1rem 1.1rem;border-top:1px solid #cad6df;background:#e9f1f3;color:#344054;font-size:.85rem;line-height:1.55}}
 .figure-description{{font-weight:600;margin:0 0 .4rem}}
@@ -776,12 +940,22 @@ th{{background:#edf5f6}}
 code{{overflow-wrap:anywhere}}
 details{{min-width:0;background:white;padding:1.5rem;border:1px solid #dde4eb;border-radius:12px}}
 summary{{cursor:pointer;color:#123e4b;font-weight:600}}
+.supporting-evidence{{margin:1.2rem 0}}
+.supporting-evidence>summary{{font-size:1.35rem}}
+.supporting-evidence>section{{padding:1rem;border-radius:8px}}
 details[open] summary{{margin-bottom:1rem}}
 .metric-definitions{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.3rem 1.5rem;margin:0}}
 .metric-definitions dt{{font-weight:700;color:#123e4b;margin-bottom:.35rem}}
 .metric-definitions dd{{margin:0 0 .35rem}}
 .metric-units{{font-size:.85rem;color:#475467}}
 footer{{padding:1rem 0;font-size:.9rem;color:#475467}}
+dialog{{width:calc(100% - 2rem);max-width:1300px;max-height:95vh;padding:1rem;border:1px solid #87aeb8;border-radius:10px;color:#182230}}
+dialog::backdrop{{background:rgba(18,38,46,.65)}}
+.viewer-heading{{display:flex;align-items:center;justify-content:space-between;gap:1rem}}
+.viewer-heading h2{{margin:0;font-size:1.25rem}}
+.viewer-heading button{{font:inherit;padding:.4rem .7rem;cursor:pointer}}
+.viewer-content{{overflow:auto;max-height:70vh;border:1px solid #dde4eb;margin-top:1rem}}
+.viewer-content img{{display:block;width:1600px;max-width:none;height:auto}}
 @media(max-width:600px){{
 main{{padding:.8rem}}
 header,section,details{{padding:1rem}}
@@ -789,6 +963,7 @@ h2{{font-size:1.35rem}}
 .figure-heading{{align-items:flex-start;flex-direction:column;gap:.55rem;padding:.8rem}}
 .figure-heading h3{{font-size:1rem}}
 .chart-panel{{margin:0 .5rem .5rem;padding:.35rem}}
+.chart-panel img{{min-width:0}}
 figcaption{{padding:.8rem}}
 .report-figure{{margin:1.4rem 0}}
 .metric-definitions{{grid-template-columns:1fr}}
@@ -796,10 +971,44 @@ figcaption{{padding:.8rem}}
 @media print{{
 body{{background:white}}
 main{{max-width:none;padding:0}}
-nav,.figure-download{{display:none}}
+nav,.figure-tools,dialog{{display:none}}
 .report-figure{{break-inside:avoid}}
+.chart-panel img{{min-width:0}}
 }}
-</style></head><body><main><header><p class="eyebrow">Public-data portfolio · SQL · Python · credit risk</p><h1>Credit risk from application and repayment history</h1><p>{html.escape(intro)}</p><p>Current completed evidence · {evidence["applicant_count"]:,} labeled applicants · five matched applicant test groups</p></header><nav aria-label="Report contents">{nav}</nav>{body}<details id="technical-appendix"><summary>Technical appendix: exact identities and machine-key dictionary</summary><p>{html.escape(appendix)}</p><div class="table-wrap"><table><thead><tr><th>Preserved machine key</th><th>Measure</th><th>Meaning</th><th>Direction</th><th>Units</th></tr></thead><tbody>{dictionary}</tbody></table></div><p>Average precision summarizes ranking (higher is better); ROC AUC summarizes pairwise ordering (higher is better). Brier score is mean squared probability error; log loss penalizes incorrect confident probabilities (lower is better). No confidence interval is inferred from fold variation.</p></details><footer><p>This file is self-contained: charts, styles and text require no network connection. Adjacent PNG/SVG files are available for reuse; metrics.csv and provenance.json provide the technical evidence trail.</p></footer></main></body></html>"""
+</style></head><body><main><header><p class="eyebrow">Public-data portfolio · SQL · Python · credit risk</p><h1>Credit risk from application and repayment history</h1><p>{html.escape(intro)}</p><p class="hero-result">{html.escape(headline)}</p><p class="hero-boundary">{html.escape(boundary)}</p></header><nav aria-label="Report contents">{nav}</nav>{body}<details id="technical-appendix"><summary>Technical appendix: exact identities and machine-key dictionary</summary><p>{html.escape(appendix)}</p><div class="table-wrap"><table><thead><tr><th>Preserved machine key</th><th>Measure</th><th>Meaning</th><th>Direction</th><th>Units</th></tr></thead><tbody>{dictionary}</tbody></table></div></details><footer><p>This file is self-contained: charts, styles and text require no network connection. Adjacent PNG/SVG files are available for reuse; metrics.csv and provenance.json provide the technical evidence trail.</p></footer></main>
+<dialog id="chart-viewer" aria-labelledby="viewer-title" aria-describedby="viewer-help"><div class="viewer-heading"><h2 id="viewer-title">Chart</h2><form method="dialog"><button>Close chart</button></form></div><p id="viewer-help">Scroll to inspect the enlarged chart. Press Escape or Close chart to return to the report.</p><div class="viewer-content" tabindex="0" role="region" aria-label="Enlarged chart; scroll horizontally and vertically"></div></dialog>
+<script>
+document.documentElement.classList.add('interactive');
+const viewer = document.getElementById('chart-viewer');
+document.querySelectorAll('[data-chart]').forEach(button => button.addEventListener('click', () => {{
+    const figure = button.closest('figure');
+    document.getElementById('viewer-title').textContent = figure.querySelector('h3').textContent;
+    viewer.querySelector('.viewer-content').replaceChildren(figure.querySelector('img').cloneNode());
+    viewer.querySelector('.viewer-content').scrollLeft = 0;
+    viewer.querySelector('.viewer-content').scrollTop = 0;
+    viewer.showModal();
+}}));
+viewer.addEventListener('click', event => {{ if (event.target === viewer) viewer.close(); }});
+function revealHash() {{
+    const target = document.getElementById(location.hash.slice(1));
+    if (!target) return;
+    let parent = target.closest('details');
+    let opened = false;
+    while (parent) {{
+        if (!parent.open) {{ parent.open = true; opened = true; }}
+        parent = parent.parentElement.closest('details');
+    }}
+    if (opened) target.scrollIntoView();
+}}
+window.addEventListener('hashchange', revealHash);
+revealHash();
+let printDetails = [];
+window.addEventListener('beforeprint', () => {{
+    printDetails = [...document.querySelectorAll('details')].map(element => [element, element.open]);
+    printDetails.forEach(([element]) => element.open = true);
+}});
+window.addEventListener('afterprint', () => printDetails.forEach(([element, open]) => element.open = open));
+</script></body></html>"""
     (destination / "index.html").write_text(document, encoding="utf-8")
     for original, final_name in [
         ("input_dictionary.csv", "model_input_dictionary.csv"),
@@ -808,7 +1017,20 @@ nav,.figure-download{{display:none}}
         ("provenance.json", "model_input_provenance.json"),
         ("methods.md", "model_input_methods.md"),
     ]:
-        shutil.copyfile(input_source / original, destination / final_name)
+        if original == "methods.md":
+            methods = (input_source / original).read_text(encoding="utf-8")
+            methods = methods.replace(
+                "in provenance.json.",
+                "in [model_input_provenance.json](model_input_provenance.json).",
+            )
+            methods += (
+                "\nThis exported note uses presentation filenames. Input provenance retains "
+                "the original source filenames and hashes; [presentation provenance](provenance.json) "
+                "records the exported copies, including this note.\n"
+            )
+            (destination / final_name).write_text(methods, encoding="utf-8")
+        else:
+            shutil.copyfile(input_source / original, destination / final_name)
     evidence["summary"].to_csv(destination / "metrics.csv", index=False)
     pd.DataFrame(
         [
