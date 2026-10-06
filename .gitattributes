@@ -1,0 +1,7 @@
+# Preserve literal artifact bytes in the five named, hash-validated evidence bundles.
+# Existing historical reports and source files keep their current Git text policy.
+/reports/correctness_20261004/** -text
+/reports/tuning_20261004/** -text
+/reports/class_weighting_20261004/** -text
+/reports/model_inputs_20261004/** -text
+/reports/portfolio/** -text

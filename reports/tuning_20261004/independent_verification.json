@@ -1,0 +1,323 @@
+{
+  "status": "complete",
+  "datasets": {
+    "original": {
+      "run_id": "b45cb7fb871d4322bfdbb52e6e8d1d38",
+      "coverage": {
+        "application_only": 261384,
+        "history_selected": 261384,
+        "logistic_tuned": 261384,
+        "training_prevalence": 261384
+      },
+      "fixed_historical_exclusion_count": 46127,
+      "max_recomputed_metric_error": 1.1102230246251565e-16,
+      "max_recomputed_paired_difference_error": 1.249000902703301e-16,
+      "unique_joint_candidates_per_workflow_fold": [
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24
+      ],
+      "total_inner_candidate_score_rows": 720,
+      "selected_inner_probability_accepted": 10,
+      "selected_inner_probability_total": 10,
+      "candidate_mean_probability_pass_counts": [
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6
+      ],
+      "selection_probability_accepted": 15,
+      "selection_probability_total": 15,
+      "chosen_lightgbm_recipes": [
+        {
+          "workflow": "history_selected",
+          "outer_fold": 1,
+          "candidate": "random_15_full",
+          "rounds": 537,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "application_only",
+          "outer_fold": 1,
+          "candidate": "random_13_full",
+          "rounds": 86,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "history_selected",
+          "outer_fold": 2,
+          "candidate": "random_15_full",
+          "rounds": 425,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "application_only",
+          "outer_fold": 2,
+          "candidate": "random_01_full",
+          "rounds": 211,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "history_selected",
+          "outer_fold": 3,
+          "candidate": "random_15_full",
+          "rounds": 579,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "application_only",
+          "outer_fold": 3,
+          "candidate": "random_01_full",
+          "rounds": 207,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "history_selected",
+          "outer_fold": 4,
+          "candidate": "random_15_full",
+          "rounds": 465,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "application_only",
+          "outer_fold": 4,
+          "candidate": "random_13_full",
+          "rounds": 132,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "history_selected",
+          "outer_fold": 5,
+          "candidate": "random_03_full",
+          "rounds": 380,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "application_only",
+          "outer_fold": 5,
+          "candidate": "random_01_full",
+          "rounds": 227,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        }
+      ],
+      "maximum_within_fold_seed_range_calibrated": {
+        "application_only": {
+          "pr_auc": 0.0038420542437102023,
+          "roc_auc": 0.0008778634004937835,
+          "brier_score": 6.905724883699005e-05,
+          "log_loss": 0.0002353272028882969
+        },
+        "history_selected": {
+          "pr_auc": 0.003783455892097387,
+          "roc_auc": 0.0012830258558323981,
+          "brier_score": 0.00016961335331899807,
+          "log_loss": 0.0005210729914200962
+        },
+        "logistic_tuned": {
+          "pr_auc": 0.0,
+          "roc_auc": 0.0,
+          "brier_score": 0.0,
+          "log_loss": 0.0
+        }
+      },
+      "duration_seconds": 2531.0936817999464
+    },
+    "shuffled_control": {
+      "run_id": "706d7db1cbf5487aa96261cc4b5d9ab9",
+      "coverage": {
+        "application_only": 20000,
+        "history_selected": 20000,
+        "logistic_tuned": 20000,
+        "training_prevalence": 20000
+      },
+      "fixed_historical_exclusion_count": 46127,
+      "max_recomputed_metric_error": 9.71445146547012e-17,
+      "max_recomputed_paired_difference_error": 1.4224732503009818e-16,
+      "unique_joint_candidates_per_workflow_fold": [
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24
+      ],
+      "total_inner_candidate_score_rows": 720,
+      "selected_inner_probability_accepted": 10,
+      "selected_inner_probability_total": 10,
+      "candidate_mean_probability_pass_counts": [
+        6,
+        9,
+        6,
+        7,
+        7,
+        8,
+        8,
+        7,
+        6,
+        8
+      ],
+      "selection_probability_accepted": 15,
+      "selection_probability_total": 15,
+      "chosen_lightgbm_recipes": [
+        {
+          "workflow": "history_selected",
+          "outer_fold": 1,
+          "candidate": "random_01_top_40",
+          "rounds": 202,
+          "weight_fraction": 0.0,
+          "feature_set": "top_40",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "application_only",
+          "outer_fold": 1,
+          "candidate": "random_17_full",
+          "rounds": 3,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "history_selected",
+          "outer_fold": 2,
+          "candidate": "random_13_top_40",
+          "rounds": 18,
+          "weight_fraction": 0.0,
+          "feature_set": "top_40",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "application_only",
+          "outer_fold": 2,
+          "candidate": "random_03_full",
+          "rounds": 2,
+          "weight_fraction": 0.5,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "history_selected",
+          "outer_fold": 3,
+          "candidate": "random_03_full",
+          "rounds": 4,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "application_only",
+          "outer_fold": 3,
+          "candidate": "random_05_full",
+          "rounds": 4,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "history_selected",
+          "outer_fold": 4,
+          "candidate": "random_13_top_40",
+          "rounds": 3,
+          "weight_fraction": 0.0,
+          "feature_set": "top_40",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "application_only",
+          "outer_fold": 4,
+          "candidate": "random_05_full",
+          "rounds": 68,
+          "weight_fraction": 0.0,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "history_selected",
+          "outer_fold": 5,
+          "candidate": "random_01_top_40",
+          "rounds": 12,
+          "weight_fraction": 0.0,
+          "feature_set": "top_40",
+          "inner_probability_accepted": true
+        },
+        {
+          "workflow": "application_only",
+          "outer_fold": 5,
+          "candidate": "random_03_full",
+          "rounds": 3,
+          "weight_fraction": 0.5,
+          "feature_set": "full",
+          "inner_probability_accepted": true
+        }
+      ],
+      "maximum_within_fold_seed_range_calibrated": {
+        "application_only": {
+          "pr_auc": 0.013739399251586099,
+          "roc_auc": 0.04644900038320976,
+          "brier_score": 0.00013266023653669967,
+          "log_loss": 0.0008993270270031273
+        },
+        "history_selected": {
+          "pr_auc": 0.0069495748665007046,
+          "roc_auc": 0.021824265592433112,
+          "brier_score": 0.00019117764428419615,
+          "log_loss": 0.0012206062344992108
+        },
+        "logistic_tuned": {
+          "pr_auc": 0.0,
+          "roc_auc": 0.0,
+          "brier_score": 0.0,
+          "log_loss": 0.0
+        }
+      },
+      "duration_seconds": 264.3661432999652
+    }
+  },
+  "criterion": {
+    "brier_tolerance": 0.002,
+    "log_loss_tolerance": 0.01
+  },
+  "protected_files_verified": 155,
+  "frozen_declaration_sha256": "d2d0489d0154db5d34d2eecd22c5075ca9a7c54ed2be4eaa420f98493752adec",
+  "verification_script": {
+    "path": ".tmp/verify_tuning_independently.py",
+    "sha256": "919160064b4741c34eaeddd9951a028eccb0710f690e1f54b11e38abc70b4049"
+  }
+}

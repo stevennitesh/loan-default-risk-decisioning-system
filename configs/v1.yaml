@@ -1,0 +1,70 @@
+project:
+  name: loan-default-decisioning
+  random_seed: 42
+  data_scope_version: v1
+
+paths:
+  raw_dir: data/raw
+  parquet_dir: data/parquet/v1
+  duckdb_path: data/db/credit_risk_v1.duckdb
+  model_dir: models/v1
+  report_dir: reports/v1
+  dashboard_export_dir: reports/dashboard_data
+
+source_files:
+  application_train: application_train.csv
+  application_test: application_test.csv
+  bureau: bureau.csv
+  previous_application: previous_application.csv
+  installments_payments: installments_payments.csv
+
+split:
+  train_size: 0.70
+  validation_size: 0.15
+  test_size: 0.15
+  stratify: true
+
+model:
+  primary_model: lightgbm
+  baseline_model: logistic_regression
+  use_class_weighting: true
+  calibrate_probabilities: false
+  lightgbm_tuning:
+    enabled: true
+    max_candidates: 8
+
+excluded_features:
+  identifiers:
+    - SK_ID_CURR
+    - SK_ID_PREV
+    - SK_ID_BUREAU
+  target:
+    - TARGET
+  sensitive_or_protected_status_like:
+    - CODE_GENDER
+    - NAME_FAMILY_STATUS
+    - DAYS_BIRTH
+    - applicant_age_years
+    - applicant_age_band
+    - employment_to_age_ratio
+    - CNT_CHILDREN
+    - CNT_FAM_MEMBERS
+
+business_assumptions:
+  expected_margin_per_good_loan: 1000
+  expected_loss_per_bad_loan: 5000
+  manual_review_cost: 50
+  manual_review_capacity_rate: 0.10
+
+threshold_policy:
+  threshold_version: threshold_v1
+  scenarios:
+    growth_oriented:
+      threshold_low: null
+      threshold_high: null
+    balanced:
+      threshold_low: null
+      threshold_high: null
+    risk_averse:
+      threshold_low: null
+      threshold_high: null

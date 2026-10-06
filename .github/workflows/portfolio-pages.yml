@@ -1,0 +1,44 @@
+name: Portfolio Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - reports/portfolio/**
+      - src/portfolio_site.py
+      - .github/workflows/portfolio-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: portfolio-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare reviewed static report
+        run: python3 -m src.portfolio_site --output .tmp/portfolio-site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: .tmp/portfolio-site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy reviewed portfolio
+        id: deployment
+        uses: actions/deploy-pages@v4

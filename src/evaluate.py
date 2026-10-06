@@ -1,0 +1,433 @@
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+from typing import Any
+
+import duckdb
+import pandas as pd
+
+from src.cli import add_config_argument, exit_with_error
+from src.config import (
+    DEFAULT_CONFIG_PATH,
+    business_assumptions,
+    load_config,
+    manual_review_capacity_rate,
+    threshold_policy,
+    threshold_version,
+)
+from src.data_contracts import get_model_feature_columns
+from src.evaluation_reports import (
+    write_business_value_report,
+    write_figures,
+    write_validation_report,
+)
+from src.mart_access import load_labeled_split_frames
+from src.metrics import (
+    build_calibration_bin_rows,
+    build_probability_metric_rows,
+    nullable_mean,
+    with_probability_rank_bin,
+)
+from src.model_artifacts import (
+    load_model_artifact,
+    normalize_split_ids,
+    selected_model_types,
+    validate_feature_build,
+)
+from src.model_contracts import (
+    BASELINE_MODEL_TYPE,
+    BASELINE_MODEL_VERSION,
+    EVALUATION_SPLITS,
+    LIGHTGBM_MODEL_TYPE,
+    LIGHTGBM_MODEL_VERSION,
+    MODEL_ARTIFACTS,
+    REPORTING_SPLITS,
+    select_model_type_by_validation_pr_auc,
+)
+from src.modeling import predict_probabilities, prediction_frame
+from src.report_contracts import (
+    MODEL_CALIBRATION_BINS_COLUMNS,
+    MODEL_CONFUSION_MATRIX_COLUMNS,
+    MODEL_LIFT_BY_DECILE_COLUMNS,
+    MODEL_METRICS_SUMMARY_COLUMNS,
+    MODEL_THRESHOLD_METRICS_COLUMNS,
+)
+from src.runtime import (
+    created_at_utc,
+    ensure_directories,
+    replace_duckdb_table,
+    require_existing_path,
+    resolve_config_path,
+    write_csv,
+)
+from src.thresholding import (
+    ThresholdingError,
+    build_confusion_matrix_rows,
+    build_threshold_metric_rows,
+    resolve_scenario_thresholds,
+)
+
+
+class EvaluationError(RuntimeError):
+    """Raised when model evaluation cannot satisfy the Milestone 6 contract."""
+
+
+def run_evaluation(config_path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+    """Evaluate saved models and write validation, threshold, and figure outputs."""
+    config = load_config(config_path)
+    duckdb_path = resolve_config_path(config, "duckdb_path")
+    model_dir = resolve_config_path(config, "model_dir")
+    report_dir = resolve_config_path(config, "report_dir")
+
+    require_existing_path(duckdb_path, "DuckDB database", EvaluationError)
+
+    artifacts = {
+        model_type: load_model_artifact(
+            model_dir / artifact_name,
+            expected_model_type=model_type,
+            expected_model_version=model_version,
+            error_cls=EvaluationError,
+            artifact_label=f"Model artifact {artifact_name}",
+            missing_label="model artifact",
+        )
+        for model_type, (model_version, artifact_name) in MODEL_ARTIFACTS.items()
+    }
+    # Model families share evaluation roles but may use different selected features.
+    feature_columns, split_applicant_ids = _validate_artifacts(artifacts)
+
+    created_at = created_at_utc()
+    with duckdb.connect(str(duckdb_path)) as connection:
+        for artifact in artifacts.values():
+            validate_feature_build(connection, artifact, error_cls=EvaluationError)
+        eligible = set(get_model_feature_columns(connection, config))
+        for artifact in artifacts.values():
+            selected = set(artifact["feature_columns"])
+            declared = set(
+                artifact.get("eligible_feature_columns", artifact["feature_columns"])
+            )
+            if not selected <= declared <= eligible:
+                raise EvaluationError(
+                    "Model feature_columns must belong to its eligible current mart features"
+                )
+        split_frames = load_labeled_split_frames(
+            connection,
+            split_applicant_ids,
+            feature_columns,
+            error_cls=EvaluationError,
+        )
+        prediction_frames = {
+            model_type: _build_prediction_frames(artifact, split_frames)
+            for model_type, artifact in artifacts.items()
+        }
+        metric_rows = _build_metric_rows(prediction_frames, created_at, config)
+        selected_model_type = _select_model_type(metric_rows)
+        _verify_saved_model_selection(connection, selected_model_type)
+
+        selected_artifact = artifacts[selected_model_type]
+        selected_model_version = str(selected_artifact["model_version"])
+        selected_predictions = prediction_frames[selected_model_type]
+        try:
+            # Thresholds are selected from validation predictions and then applied unchanged to test.
+            scenario_thresholds = resolve_scenario_thresholds(
+                threshold_policy(config),
+                selected_predictions["validation"]["probability"].to_numpy(),
+            )
+            threshold_rows = build_threshold_metric_rows(
+                selected_model_version,
+                threshold_version(config),
+                selected_predictions,
+                scenario_thresholds,
+                business_assumptions(config),
+                created_at,
+            )
+            confusion_rows = build_confusion_matrix_rows(
+                selected_model_version,
+                selected_predictions,
+                scenario_thresholds,
+            )
+        except ThresholdingError as error:
+            raise EvaluationError(
+                f"Threshold policy validation failed: {error}"
+            ) from error
+        lift_rows = _build_lift_rows(selected_model_version, selected_predictions)
+        calibration_rows = build_calibration_bin_rows(
+            selected_model_version,
+            selected_predictions,
+            REPORTING_SPLITS,
+        )
+
+        figures_dir = report_dir / "figures"
+        ensure_directories(report_dir, figures_dir)
+
+        write_csv(
+            report_dir / "model_metrics_summary.csv",
+            MODEL_METRICS_SUMMARY_COLUMNS,
+            metric_rows,
+        )
+        write_csv(
+            report_dir / "model_lift_by_decile.csv",
+            MODEL_LIFT_BY_DECILE_COLUMNS,
+            lift_rows,
+        )
+        write_csv(
+            report_dir / "model_calibration_bins.csv",
+            MODEL_CALIBRATION_BINS_COLUMNS,
+            calibration_rows,
+        )
+        write_csv(
+            report_dir / "model_confusion_matrix.csv",
+            MODEL_CONFUSION_MATRIX_COLUMNS,
+            confusion_rows,
+        )
+        write_csv(
+            report_dir / "model_threshold_metrics.csv",
+            MODEL_THRESHOLD_METRICS_COLUMNS,
+            threshold_rows,
+        )
+        write_validation_report(
+            report_dir / "validation_report.md",
+            selected_model_type,
+            selected_model_version,
+            metric_rows,
+            selected_artifact,
+            scenario_thresholds,
+            threshold_rows,
+            business_assumptions(config),
+        )
+        write_business_value_report(
+            report_dir / "business_value_analysis.md",
+            selected_model_type,
+            selected_model_version,
+            threshold_rows,
+            business_assumptions(config),
+        )
+        write_figures(
+            figures_dir,
+            selected_model_version,
+            selected_predictions,
+            lift_rows,
+            calibration_rows,
+        )
+
+        replace_duckdb_table(connection, "model_metrics_summary", metric_rows)
+        replace_duckdb_table(connection, "model_lift_by_decile", lift_rows)
+        replace_duckdb_table(connection, "model_calibration_bins", calibration_rows)
+        replace_duckdb_table(connection, "model_confusion_matrix", confusion_rows)
+        replace_duckdb_table(connection, "model_threshold_metrics", threshold_rows)
+        replace_duckdb_table(
+            connection,
+            "evaluation_run_identity",
+            [
+                {
+                    "model_run_id": selected_artifact["run_id"],
+                    "model_version": selected_model_version,
+                }
+            ],
+        )
+
+    return {
+        "selected_model_type": selected_model_type,
+        "selected_model_version": selected_model_version,
+        "scenario_thresholds": scenario_thresholds,
+        "metric_rows": metric_rows,
+        "lift_rows": lift_rows,
+        "calibration_rows": calibration_rows,
+        "confusion_rows": confusion_rows,
+        "threshold_rows": threshold_rows,
+    }
+
+
+def _validate_artifacts(
+    artifacts: dict[str, dict[str, Any]],
+) -> tuple[list[str], dict[str, list[int]]]:
+    """Validate each feature list and shared roles; load the required union."""
+    feature_columns = []
+    split_applicant_ids = None
+    for artifact in artifacts.values():
+        columns = artifact["feature_columns"]
+        if (
+            not isinstance(columns, (list, tuple))
+            or not columns
+            or any(not isinstance(name, str) or not name for name in columns)
+            or len(set(columns)) != len(columns)
+        ):
+            raise EvaluationError(
+                "Model artifacts require nonempty unique feature_columns"
+            )
+        feature_columns.extend(name for name in columns if name not in feature_columns)
+        roles = (
+            (*EVALUATION_SPLITS, "calibration")
+            if "calibration" in artifact["split_applicant_ids"]
+            else EVALUATION_SPLITS
+        )
+        current_ids = normalize_split_ids(
+            artifact["split_applicant_ids"], roles, error_cls=EvaluationError
+        )
+        if split_applicant_ids is not None and current_ids != split_applicant_ids:
+            raise EvaluationError(
+                "Model artifacts must use the same split_applicant_ids"
+            )
+        split_applicant_ids = current_ids
+    return feature_columns, {
+        name: split_applicant_ids[name] for name in EVALUATION_SPLITS
+    }
+
+
+def _build_prediction_frames(
+    artifact: dict[str, Any],
+    split_frames: dict[str, pd.DataFrame],
+) -> dict[str, pd.DataFrame]:
+    """Build prediction frames for all evaluation splits for one artifact."""
+    prediction_frames = {}
+    for split_name, frame in split_frames.items():
+        probabilities = predict_probabilities(
+            artifact,
+            frame,
+            list(artifact["feature_columns"]),
+            f"{artifact['model_version']} {split_name}",
+            EvaluationError,
+        )
+        prediction_frames[split_name] = prediction_frame(frame, probabilities)
+    return prediction_frames
+
+
+def _build_metric_rows(
+    prediction_frames: dict[str, dict[str, pd.DataFrame]],
+    created_at: str,
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Build probability metric rows for all evaluated model families."""
+    model_versions = {
+        BASELINE_MODEL_TYPE: BASELINE_MODEL_VERSION,
+        LIGHTGBM_MODEL_TYPE: LIGHTGBM_MODEL_VERSION,
+    }
+    rows: list[dict[str, Any]] = []
+    review_capacity_rate = manual_review_capacity_rate(config)
+
+    for model_type, split_predictions in prediction_frames.items():
+        model_version = model_versions[model_type]
+        rows.extend(
+            build_probability_metric_rows(
+                model_version,
+                split_predictions,
+                created_at,
+                review_capacity_rate,
+                error_cls=EvaluationError,
+            )
+        )
+    return rows
+
+
+def _build_lift_rows(
+    model_version: str,
+    prediction_frames: dict[str, pd.DataFrame],
+) -> list[dict[str, Any]]:
+    """Build top-risk decile lift rows for reporting splits."""
+    rows: list[dict[str, Any]] = []
+    for split_name in REPORTING_SPLITS:
+        frame = with_probability_rank_bin(
+            prediction_frames[split_name], "decile", descending=True
+        )
+        total_defaults = int(frame["target"].sum())
+        portfolio_default_rate = float(frame["target"].mean())
+        cumulative_defaults = 0
+
+        for decile in range(1, 11):
+            decile_frame = frame.loc[frame["decile"] == decile]
+            applicant_count = len(decile_frame)
+            observed_default_rate = nullable_mean(decile_frame["target"])
+            if applicant_count:
+                cumulative_defaults += int(decile_frame["target"].sum())
+            rows.append(
+                {
+                    "model_version": model_version,
+                    "split": split_name,
+                    "decile": decile,
+                    "applicant_count": applicant_count,
+                    "average_score": nullable_mean(decile_frame["probability"]),
+                    "observed_default_rate": observed_default_rate,
+                    "portfolio_default_rate": portfolio_default_rate,
+                    "lift": observed_default_rate / portfolio_default_rate
+                    if observed_default_rate is not None and portfolio_default_rate
+                    else None,
+                    "cumulative_default_capture_rate": cumulative_defaults
+                    / total_defaults
+                    if total_defaults
+                    else None,
+                }
+            )
+    return rows
+
+
+def _select_model_type(metric_rows: list[dict[str, Any]]) -> str:
+    """Recompute selected model type from validation PR-AUC metric rows."""
+    validation_metrics = {
+        row["model_version"]: float(row["metric_value"])
+        for row in metric_rows
+        if row["split"] == "validation" and row["metric_name"] == "pr_auc"
+    }
+    return select_model_type_by_validation_pr_auc(
+        validation_metrics[BASELINE_MODEL_VERSION],
+        validation_metrics[LIGHTGBM_MODEL_VERSION],
+    )
+
+
+def _verify_saved_model_selection(
+    connection: duckdb.DuckDBPyConnection,
+    selected_model_type: str,
+) -> None:
+    """Ensure saved model-selection state agrees with recomputed evaluation."""
+    saved_selections = selected_model_types(connection)
+    if saved_selections and saved_selections != {selected_model_type}:
+        raise EvaluationError(
+            "Saved model_comparison_summary selection does not match recomputed validation PR-AUC "
+            f"selection: saved={sorted(saved_selections)}, recomputed={selected_model_type}"
+        )
+
+
+def main() -> None:
+    """Run the evaluation CLI, optionally exporting dashboard data."""
+    parser = argparse.ArgumentParser(
+        description="Evaluate model metrics and export reporting tables."
+    )
+    add_config_argument(parser)
+    parser.add_argument(
+        "--export-dashboard-data",
+        action="store_true",
+        help="Export Power BI-ready dashboard data.",
+    )
+    parser.add_argument(
+        "--dashboard-export-dir",
+        default=None,
+        help="Optional override for the Power BI CSV export directory.",
+    )
+    parser.add_argument(
+        "--use-calibrated-dashboard-metrics",
+        action="store_true",
+        help="Apply the selected probability method (possibly unchanged raw probabilities) to export quality tables.",
+    )
+    args = parser.parse_args()
+
+    if args.export_dashboard_data:
+        # Keep dashboard export imports local so normal evaluation does not depend on export helpers.
+        from src.dashboard_exports import DashboardExportError, run_dashboard_export
+
+        try:
+            run_dashboard_export(
+                args.config,
+                export_dir=args.dashboard_export_dir,
+                use_calibrated_probability_quality=args.use_calibrated_dashboard_metrics,
+            )
+        except DashboardExportError as error:
+            exit_with_error(error)
+        return
+
+    try:
+        run_evaluation(args.config)
+    except EvaluationError as error:
+        exit_with_error(error)
+
+
+if __name__ == "__main__":
+    main()

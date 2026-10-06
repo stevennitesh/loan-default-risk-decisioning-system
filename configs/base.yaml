@@ -1,0 +1,99 @@
+project:
+  name: loan-default-decisioning
+  random_seed: 42
+  split_seed: 42
+  model_seed: 42
+  data_scope_version: post_v1_011_last_k_temporal
+
+paths:
+  raw_dir: data/raw
+  parquet_dir: data/parquet
+  duckdb_path: data/db/credit_risk.duckdb
+  model_dir: models
+  report_dir: reports
+  dashboard_export_dir: reports/dashboard_data
+
+source_files:
+  application_train: application_train.csv
+  application_test: application_test.csv
+  bureau: bureau.csv
+  bureau_balance: bureau_balance.csv
+  pos_cash_balance: POS_CASH_balance.csv
+  credit_card_balance: credit_card_balance.csv
+  previous_application: previous_application.csv
+  installments_payments: installments_payments.csv
+
+split:
+  train_size: 0.70
+  validation_size: 0.15
+  test_size: 0.15
+  stratify: true
+
+feature_selection:
+  ranking_seeds: [101, 211, 307]
+
+assessment:
+  outer_folds: 5
+  split_seeds: [42]
+  fit_fraction: 0.70
+  calibration_fraction: 0.15
+  selection_fraction: 0.15
+  feature_limits: [40, 80]
+  include_full: true
+
+model:
+  primary_model: lightgbm
+  baseline_model: logistic_regression
+  use_class_weighting: true
+  calibrate_probabilities: false
+  lightgbm_tuning:
+    enabled: true
+    mode: bounded_inner_cv
+    max_candidates: 24
+    inner_folds: 3
+    search_seed: 20261004
+    cv_seed: 42
+    max_rounds: 600
+    stopping_rounds: 40
+    stopping_fraction: 0.15
+    brier_tolerance: 0.002
+    log_loss_tolerance: 0.01
+    sensitivity_seeds: [101, 211, 307]
+  logistic_tuning:
+    c_values: [0.01, 0.1, 1.0, 10.0]
+
+excluded_features:
+  identifiers:
+    - SK_ID_CURR
+    - SK_ID_PREV
+    - SK_ID_BUREAU
+  target:
+    - TARGET
+  sensitive_or_protected_status_like:
+    - CODE_GENDER
+    - NAME_FAMILY_STATUS
+    - DAYS_BIRTH
+    - applicant_age_years
+    - applicant_age_band
+    - employment_to_age_ratio
+    - CNT_CHILDREN
+    - CNT_FAM_MEMBERS
+
+business_assumptions:
+  expected_margin_per_good_loan: 1000
+  expected_loss_per_bad_loan: 5000
+  manual_review_cost: 50
+  manual_review_capacity_rate: 0.10
+
+threshold_policy:
+  threshold_version: threshold_v1
+  scenarios:
+    growth_oriented:
+      threshold_low: null
+      threshold_high: null
+    balanced:
+      threshold_low: null
+      threshold_high: null
+    risk_averse:
+      threshold_low: null
+      threshold_high: null

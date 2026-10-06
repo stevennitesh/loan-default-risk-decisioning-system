@@ -1,0 +1,15 @@
+machine_key,display_label,definition,direction,units
+pr_auc,Average precision,"Precision weighted by increases in case capture as the score cutoff changes; a ranking summary, not accuracy.",Higher is better,"Unitless, 0 to 1"
+roc_auc,ROC AUC,"How often a repayment-difficulty case receives a higher score than a case without difficulty, with half credit for ties.",Higher is better,"Unitless, 0 to 1"
+brier_score,Brier score,Mean squared difference between predicted probability and the recorded binary outcome.,Lower is better,Squared probability error
+log_loss,Log loss,Probability error that penalizes confident incorrect predictions more strongly; uses natural logarithms.,Lower is better,Unitless
+recall_at_manual_review_capacity,Repayment-difficulty cases captured in highest-risk group,"Share of recorded repayment-difficulty cases captured among the highest-risk fraction of applicants (10% in this assessment), using equal expected membership for boundary ties. Separate from middle-band manual review.",Higher is better at the same group size,Fraction; displayed as a percentage
+top_decile_lift,Highest-risk 10% concentration relative to overall rate,"Repayment-difficulty rate in the highest-risk 10% divided by the overall rate, with boundary ties handled equally.",Higher is better,Ratio; 1 is the random-ranking reference
+precision_at_top_decile,Repayment-difficulty rate in highest-risk 10%,Repayment-difficulty rate among applicants in the highest-risk 10%.,Higher is better for ranking at the same group size,Fraction; displayed as a percentage
+balanced_utility_per_applicant,Illustrative utility per applicant,"Assumed approved-loan margins minus assumed losses and middle-band review costs, divided by applicant count. Not dollars or measured profit.",Higher only under the same assumptions,Illustrative utility units per applicant
+expected_value_per_applicant,Illustrative utility per applicant,"Assumed approved-loan margins minus assumed losses and middle-band review costs, divided by applicant count. Not dollars or measured profit.",Higher only under the same assumptions,Illustrative utility units per applicant
+history_selected,Application and loan history · LightGBM,Model family and input scope used for the matched comparison.,Not a metric,Not applicable
+application_only,Application fields only · LightGBM,Model family and input scope used for the matched comparison.,Not a metric,Not applicable
+logistic_tuned,Application and loan history · logistic regression,Model family and input scope used for the matched comparison.,Not a metric,Not applicable
+logistic_fixed,Application and loan history · earlier logistic regression,Model family and input scope used for the matched comparison.,Not a metric,Not applicable
+training_prevalence,Training outcome rate · constant benchmark,Model family and input scope used for the matched comparison.,Not a metric,Not applicable

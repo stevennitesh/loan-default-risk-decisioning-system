@@ -1,0 +1,35 @@
+-- Collapse bureau credit history to applicant grain before mart joins.
+-- A historical loan origin must precede application day. Planned future
+-- maturities are known contract information and remain available on eligible
+-- loans. Unknown/day-zero origins are not proven prior history.
+CREATE OR REPLACE TABLE n_eligible_bureau AS
+SELECT * FROM stg_bureau WHERE ISFINITE(DAYS_CREDIT) AND DAYS_CREDIT < 0;
+
+CREATE OR REPLACE TABLE bureau_origin_coverage AS
+SELECT SK_ID_CURR, COUNT(*) AS source_loan_count,
+    COUNT(*) FILTER (WHERE ISFINITE(DAYS_CREDIT) AND DAYS_CREDIT < 0) AS eligible_loan_count,
+    COUNT(*) FILTER (WHERE DAYS_CREDIT = 0) AS day_zero_loan_count,
+    COUNT(*) FILTER (WHERE DAYS_CREDIT > 0 AND ISFINITE(DAYS_CREDIT)) AS positive_origin_loan_count,
+    COUNT(*) FILTER (WHERE DAYS_CREDIT IS NULL OR NOT ISFINITE(DAYS_CREDIT)) AS unknown_origin_loan_count
+FROM stg_bureau GROUP BY SK_ID_CURR;
+
+CREATE OR REPLACE TABLE f_bureau_agg AS
+SELECT
+    SK_ID_CURR,
+    COUNT(*) AS bureau_credit_count,
+    SUM(CASE WHEN LOWER(CREDIT_ACTIVE) = 'active' THEN 1 ELSE 0 END) AS active_credit_count,
+    SUM(CASE WHEN LOWER(CREDIT_ACTIVE) = 'closed' THEN 1 ELSE 0 END) AS closed_credit_count,
+    SUM(CASE WHEN CREDIT_DAY_OVERDUE > 0 OR AMT_CREDIT_SUM_OVERDUE > 0 THEN 1 ELSE 0 END) AS overdue_credit_count,
+    MAX(CREDIT_DAY_OVERDUE) AS max_credit_day_overdue,
+    SUM(AMT_CREDIT_SUM) AS total_credit_sum,
+    AVG(AMT_CREDIT_SUM) AS avg_credit_sum,
+    SUM(AMT_CREDIT_SUM_DEBT) AS total_credit_debt,
+    SUM(AMT_CREDIT_SUM_LIMIT) AS total_credit_limit,
+    SUM(AMT_CREDIT_SUM_OVERDUE) AS total_credit_overdue,
+    AVG(DAYS_CREDIT) AS avg_days_credit,
+    MIN(DAYS_CREDIT) AS earliest_days_credit,
+    MAX(DAYS_CREDIT) AS latest_days_credit,
+    AVG(DAYS_CREDIT_ENDDATE) AS avg_days_credit_enddate,
+    AVG(DAYS_ENDDATE_FACT) AS avg_days_enddate_fact
+FROM n_eligible_bureau
+GROUP BY SK_ID_CURR;

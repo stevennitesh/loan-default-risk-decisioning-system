@@ -1,0 +1,366 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Earlier repaired assessment, 2026-10-04</title><style>*{box-sizing:border-box}body{font:16px/1.6 system-ui;margin:0;background:#f6f8fa;color:#182230}main{max-width:1100px;margin:auto;padding:1.5rem}img{display:block;width:100%;height:auto}figure{margin:1.5rem 0;border:1px solid #cad6df;border-radius:10px;background:white;overflow:hidden}figcaption{padding:1rem;background:#e9f1f3}.table-wrap{max-width:100%;overflow-x:auto}table{border-collapse:collapse;font-size:.85rem}td,th{padding:.5rem;border:1px solid #ddd}a{color:#076c76}p{overflow-wrap:anywhere}@media(max-width:600px){main{padding:.8rem}}</style></head><body><main><h1>Earlier repaired assessment, 2026-10-04</h1><p><strong>Earlier completed protocol: nested_matched_holdout_v2.</strong> The <a href="../portfolio/index.html">current report</a> and <a href="../tuning_20261004/assessment_report.md">current technical assessment</a> use nested_inner_cv_v3, completed later on the same date. These earlier values remain separate.</p><p>The upper panels assess 261,384 development applicants in five matched test groups. The lower panels compare separate saved models on 46,127 reused historical applicants. Unlabeled Kaggle applications are excluded. Random groups do not establish future-cohort performance; the historical comparison is not an untouched lockbox.</p><figure><img src="corrected_evidence.png" alt="Earlier repaired five-group ranking and reliability, with separate saved-model actions and ranking"><figcaption>Earlier aggregate evidence. Final probabilities are the chosen probability view and can equal raw probabilities; this earlier history procedure chose sigmoid adjustment. Group SD is descriptive, not a confidence interval. Actions are simulations, only middle-band reviews incur cost, and high-band simulated declines contribute zero utility. <a href="corrected_evidence.png">Full-size chart</a>.</figcaption></figure><h2>Exact earlier aggregate results</h2><p>Average precision measures ranking, not accuracy. Brier/log loss measure probability error (lower is better). Utility uses illustrative units, not money or profit.</p><div class="table-wrap"><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Model / input scope</th>
+      <th>Model family</th>
+      <th>Grouping seed</th>
+      <th>Probability view</th>
+      <th>Metric</th>
+      <th>Applicant test groups</th>
+      <th>Mean across groups</th>
+      <th>Descriptive group SD</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Application fields only · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Brier score</td>
+      <td>5</td>
+      <td>0.068399</td>
+      <td>0.000211</td>
+    </tr>
+    <tr>
+      <td>Application fields only · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Log loss</td>
+      <td>5</td>
+      <td>0.248743</td>
+      <td>0.000854</td>
+    </tr>
+    <tr>
+      <td>Application fields only · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Average precision</td>
+      <td>5</td>
+      <td>0.232638</td>
+      <td>0.005492</td>
+    </tr>
+    <tr>
+      <td>Application fields only · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>ROC AUC</td>
+      <td>5</td>
+      <td>0.749246</td>
+      <td>0.002719</td>
+    </tr>
+    <tr>
+      <td>Application fields only · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Illustrative utility per applicant</td>
+      <td>5</td>
+      <td>556.224172</td>
+      <td>2.618879</td>
+    </tr>
+    <tr>
+      <td>Application fields only · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Brier score</td>
+      <td>5</td>
+      <td>0.173767</td>
+      <td>0.013239</td>
+    </tr>
+    <tr>
+      <td>Application fields only · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Log loss</td>
+      <td>5</td>
+      <td>0.519341</td>
+      <td>0.030468</td>
+    </tr>
+    <tr>
+      <td>Application fields only · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Average precision</td>
+      <td>5</td>
+      <td>0.232638</td>
+      <td>0.005492</td>
+    </tr>
+    <tr>
+      <td>Application fields only · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>ROC AUC</td>
+      <td>5</td>
+      <td>0.749246</td>
+      <td>0.002719</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Brier score</td>
+      <td>5</td>
+      <td>0.066696</td>
+      <td>0.000119</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Log loss</td>
+      <td>5</td>
+      <td>0.240738</td>
+      <td>0.000428</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Average precision</td>
+      <td>5</td>
+      <td>0.265750</td>
+      <td>0.002983</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>ROC AUC</td>
+      <td>5</td>
+      <td>0.776040</td>
+      <td>0.001532</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Illustrative utility per applicant</td>
+      <td>5</td>
+      <td>577.437415</td>
+      <td>2.203265</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Brier score</td>
+      <td>5</td>
+      <td>0.157305</td>
+      <td>0.008401</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Log loss</td>
+      <td>5</td>
+      <td>0.477672</td>
+      <td>0.019723</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Average precision</td>
+      <td>5</td>
+      <td>0.265750</td>
+      <td>0.002983</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · LightGBM</td>
+      <td>Tree ensemble</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>ROC AUC</td>
+      <td>5</td>
+      <td>0.776040</td>
+      <td>0.001532</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · earlier logistic regression</td>
+      <td>Logistic regression</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Brier score</td>
+      <td>5</td>
+      <td>0.067500</td>
+      <td>0.000232</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · earlier logistic regression</td>
+      <td>Logistic regression</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Log loss</td>
+      <td>5</td>
+      <td>0.244309</td>
+      <td>0.000972</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · earlier logistic regression</td>
+      <td>Logistic regression</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Average precision</td>
+      <td>5</td>
+      <td>0.248427</td>
+      <td>0.005944</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · earlier logistic regression</td>
+      <td>Logistic regression</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>ROC AUC</td>
+      <td>5</td>
+      <td>0.766581</td>
+      <td>0.002102</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · earlier logistic regression</td>
+      <td>Logistic regression</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Illustrative utility per applicant</td>
+      <td>5</td>
+      <td>568.719577</td>
+      <td>1.845860</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · earlier logistic regression</td>
+      <td>Logistic regression</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Brier score</td>
+      <td>5</td>
+      <td>0.194906</td>
+      <td>0.000809</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · earlier logistic regression</td>
+      <td>Logistic regression</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Log loss</td>
+      <td>5</td>
+      <td>0.574360</td>
+      <td>0.002363</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · earlier logistic regression</td>
+      <td>Logistic regression</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Average precision</td>
+      <td>5</td>
+      <td>0.248427</td>
+      <td>0.005944</td>
+    </tr>
+    <tr>
+      <td>Application and loan history · earlier logistic regression</td>
+      <td>Logistic regression</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>ROC AUC</td>
+      <td>5</td>
+      <td>0.766581</td>
+      <td>0.002102</td>
+    </tr>
+    <tr>
+      <td>Training outcome rate · constant benchmark</td>
+      <td>Constant benchmark</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Brier score</td>
+      <td>5</td>
+      <td>0.074211</td>
+      <td>0.000007</td>
+    </tr>
+    <tr>
+      <td>Training outcome rate · constant benchmark</td>
+      <td>Constant benchmark</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Log loss</td>
+      <td>5</td>
+      <td>0.280544</td>
+      <td>0.000020</td>
+    </tr>
+    <tr>
+      <td>Training outcome rate · constant benchmark</td>
+      <td>Constant benchmark</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>Average precision</td>
+      <td>5</td>
+      <td>0.080728</td>
+      <td>0.000008</td>
+    </tr>
+    <tr>
+      <td>Training outcome rate · constant benchmark</td>
+      <td>Constant benchmark</td>
+      <td>42</td>
+      <td>Final probabilities</td>
+      <td>ROC AUC</td>
+      <td>5</td>
+      <td>0.500000</td>
+      <td>0.000000</td>
+    </tr>
+    <tr>
+      <td>Training outcome rate · constant benchmark</td>
+      <td>Constant benchmark</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Brier score</td>
+      <td>5</td>
+      <td>0.074211</td>
+      <td>0.000007</td>
+    </tr>
+    <tr>
+      <td>Training outcome rate · constant benchmark</td>
+      <td>Constant benchmark</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Log loss</td>
+      <td>5</td>
+      <td>0.280544</td>
+      <td>0.000020</td>
+    </tr>
+    <tr>
+      <td>Training outcome rate · constant benchmark</td>
+      <td>Constant benchmark</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>Average precision</td>
+      <td>5</td>
+      <td>0.080728</td>
+      <td>0.000008</td>
+    </tr>
+    <tr>
+      <td>Training outcome rate · constant benchmark</td>
+      <td>Constant benchmark</td>
+      <td>42</td>
+      <td>Raw probabilities</td>
+      <td>ROC AUC</td>
+      <td>5</td>
+      <td>0.500000</td>
+      <td>0.000000</td>
+    </tr>
+  </tbody>
+</table></div><h2>Presentation and scientific provenance</h2><p>This presentation refresh reads frozen anonymous CSVs and the existing evidence manifest; it does not load models or applicant records. The lower-right raw average-precision panel replaces the original score histogram. Original verification.json HTML/PNG hashes apply to the original figures, recoverable at Git commit 7bcdee0ae22bd715d6527e2884b37bdcdc897823; the empirical evidence and execution fingerprints remain unchanged. Refresh hashes are recorded separately during delivery.</p><p>Power BI Desktop, pbi-tools, Tabular Editor and DAX Studio are unavailable on this host. Native PBIX refresh was not performed. Layout metadata confirms two pages and 15/8 visuals, but opaque DataModel measures/relationships/import queries prevent DAX, cross-table filters and CSV import-width certification. Historical dollar formats represent utility weights, not profit.</p><details><summary>Technical identity</summary><p>Assessment f6b58bf8335645b3a1ece2ca3502e173; protocol nested_matched_holdout_v2. Machine keys remain unchanged in the source CSVs.</p></details></main></body></html>
