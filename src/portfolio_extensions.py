@@ -349,8 +349,12 @@ def utility_chart(evidence: dict, destination: Path, save_chart) -> None:
     )
     combos = list(itertools.product([0.5, 1.0, 2.0], repeat=2))
     for axis, margin in zip(axes, [0.5, 1.0, 2.0], strict=True):
-        for workflow, color in zip(
-            UTILITY_WORKFLOWS, ["#5275a5", "#8a6397", "#087f82"], strict=True
+        for workflow, color, marker, linestyle in zip(
+            UTILITY_WORKFLOWS,
+            ["#5275a5", "#8a6397", "#087f82"],
+            ["o", "s", "^"],
+            ["-", "--", "-."],
+            strict=True,
         ):
             values = [
                 means.loc[(workflow, margin, loss, review)] for loss, review in combos
@@ -358,7 +362,8 @@ def utility_chart(evidence: dict, destination: Path, save_chart) -> None:
             axis.plot(
                 range(9),
                 values,
-                marker="o",
+                marker=marker,
+                linestyle=linestyle,
                 markersize=4,
                 color=color,
                 label=workflow_label(workflow).replace(" · ", "\n"),

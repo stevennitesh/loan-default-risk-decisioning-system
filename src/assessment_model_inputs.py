@@ -15,6 +15,7 @@ import pandas as pd
 from src.explain import _transform_features
 from src.feature_labels import readable_feature_label
 from src.mart_access import feature_build_id
+from src.presentation import POS_CASH_HISTORY_DESCRIPTION
 from src.runtime import sql_identifier
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +49,7 @@ GROUP_DETAILS = {
     ),
     "pos_cash": (
         "Cash-loan monthly history",
-        "Monthly loan status, days past due, remaining installments and recent/last-loan deterioration, aggregated using distinct applicant months.",
+        POS_CASH_HISTORY_DESCRIPTION,
     ),
     "credit_card": (
         "Credit-card monthly history",

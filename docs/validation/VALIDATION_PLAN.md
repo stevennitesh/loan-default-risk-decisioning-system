@@ -1,6 +1,6 @@
 # Loan Default Risk Decisioning System — Validation Plan
 
-The [current case study](../../reports/portfolio/case_study.md) and [standalone offline report](../../reports/portfolio/index.html) translate current anonymous aggregate results into reader-facing terms. Exact assessment tables remain authoritative. Final probabilities can be unchanged raw probabilities when no adjustment wins. Highest-risk 10% capture is a ranking check, separate from middle-band manual review.
+The [HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) translates current anonymous aggregate results into reader-facing terms. Its [standalone HTML](../../reports/portfolio/index.html) supports offline reading. Exact assessment tables remain authoritative. Final probabilities can be unchanged raw probabilities when no adjustment wins. Highest-risk 10% capture is a ranking check, separate from middle-band manual review.
 
 
 **Version:** 0.1  

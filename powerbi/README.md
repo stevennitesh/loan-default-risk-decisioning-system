@@ -2,7 +2,7 @@
 
 ## Current results
 
-For current results, open [the standalone offline report](../reports/portfolio/index.html) or [case study](../reports/portfolio/case_study.md). The PNG/SVG charts are current static presentation artifacts, separately generated from anonymous assessment aggregates. They are not screenshots of a refreshed Power BI report.
+For current results, read [the HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/). Its [standalone HTML](../reports/portfolio/index.html) supports offline reading. The PNG/SVG charts are current static presentation artifacts, separately generated from anonymous assessment aggregates. They are not screenshots of a refreshed Power BI report.
 
 Both PBIX files and screenshots are in [the historical archive](archive/README.md), with `HISTORICAL_` filenames. They are unrefreshed demonstrations and retain their original bytes. The PBIX files contain embedded data models; their cached contents have not been verified as aggregate-only through native inspection. Desktop/DAX/model refresh is unavailable on this host. Future Desktop work should first choose one identified export bundle and confirm model, labeled-versus-unlabeled population, split, scenario and score view on every visual; inspect DAX, relationships and import widths before reconciling numbers. Keep fold-trained assessment separate from the saved-model export bundle.
 

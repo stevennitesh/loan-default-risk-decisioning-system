@@ -27,12 +27,13 @@ accepted behavior or claims.
 
 | When the task involves | Load |
 |---|---|
-| Portfolio story, presentation, or running the project | [README.md](README.md); its current case-study/report path owns presentation; its run guide owns config scopes and the Windows interpreter override. |
+| Portfolio story or presentation | [README.md](README.md); its HTML report path owns the reader journey. |
+| Running the project or reproduction | [Run guide](docs/RUNNING.md); it owns config scopes, reproduction boundaries and the Windows interpreter override. |
 | Domain meaning, scope, architecture, SQL features, or population contracts | [Project spec](docs/spec/PROJECT_SPEC.md); read the sections governing the change. |
 | Training, calibration, scoring, experiments, metrics, or result claims | [Current evidence status](docs/validation/VALIDATION_PLAN.md#current-evidence-status), then the relevant validation gates. |
 | Orchestration, config, or command behavior | [Makefile](Makefile), the applicable file in `configs/`, and the [command-to-artifact map](docs/implementation/IMPLEMENTATION_PLAN.md#5-command-to-artifact-map). |
 | Report or dashboard export schemas | [src/report_contracts.py](src/report_contracts.py); exact columns belong here. |
-| Code verification, fixtures, or CI | [Testing plan](docs/testing/TESTING_PLAN.md) and [run guide](README.md#how-to-run) for host/interpreter setup; default gates are `make lint`, `make format-check`, and `make test`. |
+| Code verification, fixtures, or CI | [Testing plan](docs/testing/TESTING_PLAN.md) and [run guide](docs/RUNNING.md#check-the-code-without-data) for host/interpreter setup; default gates are `make lint`, `make format-check`, and `make test`. |
 | Container behavior | [Dockerfile](Dockerfile); testing expectations remain in the testing plan. |
 | Generated artifacts, curated evidence, or Git inclusion | [Reports policy](reports/README.md); use `.tmp/` for scratch work. |
 | Power BI reports, visuals, screenshots, or refresh | [Power BI guide](powerbi/README.md). |

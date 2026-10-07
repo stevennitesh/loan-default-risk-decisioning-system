@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -126,7 +127,14 @@ def test_render_is_offline_preserves_keys_and_is_deterministic(tmp_path: Path) -
     # Both desktop and portrait phone charts must remain embedded offline.
     assert len([v for v in parser.references if v.startswith("data:image/png")]) == 16
     assert all(
-        v.startswith(("data:", "#", "https://github.com/"))
+        v.startswith(
+            (
+                "data:",
+                "#",
+                "https://github.com/",
+                "https://www.kaggle.com/competitions/home-credit-default-risk/",
+            )
+        )
         or (destination / v).is_file()
         for v in parser.references
     )
@@ -155,6 +163,12 @@ def test_render_is_offline_preserves_keys_and_is_deterministic(tmp_path: Path) -
     assert (destination / "model_input_provenance.json").read_bytes() == (
         INPUT_SOURCE / "provenance.json"
     ).read_bytes()
+    original_dictionary = pd.read_csv(INPUT_SOURCE / "input_dictionary.csv")
+    exported_dictionary = pd.read_csv(destination / "model_input_dictionary.csv")
+    pd.testing.assert_frame_equal(
+        original_dictionary.drop(columns="group_description"),
+        exported_dictionary.drop(columns="group_description"),
+    )
     assert "in provenance.json." in (INPUT_SOURCE / "methods.md").read_text(
         encoding="utf-8"
     )
@@ -176,6 +190,10 @@ def test_render_is_offline_preserves_keys_and_is_deterministic(tmp_path: Path) -
         in (destination / "index.html").read_text(encoding="utf-8").lower()
     )
     assert render(SOURCE, destination)["outputs_sha256"] == provenance["outputs_sha256"]
+    root = Path(__file__).resolve().parents[1]
+    assert "src/portfolio_report.py" in provenance["renderer_sha256"]
+    for filename, digest in provenance["renderer_sha256"].items():
+        assert hashlib.sha256((root / filename).read_bytes()).hexdigest() == digest
     assert (
         json.loads((destination / "provenance.json").read_text())["assessment_run_id"]
         == provenance["assessment_run_id"]

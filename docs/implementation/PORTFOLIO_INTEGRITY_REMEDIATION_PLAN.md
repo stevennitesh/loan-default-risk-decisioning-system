@@ -4,7 +4,7 @@ The main correctness repairs and current assessment were completed on 2026-10-04
 This document summarizes the engineering decisions behind that work and separates
 completed changes from remaining research and dashboard recommendations.
 
-Read the [current case study](../../reports/portfolio/case_study.md) for the
+Read the [HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) for the
 project story, the [validation status](../validation/VALIDATION_PLAN.md#current-evidence-status)
 for evidence and limits, and the [assessment methodology](../validation/ASSESSMENT_METHODOLOGY.md)
 for the implemented evaluation procedure.
@@ -14,8 +14,10 @@ for the implemented evaluation procedure.
 - **Repayment accounting:** SQL counts each unambiguous installment obligation once
   across split payments. Unknown payments and competing schedules remain explicit.
   Pre-application dates and matched ratio support govern historical features.
-- **Monthly history:** recent windows use distinct applicant months. Duplicate
-  account-month records fail validation rather than silently changing the grain.
+- **Monthly history:** POS/card delinquency rates and last-three-month windows
+  use distinct applicant months; account-month record counts stay separate.
+  Duplicate account-month records fail validation rather than silently changing
+  the grain.
 - **Population boundaries:** labeled assessment and unlabeled scoring remain
   separate. Historical comparison applicants are preserved; fitting, stopping,
   calibration, selection and outer assessment roles have explicit memberships.

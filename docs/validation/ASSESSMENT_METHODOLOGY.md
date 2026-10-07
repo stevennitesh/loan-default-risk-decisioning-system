@@ -2,7 +2,7 @@
 
 ## Plain-language reading path
 
-[The case study](../../reports/portfolio/case_study.md) and [offline report](../../reports/portfolio/index.html) explain the current assessment. A **feature** is a model input; the **mart** is a one-applicant modeling table. **Cross-validation** repeats fitting/selection across applicant groups. An **outer fold** is an applicant test group predicted after the training procedure is frozen. **Calibration** is a probability adjustment; the final method can leave raw probabilities unchanged. Exact protocol/CSV keys remain technical identifiers.
+[The HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) explains the current assessment; its [standalone HTML](../../reports/portfolio/index.html) supports offline reading. A **feature** is a model input; the **mart** is a one-applicant modeling table. **Cross-validation** repeats fitting/selection across applicant groups. An **outer fold** is an applicant test group predicted after the training procedure is frozen. **Calibration** is a probability adjustment; the final method can leave raw probabilities unchanged. Exact protocol/CSV keys remain technical identifiers.
 
 
 The current protocol is `nested_inner_cv_v3`. It evaluates a declared bounded
@@ -48,6 +48,13 @@ allowed raw fields, allocating eight candidates per surface. Application-only
 uses all 31 allowed SQL `f_applicant_static` fields and 24 parameter candidates.
 An explicit scoped feature-experiment request can declare other surfaces; it still
 spends one shared joint budget per workflow. No outer result selects a family.
+
+The expanded history surface also includes `external_score_credit_pressure` and
+`external_score_annuity_pressure`, two interactions calculated entirely from
+application fields in [risk-pressure SQL](../../sql/05b_feature_risk_pressure.sql).
+They are absent from the application-only comparator. Each workflow selects its
+own model recipe, so the matched comparison estimates the combined expanded
+workflow rather than isolating the information value of loan history alone.
 
 Candidate parameters are a deterministic bounded random draw: learning rate
 0.025/0.04/0.06/0.08; leaves 15/31/47/63; depth unlimited/6/8; minimum child support
@@ -116,7 +123,14 @@ does not choose an aggregate surface or promote a model across these summaries.
 configs without a mode retain their historical interpretation; they are not
 current defaults. `configs/v1.yaml` retains its historical v1 demonstration scope.
 
-For new assessment without ingestion or rebuilding the corrected mart:
+For a new assessment using retained local inputs:
+
+The commands below require the corrected local database and original reference
+model that preserve the historical comparison memberships. Those inputs and the
+exact executed source archives are ignored by Git. They are available for the
+author's checked same-host reproduction, rather than distributed with a fresh
+clone. The [public run guide](../RUNNING.md#choose-a-reproduction-goal) separates regenerating
+the presentation from running a new pipeline with downloaded data.
 
 ```bash
 make assess-tuning PYTHON=.tmp/assessment-env/Scripts/python.exe

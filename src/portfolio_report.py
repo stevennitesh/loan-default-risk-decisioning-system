@@ -15,6 +15,7 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 import pandas as pd
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.ticker import PercentFormatter
 
 from src.class_weighting_report import FILES as WEIGHTING_FILES
@@ -34,6 +35,7 @@ from src.portfolio_extensions import (
 from src.presentation import (
     METRIC_DETAILS,
     METRIC_LABELS,
+    POS_CASH_HISTORY_DESCRIPTION,
     WORKFLOW_LABELS,
     workflow_label,
 )
@@ -44,6 +46,10 @@ import matplotlib.pyplot as plt
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_URL = "https://stevennitesh.github.io/loan-default-risk-decisioning-system/"
 REPOSITORY_URL = "https://github.com/stevennitesh/loan-default-risk-decisioning-system"
+DATASET_URL = "https://www.kaggle.com/competitions/home-credit-default-risk/overview"
+DATA_DESCRIPTION_URL = (
+    "https://www.kaggle.com/competitions/home-credit-default-risk/data"
+)
 ACCOUNTING_EXAMPLE = (
     "A synthetic test records payments of 40 and 60 against one 100-unit obligation. "
     "The SQL result contains 100 units due and 100 paid, rather than counting the "
@@ -183,18 +189,29 @@ def portrait_chart(figure) -> str:
         )
     figure.set_size_inches(4.8, sum(heights) + 1.2)
     grid = figure.add_gridspec(len(axes), 1, height_ratios=heights)
+    titles = []
     for index, axis in enumerate(axes):
         axis.set_subplotspec(grid[index, 0])
         axis.tick_params(axis="both", labelsize=14, labelleft=True)
         if wrapped_labels[index] is not None:
             axis.set_yticks(axis.get_yticks(), wrapped_labels[index])
         for location in ("left", "center", "right"):
-            axis.set_title(
-                textwrap.fill(axis.get_title(loc=location).replace("\n", " "), 30),
-                loc=location,
-                fontsize=15,
+            titles.append(
+                axis.set_title(
+                    textwrap.fill(
+                        axis.get_title(loc=location).replace("\n", " "),
+                        22 if wrapped_labels[index] is not None else 30,
+                    ),
+                    loc=location,
+                    fontsize=15,
+                )
             )
-        axis.set_xlabel(textwrap.fill(axis.get_xlabel(), 35), fontsize=13)
+        axis.set_xlabel(
+            textwrap.fill(
+                axis.get_xlabel(), 24 if wrapped_labels[index] is not None else 35
+            ),
+            fontsize=13,
+        )
         axis.set_ylabel(textwrap.fill(axis.get_ylabel(), 40), fontsize=13)
         for text in axis.texts:
             text.set_fontsize(14)
@@ -207,6 +224,18 @@ def portrait_chart(figure) -> str:
         if text:
             text.set_text(textwrap.fill(text.get_text().replace("\n", " "), 52))
             text.set_fontsize(12 if text is figure._suptitle else 10)
+    canvas = FigureCanvasAgg(figure)
+    canvas.draw()
+    renderer = canvas.get_renderer()
+    if any(
+        title.get_text()
+        and (
+            title.get_window_extent(renderer).x0 < -1
+            or title.get_window_extent(renderer).x1 > figure.bbox.width + 1
+        )
+        for title in [*titles, *(axis.xaxis.label for axis in axes)]
+    ):
+        raise ValueError("Portrait chart text extends beyond the rendered image")
     output = io.BytesIO()
     figure.savefig(output, format="png", dpi=180, facecolor="white")
     if any(
@@ -267,7 +296,7 @@ def comparison_chart(
         )
     else:
         axis.set_title(
-            "Loan history adds useful ranking information",
+            "Expanded model ranks better",
             loc="left",
             pad=20,
             weight="bold",
@@ -275,23 +304,45 @@ def comparison_chart(
         axis.set_xlabel(
             "Average precision · higher is better · not classification accuracy"
         )
-        caption = "Public labeled applications · same five applicant test groups for every model.\nSmall dots: individual group results. Diamonds: mean of five metrics; variation is descriptive."
+        caption = "Public labeled applications · same five test groups; inputs and selected settings differ.\nSmall dots: individual group results. Diamonds: mean of five metrics; variation is descriptive."
     figure.supxlabel(caption, fontsize=9, color="#475467")
     writer(figure, destination, name)
 
 
+def final_reliability_bins(evidence: dict) -> pd.DataFrame:
+    bins = evidence["reliability_bins"]
+    return bins.loc[
+        (bins.workflow == "history_selected")
+        & (bins.score_kind == "calibrated")
+        & (bins.applicant_count > 0)
+    ]
+
+
+def reliability_finding(evidence: dict) -> str:
+    bins = final_reliability_bins(evidence)
+    maximum_gap = (
+        (bins.average_predicted_score - bins.observed_default_rate).abs().max()
+    )
+    return (
+        "Predicted probabilities track observed rates closely in this assessment. "
+        f"Across the {len(bins)} displayed score groups, the largest absolute difference "
+        f"is {maximum_gap * 100:.2f} percentage points."
+    )
+
+
 def reliability_chart(evidence: dict, destination: Path, writer=save_chart) -> None:
     figure, axis = plt.subplots(figsize=(8, 6), layout="constrained")
-    bins = evidence["reliability_bins"]
-    bins = bins.loc[
-        (bins.workflow == "history_selected") & (bins.score_kind == "calibrated")
-    ]
-    for fold, group in bins.groupby("outer_fold"):
+    bins = final_reliability_bins(evidence)
+    styles = [("o", "-"), ("s", "--"), ("^", "-."), ("D", ":"), ("P", (0, (5, 1)))]
+    for (fold, group), (marker, linestyle) in zip(
+        bins.groupby("outer_fold"), styles, strict=True
+    ):
         group = group.sort_values("average_predicted_score")
         axis.plot(
             group.average_predicted_score,
             group.observed_default_rate,
-            marker="o",
+            marker=marker,
+            linestyle=linestyle,
             markersize=4,
             linewidth=1.2,
             label=f"Applicant test group {fold}",
@@ -344,9 +395,9 @@ def search_chart(evidence: dict, destination: Path, writer=save_chart) -> None:
         ],
         strict=True,
     ):
-        for score, color, label in [
-            ("raw", "#8a6397", "Raw probabilities"),
-            ("calibrated", "#087f82", "Final probabilities"),
+        for score, color, marker, linestyle, label in [
+            ("raw", "#8a6397", "s", "--", "Raw probabilities"),
+            ("calibrated", "#087f82", "o", "-", "Final probabilities"),
         ]:
             row = frame.loc[
                 (frame.workflow_v3 == "history_selected")
@@ -356,7 +407,8 @@ def search_chart(evidence: dict, destination: Path, writer=save_chart) -> None:
             axis.plot(
                 [0, 1],
                 [row.fold_mean_v2, row.fold_mean_v3],
-                marker="o",
+                marker=marker,
+                linestyle=linestyle,
                 color=color,
                 label=label,
             )
@@ -391,9 +443,9 @@ def weighting_chart(evidence: dict, destination: Path, writer=save_chart) -> Non
         ],
         strict=True,
     ):
-        for recipe, color, offset in [
-            ("earlier", "#8a6397", -0.045),
-            ("current", "#087f82", 0.045),
+        for recipe, color, offset, marker, mean_marker, linestyle in [
+            ("earlier", "#8a6397", -0.045, "o", "D", "--"),
+            ("current", "#087f82", 0.045, "^", "s", "-"),
         ]:
             pairs = frame.loc[frame.recipe == recipe].pivot(
                 index="outer_fold", columns="weighting", values=metric
@@ -405,14 +457,16 @@ def weighting_chart(evidence: dict, destination: Path, writer=save_chart) -> Non
                     color=color,
                     alpha=0.25,
                     linewidth=1,
-                    marker="o",
+                    marker=marker,
+                    linestyle=linestyle,
                     markersize=3,
                 )
             axis.plot(
                 np.array([0, 1]) + offset,
                 [pairs.earlier_weight.mean(), pairs.unweighted.mean()],
                 color=color,
-                marker="D",
+                marker=mean_marker,
+                linestyle=linestyle,
                 markersize=6,
                 linewidth=2,
                 label=f"{recipe.capitalize()} recipe",
@@ -435,7 +489,7 @@ def weighting_chart(evidence: dict, destination: Path, writer=save_chart) -> Non
         fontsize=13,
     )
     figure.supxlabel(
-        "History model · each line connects a matched group with only class weighting changed.\nDiamonds show five-group means. Inputs, applicants, preprocessing, seed and other settings stay fixed within each recipe.",
+        "History model · small markers show matched groups; larger markers show five-group means.\nOnly class weighting changes within each recipe; inputs, applicants, preprocessing, seed and other settings stay fixed.",
         fontsize=9,
         color="#475467",
     )
@@ -463,12 +517,7 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
     review_cost = weights["manual_review_cost"]
     selections = evidence["selection_stability"]
     history = selections.loc[selections.workflow == "history_selected"]
-    support = evidence["reliability_bins"].loc[
-        (evidence["reliability_bins"].workflow == "history_selected")
-        & (evidence["reliability_bins"].score_kind == "calibrated")
-        & (evidence["reliability_bins"].applicant_count > 0),
-        "applicant_count",
-    ]
+    support = final_reliability_bins(evidence).applicant_count
     support_text = f"The {len(support)} displayed bins contain {int(support.min()):,} to {int(support.max()):,} applicants each; score ties stay together."
     method_text = (
         "All five history models selected the full 174 eligible inputs and raw probabilities; no probability-adjustment transform was selected."
@@ -489,7 +538,7 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         (
             "engineering",
             "What I built",
-            "SQL builds one modeling record per applicant, separately for labeled assessment and unlabeled scoring. Installment obligations are counted once across split payments; ambiguous schedules and unknown payments remain explicit. Monthly history uses distinct applicant months, and bureau loans must originate before the application day.\n\nPython coordinates ingestion, model selection, scoring, SHAP interpretation and exports. Identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Relative dates cannot certify when a lender could have obtained each field.",
+            "SQL builds one modeling record per applicant, separately for labeled assessment and unlabeled scoring. Installment obligations are counted once across split payments; ambiguous schedules and unknown payments remain explicit. POS/cash-loan and credit-card delinquency rates and last-three-month windows use distinct applicant months; account-month record counts retain their separate meaning. Bureau loans must originate before the application day.\n\nPython coordinates ingestion, model selection, scoring, SHAP interpretation and exports. Identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Relative dates cannot certify when a lender could have obtained each field.",
         ),
         (
             "assessment",
@@ -498,13 +547,13 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         ),
         (
             "ranking",
-            "History improves ranking in this assessment",
-            f"Average precision is {ap:.3f} with application and loan history versus {application:.3f} with application fields only. Average precision summarizes how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy. The history model captures {capture:.1%} of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a 10% random-ranking reference. This highest-risk group is separate from the middle manual-review band.\n\nEqual scores at the boundary receive equal expected membership; the methods retain the exact tie rule.",
+            "Expanded inputs improve ranking in this assessment",
+            f"Average precision is {ap:.3f} with application and loan history versus {application:.3f} with application fields only. The expanded model also includes two interactions derived entirely from application fields, and each model's settings were selected separately. The matched comparison measures these changes together; it does not isolate loan history alone. Average precision summarizes how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy. The history model captures {capture:.1%} of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a 10% random-ranking reference. This highest-risk group is separate from the middle manual-review band.\n\nEqual scores at the boundary receive equal expected membership; the methods retain the exact tie rule.",
         ),
         (
             "probabilities",
             "Check probabilities separately",
-            f"The history model's Brier score is {brier:.3f} and log loss is {loss:.3f}; lower is better for both. These measure probability errors, while the reliability chart compares predicted and observed rates within each test group's own score bins. {method_text}\n\n{support_text} Reliability is descriptive, not a guarantee for a new lending population.",
+            f"The history model's Brier score is {brier:.3f} and log loss is {loss:.3f}; lower is better for both. These measure probability errors, while the reliability chart compares predicted and observed rates within each test group's own score bins. {method_text}\n\n{reliability_finding(evidence)} {support_text} Reliability is descriptive, not a guarantee for a new lending population.",
         ),
         (
             "search",
@@ -519,7 +568,7 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         (
             "limits",
             "What this demonstrates—and what remains unknown",
-            "The contribution is disciplined SQL data engineering, benchmark comparison, bounded model selection, reproducible assessment and readable reporting. Historical comparisons remain an archive. Unlabeled Kaggle applications demonstrate batch scoring only and contribute no outcome metrics. Calendar application, field-availability and outcome-maturity timestamps are missing; random applicant groups cannot validate performance in a future cohort. This portfolio does not establish underwriting, compliance, fair-lending or adverse-action readiness. The saved Power BI files and screenshots are unrefreshed historical demonstrations; the current charts and offline report are separate presentation artifacts.",
+            "The contribution is disciplined SQL data engineering, benchmark comparison, bounded model selection, identified same-host assessment reproduction and readable reporting. Committed anonymous aggregates can regenerate this presentation. Downloaded data and current code can run a new pipeline; exact historical execution also requires retained original models, memberships and source archives that stay local. Historical comparisons remain an archive. Unlabeled Kaggle applications demonstrate batch scoring only and contribute no outcome metrics. Calendar application, field-availability and outcome-maturity timestamps are missing; random applicant groups cannot validate performance in a future cohort. This portfolio does not establish underwriting, compliance, fair-lending or adverse-action readiness. The saved Power BI files and screenshots are unrefreshed historical demonstrations; the current charts and offline report are separate presentation artifacts.",
         ),
     ]
     weighting = evidence["weighting"]
@@ -618,7 +667,10 @@ def render(
         "labeled applicants. Average precision measures ranking, not accuracy. "
         "Prior exploration and random groups limit claims about future cohorts."
     )
-    input_dictionary = evidence["inputs"]["input_dictionary"]
+    input_dictionary = evidence["inputs"]["input_dictionary"].copy()
+    input_dictionary.loc[
+        input_dictionary.source_group == "pos_cash", "group_description"
+    ] = POS_CASH_HISTORY_DESCRIPTION
     group_table = input_dictionary.groupby("source_group", sort=False).agg(
         label=("group_label", "first"),
         description=("group_description", "first"),
@@ -683,7 +735,7 @@ def render(
         ),
         "probabilities": (
             "probability_reliability",
-            "Predicted and observed repayment-difficulty rates in each test group's own bins.",
+            f"Predicted and observed repayment-difficulty rates in each test group's own bins. {reliability_finding(evidence)} This descriptive comparison does not guarantee reliability in a future lending population.",
         ),
         "search": (
             "search_comparison",
@@ -696,6 +748,7 @@ def render(
     }
     md = (
         "# Credit risk from application and repayment history\n\n"
+        + f"Text version of the [HTML project report]({PROJECT_URL}), the main reading destination for this project. The [standalone HTML](index.html) is the same report for offline use.\n\n"
         + intro
         + "\n\n"
         + headline
@@ -707,6 +760,15 @@ def render(
         if key == "assessment":
             md += "## Supporting evidence and methods\n\nThe sections below retain the assessment details, segment checks, model-input explanations and simulated decision assumptions.\n\n"
         md += f"## {title}\n\n{paragraph}\n\n"
+        if key == "problem":
+            md += (
+                f"**Data source:** [Home Credit Default Risk]({DATASET_URL}). "
+                f"The [official data description and downloads]({DATA_DESCRIPTION_URL}) "
+                "include `HomeCredit_columns_description.csv`, the source data dictionary. "
+                f"The assessment uses {evidence['applicant_count']:,} labeled applicants; "
+                "46,127 other labeled applicants remain a separate historical comparison. "
+                "Kaggle downloads require an account and acceptance of the competition rules.\n\n"
+            )
         if key == "engineering":
             md += (
                 "Public tables → SQL/DuckDB features → Python models → Reporting and batch scoring.\n\n"
@@ -753,7 +815,7 @@ def render(
 - Read the technical assessment: [current procedure](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md) and [controlled weighting follow-up](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md).
 - Follow the development trail: [historical experiment archive](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/experiments/README.md).
 
-Install the dependencies using [How To Run](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/README.md#how-to-run), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregates are read; no raw data, saved model or new fitting is required.
+Install the dependencies using [the run guide](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/docs/RUNNING.md#check-the-code-without-data), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregates are read; no raw data, saved model or new fitting is required.
 """
     (destination / "case_study.md").write_text(md, encoding="utf-8")
     nav = " ".join(
@@ -788,6 +850,15 @@ Install the dependencies using [How To Run](https://github.com/stevennitesh/loan
         body += "".join(
             f"<p>{html.escape(part)}</p>" for part in paragraph.split("\n\n")
         )
+        if key == "problem":
+            body += (
+                f'<p><strong>Data source:</strong> <a href="{DATASET_URL}">Home Credit Default Risk</a>. '
+                f'The <a href="{DATA_DESCRIPTION_URL}">official data description and downloads</a> '
+                "include <code>HomeCredit_columns_description.csv</code>, the source data dictionary. "
+                f"The assessment uses {evidence['applicant_count']:,} labeled applicants; "
+                "46,127 other labeled applicants remain a separate historical comparison. "
+                "Kaggle downloads require an account and acceptance of the competition rules.</p>"
+            )
         if key == "inputs":
             body += group_html
         elif key == "engineering":
@@ -860,7 +931,7 @@ Install the dependencies using [How To Run](https://github.com/stevennitesh/loan
         if key == "weighting":
             body += "</div>"
     body += "</details>"
-    appendix = f"Assessment {evidence['provenance']['assessment_run_id']}; protocol {evidence['provenance']['protocol']}; shuffled-label diagnostic {evidence['provenance']['control_run_id']}. Exact means, descriptive fold variation and preserved machine metric keys are in metrics.csv. The CSV score-kind key calibrated means the final method-choice view; it does not imply that a transform was selected. The presentation provenance lists aggregate and renderer hashes; scientific execution fingerprints remain unchanged."
+    appendix = f"Assessment {evidence['provenance']['assessment_run_id']}; protocol {evidence['provenance']['protocol']}; shuffled-label diagnostic {evidence['provenance']['control_run_id']}. Exact means, descriptive fold variation and preserved machine metric keys are in metrics.csv. The CSV score-kind key calibrated means the final method-choice view; it does not imply that a transform was selected. Presentation provenance records generation-time hashes of the aggregate inputs, presentation modules and imported evidence/path helpers. Scientific execution fingerprints remain in the source evidence manifests and are unchanged."
     dictionary = "".join(
         f"<tr><td><code>{html.escape(key)}</code></td><td>{html.escape(label)}</td><td>{html.escape(METRIC_DETAILS[key][0])}</td><td>{html.escape(METRIC_DETAILS[key][1])}</td><td>{html.escape(METRIC_DETAILS[key][2])}</td></tr>"
         for key, label in METRIC_LABELS.items()
@@ -883,7 +954,7 @@ Install the dependencies using [How To Run](https://github.com/stevennitesh/loan
     evidence_links = (
         '<section id="downloads"><h2>Downloads and source evidence</h2><nav aria-label="Download anonymous evidence">'
         + downloads
-        + '</nav><p>Downloads work online or alongside this HTML in the presentation folder. The charts and story remain readable when this HTML is opened alone offline.</p><p>Optional source links require a network connection: <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system">Project repository</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md">Current assessment</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md">Controlled weighting evidence</a></p></section>'
+        + '</nav><p>Downloads work online or alongside this HTML in the presentation folder. The charts and story remain readable when this HTML is opened alone offline.</p><p>Optional source links require a network connection: <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system">Project repository</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/docs/RUNNING.md">Run and reproduce the project</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md">Current assessment</a> · <a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md">Controlled weighting evidence</a></p></section>'
     )
     glossary = "".join(
         f"<div><dt>{html.escape(label)}</dt><dd>{html.escape(meaning)}</dd>"
@@ -954,8 +1025,10 @@ dialog::backdrop{{background:rgba(18,38,46,.65)}}
 .viewer-heading{{display:flex;align-items:center;justify-content:space-between;gap:1rem}}
 .viewer-heading h2{{margin:0;font-size:1.25rem}}
 .viewer-heading button{{font:inherit;padding:.4rem .7rem;cursor:pointer}}
+.viewer-tools button{{font:inherit;padding:.4rem .7rem;cursor:pointer}}
 .viewer-content{{overflow:auto;max-height:70vh;border:1px solid #dde4eb;margin-top:1rem}}
-.viewer-content img{{display:block;width:1600px;max-width:none;height:auto}}
+.viewer-content img{{display:block;width:100%;max-width:100%;height:auto}}
+.viewer-content.native-size img{{width:auto;max-width:none}}
 @media(max-width:600px){{
 main{{padding:.8rem}}
 header,section,details{{padding:1rem}}
@@ -976,16 +1049,31 @@ nav,.figure-tools,dialog{{display:none}}
 .chart-panel img{{min-width:0}}
 }}
 </style></head><body><main><header><p class="eyebrow">Public-data portfolio · SQL · Python · credit risk</p><h1>Credit risk from application and repayment history</h1><p>{html.escape(intro)}</p><p class="hero-result">{html.escape(headline)}</p><p class="hero-boundary">{html.escape(boundary)}</p></header><nav aria-label="Report contents">{nav}</nav>{body}<details id="technical-appendix"><summary>Technical appendix: exact identities and machine-key dictionary</summary><p>{html.escape(appendix)}</p><div class="table-wrap"><table><thead><tr><th>Preserved machine key</th><th>Measure</th><th>Meaning</th><th>Direction</th><th>Units</th></tr></thead><tbody>{dictionary}</tbody></table></div></details><footer><p>This file is self-contained: charts, styles and text require no network connection. Adjacent PNG/SVG files are available for reuse; metrics.csv and provenance.json provide the technical evidence trail.</p></footer></main>
-<dialog id="chart-viewer" aria-labelledby="viewer-title" aria-describedby="viewer-help"><div class="viewer-heading"><h2 id="viewer-title">Chart</h2><form method="dialog"><button>Close chart</button></form></div><p id="viewer-help">Scroll to inspect the enlarged chart. Press Escape or Close chart to return to the report.</p><div class="viewer-content" tabindex="0" role="region" aria-label="Enlarged chart; scroll horizontally and vertically"></div></dialog>
+<dialog id="chart-viewer" aria-labelledby="viewer-title" aria-describedby="viewer-help"><div class="viewer-heading"><h2 id="viewer-title">Chart</h2><form method="dialog"><button>Close chart</button></form></div><p id="viewer-help">The chart opens fitted to the available width. Choose Show native size for a closer view, then scroll if needed. Press Escape or Close chart to return to the report.</p><div class="viewer-tools"><button id="viewer-zoom" type="button" aria-pressed="false">Show native size</button></div><div class="viewer-content" tabindex="0" role="region" aria-label="Enlarged chart"></div></dialog>
 <script>
 document.documentElement.classList.add('interactive');
 const viewer = document.getElementById('chart-viewer');
+const viewerContent = viewer.querySelector('.viewer-content');
+const viewerZoom = document.getElementById('viewer-zoom');
+function fitViewer() {{
+    viewerContent.classList.remove('native-size');
+    viewerZoom.setAttribute('aria-pressed', 'false');
+    viewerZoom.textContent = 'Show native size';
+    viewerContent.scrollLeft = 0;
+    viewerContent.scrollTop = 0;
+}}
+viewerZoom.addEventListener('click', () => {{
+    const nativeSize = viewerContent.classList.toggle('native-size');
+    viewerZoom.setAttribute('aria-pressed', String(nativeSize));
+    viewerZoom.textContent = nativeSize ? 'Fit chart to width' : 'Show native size';
+    viewerContent.scrollLeft = 0;
+    viewerContent.scrollTop = 0;
+}});
 document.querySelectorAll('[data-chart]').forEach(button => button.addEventListener('click', () => {{
     const figure = button.closest('figure');
     document.getElementById('viewer-title').textContent = figure.querySelector('h3').textContent;
-    viewer.querySelector('.viewer-content').replaceChildren(figure.querySelector('img').cloneNode());
-    viewer.querySelector('.viewer-content').scrollLeft = 0;
-    viewer.querySelector('.viewer-content').scrollTop = 0;
+    viewerContent.replaceChildren(figure.querySelector('picture').cloneNode(true));
+    fitViewer();
     viewer.showModal();
 }}));
 viewer.addEventListener('click', event => {{ if (event.target === viewer) viewer.close(); }});
@@ -1017,16 +1105,24 @@ window.addEventListener('afterprint', () => printDetails.forEach(([element, open
         ("provenance.json", "model_input_provenance.json"),
         ("methods.md", "model_input_methods.md"),
     ]:
-        if original == "methods.md":
+        if original == "input_dictionary.csv":
+            input_dictionary.to_csv(destination / final_name, index=False)
+        elif original == "methods.md":
             methods = (input_source / original).read_text(encoding="utf-8")
             methods = methods.replace(
                 "in provenance.json.",
                 "in [model_input_provenance.json](model_input_provenance.json).",
             )
             methods += (
-                "\nThis exported note uses presentation filenames. Input provenance retains "
-                "the original source filenames and hashes; [presentation provenance](provenance.json) "
-                "records the exported copies, including this note.\n"
+                "\nThis exported note uses presentation filenames. The exported input dictionary "
+                "also corrects the cash-loan group description: delinquency rates and "
+                "last-three-month windows use distinct applicant months, while record counts "
+                "retain account-month grain. Raw fields, source groups and numerical evidence "
+                "are unchanged. Input provenance retains the original source filenames and "
+                "hashes; [presentation provenance](provenance.json) records the adapted copies, "
+                "including this note and dictionary. The "
+                f"[original dictionary]({REPOSITORY_URL}/blob/main/reports/model_inputs_20261004/input_dictionary.csv) "
+                "remains preserved.\n"
             )
             (destination / final_name).write_text(methods, encoding="utf-8")
         else:
@@ -1084,14 +1180,15 @@ window.addEventListener('afterprint', () => printDetails.forEach(([element, open
                 "src/portfolio_extensions.py",
                 "src/class_weighting_report.py",
                 "src/presentation.py",
-                "src/evaluation_reports.py",
-                "src/nested_assessment.py",
-                "src/feature_selection.py",
-                "src/model_stability.py",
-                "src/correctness_summary.py",
-                "src/tuning_summary.py",
-                "src/explain.py",
+                "src/evidence.py",
+                "src/runtime.py",
             ]
+        },
+        "renderer_fingerprint_scope": "Generation-time snapshot of presentation modules and imported evidence/path helpers; these hashes describe this rendering, not the original model execution.",
+        "scientific_execution_provenance": "Original execution code, configuration and environment fingerprints remain unchanged in the source evidence manifests.",
+        "presentation_adjustments": {
+            "model_input_dictionary.csv": "Clarified only the cash-loan monthly group description; original source dictionary and its recorded hash remain preserved.",
+            "model_input_methods.md": "Adapted filenames and documented the descriptive dictionary correction; empirical methodology is unchanged.",
         },
         "outputs_sha256": {
             p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in outputs

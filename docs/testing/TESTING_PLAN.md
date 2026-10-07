@@ -485,7 +485,7 @@ make score
 make dashboard-data
 ```
 
-Full-data commands require downloaded Kaggle files. CI runs pytest's synthetic integration paths, not the full-data Make pipeline. Use explicit scoped configs as documented in the README; bare step commands use the separate base-config paths.
+Full-data commands require downloaded Kaggle files. CI runs pytest's synthetic integration paths, not the full-data Make pipeline. Use explicit scoped configs as documented in the [run guide](../RUNNING.md#run-a-new-pipeline); bare step commands use the separate base-config paths.
 
 ### 15.2 Implemented CI behavior
 

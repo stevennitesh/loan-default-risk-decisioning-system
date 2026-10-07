@@ -2,9 +2,11 @@
 
 ## Current reader path
 
-Start with [the case study](portfolio/case_study.md) or [standalone offline report](portfolio/index.html). They explain the current matched assessment with human labels, exportable PNG/SVG charts and an exact numeric appendix. `make portfolio` derives these final outputs from the existing committed anonymous tuning aggregates, without raw data or model fitting. `portfolio/provenance.json` records presentation-input, renderer and output hashes separately from scientific execution identities. Only the exact final-file exceptions in `.gitignore` admit these files.
+Start with [the HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/), the main reading destination for recruiters and new readers. The [standalone HTML](portfolio/index.html) is the same report for offline use; download it and open it in a browser. The [Markdown case study](portfolio/case_study.md) is a text alternative, generated from the same evidence. Supporting technical reports below provide exact methods and results.
 
-The report opens with the implemented pipeline and matched ranking result. Supporting assessment, segment, model-input and utility details remain in an expandable section; direct section links open that evidence. Phone charts use portrait layouts with stacked panels, keeping labels beside their values. An embedded enlargement view provides the original landscape chart. The case study uses GitHub URLs for supporting documents outside the published bundle. Exported model-input methods name `model_input_provenance.json` for scientific checks; `provenance.json` records presentation files, including the adapted methods note. Original model-input evidence and its source hashes remain unchanged.
+The report explains the current matched assessment with human labels, exportable PNG/SVG charts and an exact numeric appendix. `make portfolio` derives these final outputs from the existing committed anonymous tuning aggregates, without raw data or model fitting. See the [run guide](../docs/RUNNING.md#recreate-the-presentation-without-data) for dependencies and regeneration. `portfolio/provenance.json` records presentation-input, renderer and output hashes separately from scientific execution identities. Only the exact final-file exceptions in `.gitignore` admit these files.
+
+The report opens with the implemented pipeline and matched ranking result. Supporting assessment, segment, model-input and utility details remain in an expandable section; direct section links open that evidence. Phone charts use portrait layouts with stacked panels, keeping labels beside their values. The embedded enlargement view preserves the current responsive layout and opens fitted to the available width, with an optional native-size view. The adjacent full-size PNG provides the landscape export. The case study uses GitHub URLs for supporting documents outside the published bundle. Exported model-input methods name `model_input_provenance.json` for scientific checks; `provenance.json` records presentation files, including the adapted methods note. Original model-input evidence and its source hashes remain unchanged.
 
 The named tuning/correctness evidence below remains the technical appendix. Numbered experiments and saved Power BI visuals remain explicitly historical. Active report generators use [shared presentation vocabulary](../src/presentation.py); machine CSV keys remain unchanged under [report contracts](../src/report_contracts.py).
 
@@ -60,7 +62,7 @@ These are historical exploratory snapshots, not a validation sign-off. Numbered 
 
 ## Regenerated Runtime Outputs
 
-Standard pipeline outputs such as `model_metrics_summary.csv`, `model_threshold_metrics.csv`, dashboard CSV bundles, figures, and DuckDB/model artifacts are generated locally and ignored by Git. Rebuild them with the Makefile targets documented in the root README.
+Standard pipeline outputs such as `model_metrics_summary.csv`, `model_threshold_metrics.csv`, dashboard CSV bundles, figures, and DuckDB/model artifacts are generated locally and ignored by Git. Rebuild them with the Makefile targets documented in the [run guide](../docs/RUNNING.md).
 
 Nested assessment creates a unique ignored directory under
 `<report_dir>/nested_assessment/<run_id>/`, with exact local role IDs and seeds,
@@ -94,6 +96,10 @@ Power BI files and screenshots under [`powerbi/archive/`](../powerbi/archive/REA
 The offline report copies these final anonymous tables alongside eight embedded charts. `make portfolio-site` verifies hashes and an exact reviewed-file allowlist, then stages only this presentation for the dedicated GitHub Pages workflow. The repository, raw data, models and scratch trees are not the publication artifact. PNG/SVG/CSV downloads are adjacent; online source links point to GitHub. Publication is confirmed separately from local preparation.
 
 ## Editorial presentation refreshes
+
+Presentation provenance records a generation-time snapshot of the modules that render the report and their imported evidence/path helpers, plus input and output hashes. It is separate from the scientific execution identities retained in the assessment manifests. `make portfolio` refreshes only this presentation snapshot; it does not rewrite empirical source fingerprints. Exact historical execution depends on retained local models, memberships and source archives; public aggregates suffice to regenerate the charts and story.
+
+The exported model-input dictionary corrects the cash-loan group description to distinguish applicant-month delinquency rates and last-three-month windows from account-month record counts. Fields, groups and numerical evidence are unchanged. The original scientific dictionary and its hashes remain preserved; presentation provenance and the exported methods note identify this descriptive adaptation.
 
 The 2026-10-05 reader reconciliation keeps every curated numeric CSV and scientific JSON unchanged. Earlier repaired evidence (`nested_matched_holdout_v2`) and the current assessment (`nested_inner_cv_v3`) were both completed on 2026-10-04 and remain distinct. Archived bridge prose describes completed repairs without changing historical numbers or numbered conclusions; ignored v1/post-v1 Markdown snapshots have historical-status banners.
 

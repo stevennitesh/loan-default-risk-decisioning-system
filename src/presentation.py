@@ -1,5 +1,11 @@
 """Human-facing vocabulary; machine export keys remain owned by report_contracts."""
 
+POS_CASH_HISTORY_DESCRIPTION = (
+    "Monthly loan status, days past due, remaining installments and recent/last-loan "
+    "deterioration. Delinquency rates and last-three-month windows use distinct "
+    "applicant months; record counts retain account-month grain."
+)
+
 WORKFLOW_LABELS = {
     "history_selected": "Application and loan history · LightGBM",
     "application_only": "Application fields only · LightGBM",
@@ -81,7 +87,7 @@ def method_label(value: str) -> str:
 
 METRIC_DETAILS = {
     "pr_auc": (
-        "Precision weighted by increases in case capture as the score cutoff changes; a ranking summary, not accuracy.",
+        "Start with the highest-risk applicants, then include progressively more. Average precision summarizes the share of each group with recorded repayment difficulty, weighted by the additional difficulty cases captured. It measures ranking, not accuracy.",
         "Higher is better",
         "Unitless, 0 to 1",
     ),

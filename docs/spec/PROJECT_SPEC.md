@@ -17,7 +17,7 @@ The goal is to demonstrate SQL feature engineering, configured Python modeling, 
 
 This document owns scope and implemented public behavior. [Current evidence status](../validation/VALIDATION_PLAN.md#current-evidence-status) records the corrected features/roles, nested assessment, action semantics, and local artifact binding. The [assessment methodology](../validation/ASSESSMENT_METHODOLOGY.md) owns the explanation of fold roles, seed separation, and estimands. Historical numbers precede these corrections. Prior exploration, illustrative utility, same-host reproduction limits, and unrefreshed native dashboards still limit claims. The [remediation plan](../implementation/PORTFOLIO_INTEGRITY_REMEDIATION_PLAN.md) retains historical proposals. Current tuning implements inner CV as described in the methodology; capacity policy and broader lineage remain outside scope.
 
-The [current case study](../../reports/portfolio/case_study.md) owns the reader journey: application-only versus application-and-loan-history ranking, probability checks and restrained simulated-action conclusions. Numerical assessment and contract owners remain authoritative.
+The [HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) owns the reader journey: application-only versus application-and-loan-history ranking, probability checks and restrained simulated-action conclusions. Its [standalone HTML](../../reports/portfolio/index.html) supports offline reading. Numerical assessment and contract owners remain authoritative.
 
 **One-line portfolio summary:**
 
@@ -119,9 +119,11 @@ This project will not:
 ### Primary dataset
 
 **Dataset:** Home Credit Default Risk  
-**Source:** Kaggle public competition dataset  
+**Source:** [Kaggle public competition dataset](https://www.kaggle.com/competitions/home-credit-default-risk/overview)<br>
 **Problem type:** Supervised binary classification  
 **Prediction target:** Probability that an applicant experiences repayment difficulty.
+
+The [official data description and downloads](https://www.kaggle.com/competitions/home-credit-default-risk/data) include `HomeCredit_columns_description.csv`, which describes the source fields. The current five-group assessment uses 261,384 labeled applicants, with 46,127 other labeled applicants retained as the historically reused comparison population. Unlabeled `application_test.csv` rows support a separate scoring demonstration. Download access requires a Kaggle account and acceptance of the competition rules.
 
 ### v1 source files
 
@@ -482,10 +484,10 @@ For each decile:
 Thresholds are derived from validation-score quantiles that encode approval,
 reference review-rate, and high-risk volume scenarios. Scenario outcomes are
 then evaluated on validation data under the illustrative business assumptions
-before held-out test reporting. Expected value is an evaluation output, not the
+before assessment or historical-comparison reporting. Expected value is an evaluation output, not the
 threshold optimization rule.
 
-Fixed validation quantiles do not guarantee a hard review limit on a new population or under ties. Current high-band action labels and review costing also differ; do not claim an operationally constrained policy until they agree.
+The lower band represents simulated approval, the middle band manual review and the upper band simulated decline. Only middle-band reviews incur review cost; simulated declines issue no loan and contribute zero modeled margin, loss or review cost. Fixed selection-score quantiles do not guarantee a hard review limit on a new population or under ties. These are simulated action bands, without a capacity-enforcing allocator.
 
 The threshold scenario analysis will produce:
 
@@ -940,7 +942,7 @@ Required test expectations:
 
 ## 21. Repository Structure
 
-Use [the README repository guide](../../README.md#repository-guide) for the maintained layout. The main ownership boundaries are:
+Use [the run guide's repository map](../RUNNING.md#repository-guide) for the maintained layout. The main ownership boundaries are:
 
 - `configs/v1.yaml` and `configs/post_v1.yaml`: explicit feature/output scopes; `configs/base.yaml` supplies separate defaults.
 - `sql/`: source aggregation and mart construction; `src/`: orchestration, modeling, metrics, scoring, interpretation, and exports.
@@ -956,7 +958,7 @@ The active agent reading path is [AGENTS.md](../../AGENTS.md), which points to t
 
 ## 22. Reproducibility Interface
 
-The [Makefile](../../Makefile) owns the interface. See [the README run guide](../../README.md#how-to-run) for explicit scopes and Windows `PYTHON=python`. `make setup` installs into the selected interpreter; it does not create an environment. Scoped pipelines regenerate local artifacts from raw Kaggle data; they do not guarantee exact historical metrics or refresh PBIX visuals. Export targets use existing artifacts without retraining and can recompute probability-quality/segment views. `requirements.lock` pins the dependency closure used for the named correctness run and same-host clean reproduction.
+The [Makefile](../../Makefile) owns the interface. See [the run guide](../RUNNING.md) for explicit scopes and Windows `PYTHON=python`. `make setup` installs into the selected interpreter; it does not create an environment. Scoped pipelines regenerate local artifacts from raw Kaggle data; they do not guarantee exact historical metrics or refresh PBIX visuals. Export targets use existing artifacts without retraining and can recompute probability-quality/segment views. `requirements.lock` pins the dependency closure used for the named correctness run and same-host clean reproduction.
 
 Required commands:
 

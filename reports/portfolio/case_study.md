@@ -1,5 +1,7 @@
 # Credit risk from application and repayment history
 
+Text version of the [HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/), the main reading destination for this project. The [standalone HTML](index.html) is the same report for offline use.
+
 I built a SQL/DuckDB and Python pipeline that joins public loan and repayment tables, compares risk models, and produces an offline report.
 
 Application and loan history reached 0.266 average precision, compared with 0.231 using application fields only.
@@ -10,9 +12,11 @@ These are means from five matched applicant test groups covering 261,384 labeled
 
 Loan applications contain current financial information, while separate tables record previous loans, monthly balances and repayments. This public Home Credit project asks whether joining that history improves ranking of applicants with observed repayment difficulty. The recorded target is a proxy for repayment difficulty, not measured financial loss.
 
+**Data source:** [Home Credit Default Risk](https://www.kaggle.com/competitions/home-credit-default-risk/overview). The [official data description and downloads](https://www.kaggle.com/competitions/home-credit-default-risk/data) include `HomeCredit_columns_description.csv`, the source data dictionary. The assessment uses 261,384 labeled applicants; 46,127 other labeled applicants remain a separate historical comparison. Kaggle downloads require an account and acceptance of the competition rules.
+
 ## What I built
 
-SQL builds one modeling record per applicant, separately for labeled assessment and unlabeled scoring. Installment obligations are counted once across split payments; ambiguous schedules and unknown payments remain explicit. Monthly history uses distinct applicant months, and bureau loans must originate before the application day.
+SQL builds one modeling record per applicant, separately for labeled assessment and unlabeled scoring. Installment obligations are counted once across split payments; ambiguous schedules and unknown payments remain explicit. POS/cash-loan and credit-card delinquency rates and last-three-month windows use distinct applicant months; account-month record counts retain their separate meaning. Bureau loans must originate before the application day.
 
 Python coordinates ingestion, model selection, scoring, SHAP interpretation and exports. Identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Relative dates cannot certify when a lender could have obtained each field.
 
@@ -22,9 +26,9 @@ Public tables → SQL/DuckDB features → Python models → Reporting and batch 
 
 [Inspect the repayment fixture](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/tests/test_repayment_methodology.py).
 
-## History improves ranking in this assessment
+## Expanded inputs improve ranking in this assessment
 
-Average precision is 0.266 with application and loan history versus 0.231 with application fields only. Average precision summarizes how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy. The history model captures 35.9% of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a 10% random-ranking reference. This highest-risk group is separate from the middle manual-review band.
+Average precision is 0.266 with application and loan history versus 0.231 with application fields only. The expanded model also includes two interactions derived entirely from application fields, and each model's settings were selected separately. The matched comparison measures these changes together; it does not isolate loan history alone. Average precision summarizes how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy. The history model captures 35.9% of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a 10% random-ranking reference. This highest-risk group is separate from the middle manual-review band.
 
 Equal scores at the boundary receive equal expected membership; the methods retain the exact tie rule.
 
@@ -43,9 +47,9 @@ Equal scores at the boundary receive equal expected membership; the methods reta
 
 The history model's Brier score is 0.067 and log loss is 0.241; lower is better for both. These measure probability errors, while the reliability chart compares predicted and observed rates within each test group's own score bins. All five history models selected the full 174 eligible inputs and raw probabilities; no probability-adjustment transform was selected.
 
-The 50 displayed bins contain 5,227 to 5,228 applicants each; score ties stay together. Reliability is descriptive, not a guarantee for a new lending population.
+Predicted probabilities track observed rates closely in this assessment. Across the 50 displayed score groups, the largest absolute difference is 1.07 percentage points. The 50 displayed bins contain 5,227 to 5,228 applicants each; score ties stay together. Reliability is descriptive, not a guarantee for a new lending population.
 
-![Predicted and observed repayment-difficulty rates in each test group's own bins.](probability_reliability.png)
+![Predicted and observed repayment-difficulty rates in each test group's own bins. Predicted probabilities track observed rates closely in this assessment. Across the 50 displayed score groups, the largest absolute difference is 1.07 percentage points. This descriptive comparison does not guarantee reliability in a future lending population.](probability_reliability.png)
 
 ## A broader search did not materially improve ranking
 
@@ -67,7 +71,7 @@ Earlier probability adjustment had already repaired much of the scale error, so 
 
 ## What this demonstrates—and what remains unknown
 
-The contribution is disciplined SQL data engineering, benchmark comparison, bounded model selection, reproducible assessment and readable reporting. Historical comparisons remain an archive. Unlabeled Kaggle applications demonstrate batch scoring only and contribute no outcome metrics. Calendar application, field-availability and outcome-maturity timestamps are missing; random applicant groups cannot validate performance in a future cohort. This portfolio does not establish underwriting, compliance, fair-lending or adverse-action readiness. The saved Power BI files and screenshots are unrefreshed historical demonstrations; the current charts and offline report are separate presentation artifacts.
+The contribution is disciplined SQL data engineering, benchmark comparison, bounded model selection, identified same-host assessment reproduction and readable reporting. Committed anonymous aggregates can regenerate this presentation. Downloaded data and current code can run a new pipeline; exact historical execution also requires retained original models, memberships and source archives that stay local. Historical comparisons remain an archive. Unlabeled Kaggle applications demonstrate batch scoring only and contribute no outcome metrics. Calendar application, field-availability and outcome-maturity timestamps are missing; random applicant groups cannot validate performance in a future cohort. This portfolio does not establish underwriting, compliance, fair-lending or adverse-action readiness. The saved Power BI files and screenshots are unrefreshed historical demonstrations; the current charts and offline report are separate presentation artifacts.
 
 ## Supporting evidence and methods
 
@@ -104,7 +108,7 @@ The diagnostic reuses the five frozen models on target-blind samples without fit
 | Application finances and context | 24 | Requested credit, income, annuity, financial ratios, employment and application context. Direct demographic/protected-status-like fields are excluded; remaining context can still contain proxies. |
 | Imported external credit scores | 7 | Three supplied external-score fields and their mean, minimum, maximum and missing-count summaries. Their original construction and real-time availability cannot be independently certified. |
 | Bureau loans and balances | 35 | Counts, amounts, debt, overdue status and relative dates for bureau loans originating before application day; monthly balance status and recent deterioration. |
-| Cash-loan monthly history | 28 | Monthly loan status, days past due, remaining installments and recent/last-loan deterioration, aggregated using distinct applicant months. |
+| Cash-loan monthly history | 28 | Monthly loan status, days past due, remaining installments and recent/last-loan deterioration. Delinquency rates and last-three-month windows use distinct applicant months; record counts retain account-month grain. |
 | Credit-card monthly history | 42 | Balances, limits, utilization, drawings, payment support and delinquency, with recent and last-loan summaries. |
 | Installment repayment history | 21 | Payment timing, shortfalls, arrears and recent repayment behavior. Obligations are counted once across split payments; ambiguity and unknown payment support remain explicit. |
 | Previous loan applications | 13 | Prior Home Credit application outcomes, requested and granted amounts, approval/refusal rates and relative decision dates. |
@@ -126,7 +130,7 @@ Only the middle manual-review band incurs review cost; simulated declines contri
 
 | Measure | Meaning | Direction | Units |
 |---|---|---|---|
-| Average precision | Precision weighted by increases in case capture as the score cutoff changes; a ranking summary, not accuracy. | Higher is better | Unitless, 0 to 1 |
+| Average precision | Start with the highest-risk applicants, then include progressively more. Average precision summarizes the share of each group with recorded repayment difficulty, weighted by the additional difficulty cases captured. It measures ranking, not accuracy. | Higher is better | Unitless, 0 to 1 |
 | ROC AUC | How often a repayment-difficulty case receives a higher score than a case without difficulty, with half credit for ties. | Higher is better | Unitless, 0 to 1 |
 | Brier score | Mean squared difference between predicted probability and the recorded binary outcome. | Lower is better | Squared probability error |
 | Log loss | Probability error that penalizes confident incorrect predictions more strongly; uses natural logarithms. | Lower is better | Unitless |
@@ -141,4 +145,4 @@ Only the middle manual-review band incurs review cost; simulated declines contri
 - Read the technical assessment: [current procedure](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/tuning_20261004/assessment_report.md) and [controlled weighting follow-up](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md).
 - Follow the development trail: [historical experiment archive](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/experiments/README.md).
 
-Install the dependencies using [How To Run](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/README.md#how-to-run), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregates are read; no raw data, saved model or new fitting is required.
+Install the dependencies using [the run guide](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/docs/RUNNING.md#check-the-code-without-data), then regenerate with `make portfolio` (Windows: `make portfolio PYTHON=python`). Only committed anonymous aggregates are read; no raw data, saved model or new fitting is required.

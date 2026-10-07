@@ -2,8 +2,8 @@
 
 **Unrefreshed historical snapshots. These files do not show the current assessment.**
 
-For current results, read the [case study](../../reports/portfolio/case_study.md)
-or [browser report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/).
+For current results, read the [HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/).
+Its [standalone HTML](../../reports/portfolio/index.html) supports offline reading.
 
 | Preserved asset | Purpose |
 |---|---|

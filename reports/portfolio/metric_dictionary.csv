@@ -1,5 +1,5 @@
 machine_key,display_label,definition,direction,units
-pr_auc,Average precision,"Precision weighted by increases in case capture as the score cutoff changes; a ranking summary, not accuracy.",Higher is better,"Unitless, 0 to 1"
+pr_auc,Average precision,"Start with the highest-risk applicants, then include progressively more. Average precision summarizes the share of each group with recorded repayment difficulty, weighted by the additional difficulty cases captured. It measures ranking, not accuracy.",Higher is better,"Unitless, 0 to 1"
 roc_auc,ROC AUC,"How often a repayment-difficulty case receives a higher score than a case without difficulty, with half credit for ties.",Higher is better,"Unitless, 0 to 1"
 brier_score,Brier score,Mean squared difference between predicted probability and the recorded binary outcome.,Lower is better,Squared probability error
 log_loss,Log loss,Probability error that penalizes confident incorrect predictions more strongly; uses natural logarithms.,Lower is better,Unitless
