@@ -22,7 +22,7 @@ from src.portfolio_report import (
     reliability_chart,
     render,
 )
-from src.portfolio_site import FILES as SITE_FILES
+from src.portfolio_site import HOSTED_FILES as SITE_FILES
 from src.portfolio_site import prepare
 
 
@@ -268,6 +268,25 @@ def test_render_is_offline_preserves_keys_and_is_deterministic(tmp_path: Path) -
     )
     site = tmp_path / "site"
     result = prepare(destination, site)
+    hosted_document = (site / "index.html").read_text(encoding="utf-8")
+    assert (site / "offline.html").read_bytes() == (
+        destination / "index.html"
+    ).read_bytes()
+    assert 'href="offline.html" download' in hosted_document
+    assert "opened alone offline" not in hosted_document
+    assert "This file is self-contained" not in hosted_document
+    assert "data:image/" not in hosted_document
+    assert len(hosted_document.encode("utf-8")) < 3 * 1024 * 1024
+    hosted_parser = Resources()
+    hosted_parser.feed(hosted_document)
+    assert all(
+        value.startswith(("#", "https://")) or (site / value).is_file()
+        for value in hosted_parser.references
+    )
+    assert (
+        len([v for v in hosted_parser.references if v.endswith(".portrait.png")]) == 8
+    )
+    assert prepare(destination, site) == result
     assert set(result["files_sha256"]) == set(SITE_FILES)
     assert {p.name for p in site.iterdir()} == set(SITE_FILES) | {
         ".nojekyll",

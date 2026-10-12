@@ -8,7 +8,7 @@
 
 `tests/test_portfolio_report.py` verifies anonymous aggregate inputs, numerical fold-summary reconciliation, matched applicant counts, preserved metric keys and standalone offline rendering without raw data/models. `make portfolio` regenerates final presentation only. Fixture workflows exercise runtime reports/charts and preserve export schemas. These checks do not establish future-cohort performance or native Power BI refresh.
 
-Presentation checks also cover portable case-study/method links and the distinction between renamed exported provenance and unchanged scientific source evidence. Inspect the rendered desktop and phone report for legible chart labels, stacked portrait panels on phones, in-report enlargement and keyboard return, expandable evidence/direct section links, and the default reading path. Both chart layouts must stay embedded for offline reading and preserve plotted values, axis limits and units. A build or HTML string assertion does not replace this browser inspection.
+Presentation checks also cover portable case-study/method links and the distinction between renamed exported provenance and unchanged scientific source evidence. Hosted-site checks cover external image byte preservation, HTML size, actual output fingerprints and repeatable preparation. Inspect the rendered desktop and phone report for legible chart labels, stacked portrait panels on phones, in-report enlargement and keyboard return, expandable evidence/direct section links, and the default reading path. Both chart layouts must stay embedded in the offline report and use adjacent files in the hosted version, preserving plotted values, axis limits and units. A build or HTML string assertion does not replace this browser inspection.
 
 
 **Version:** 0.1  

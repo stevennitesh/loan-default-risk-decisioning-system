@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -33,10 +36,96 @@ FILES = (
     "model_input_methods.md",
     *(f"{chart}.{extension}" for chart in CHARTS for extension in ("png", "svg")),
 )
+PORTRAIT_FILES = tuple(f"{chart}.portrait.png" for chart in CHARTS)
+HOSTED_FILES = (*FILES, *PORTRAIT_FILES, "offline.html")
+HTML_MAX_BYTES = 3 * 1024 * 1024
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+DELIVERY_REPLACEMENTS = (
+    (
+        "Downloads work online or alongside this HTML in the presentation folder. "
+        "The charts and story remain readable when this HTML is opened alone offline.",
+        "Charts and downloads use files alongside this HTML. "
+        '<a href="offline.html" download>Download the offline report</a> '
+        "for a single-file copy with embedded charts.",
+    ),
+    (
+        "This file is self-contained: charts, styles and text require no network connection.",
+        "This hosted page loads charts from adjacent PNG files. "
+        '<a href="offline.html" download>Download the self-contained offline report</a> '
+        "for reading without a network connection.",
+    ),
+)
+
+
+def hosted_html(source: Path) -> tuple[bytes, dict[str, bytes]]:
+    """Externalize reviewed chart bytes without regenerating or altering charts."""
+    document = (source / "index.html").read_text(encoding="utf-8")
+    portraits = {}
+    seen = set()
+
+    def replace_figure(match: re.Match) -> str:
+        chart, figure = match.group("chart"), match.group(0)
+        if chart not in CHARTS or chart in seen:
+            raise ValueError("Static HTML contains unexpected chart identity")
+        seen.add(chart)
+        for attribute, filename in (
+            ("srcset", f"{chart}.portrait.png"),
+            ("src", f"{chart}.png"),
+        ):
+            references = list(
+                re.finditer(rf'\b{attribute}="(data:image/png;base64,[^"]+)"', figure)
+            )
+            if len(references) != 1:
+                raise ValueError(
+                    f"Static chart has missing or unexpected images: {chart}"
+                )
+            reference = references[0]
+            try:
+                image = base64.b64decode(
+                    reference.group(1).split(",", 1)[1], validate=True
+                )
+            except (ValueError, binascii.Error) as error:
+                raise ValueError(
+                    f"Static chart has invalid PNG encoding: {chart}"
+                ) from error
+            if not image.startswith(PNG_SIGNATURE):
+                raise ValueError(f"Static chart is not a PNG: {chart}")
+            if attribute == "src":
+                if image != (source / filename).read_bytes():
+                    raise ValueError(
+                        f"Static embedded chart differs from reviewed PNG: {chart}"
+                    )
+            else:
+                portraits[filename] = image
+            figure = (
+                figure[: reference.start(1)] + filename + figure[reference.end(1) :]
+            )
+        return figure
+
+    document = re.sub(
+        r'<figure\b[^>]*\baria-labelledby="(?P<chart>[^"<>]+)-title"[^>]*>.*?</figure>',
+        replace_figure,
+        document,
+        flags=re.DOTALL,
+    )
+    if seen != set(CHARTS) or "data:image/" in document:
+        raise ValueError(
+            "Static HTML differs from the reviewed responsive chart layout"
+        )
+    for original, hosted in DELIVERY_REPLACEMENTS:
+        if document.count(original) != 1:
+            raise ValueError(
+                "Static HTML differs from the reviewed delivery instructions"
+            )
+        document = document.replace(original, hosted)
+    encoded = document.encode("utf-8")
+    if len(encoded) >= HTML_MAX_BYTES:
+        raise ValueError("Hosted HTML exceeds the 3 MiB link-preview budget")
+    return encoded, portraits
 
 
 def prepare(source: Path, output: Path) -> dict:
-    """Reject unreviewed files; copy exact final allowlist and verify its hashes."""
+    """Verify the curated bundle, then build a small HTML page and exact image assets."""
     provenance = json.loads((source / "provenance.json").read_text(encoding="utf-8"))
     declared = set(FILES) - {"provenance.json"}
     if set(provenance["outputs_sha256"]) != declared:
@@ -63,7 +152,8 @@ def prepare(source: Path, output: Path) -> dict:
         or source.resolve() in output.resolve().parents
     ):
         raise ValueError("Static output must be separate from the curated source")
-    allowed_output = set(FILES) | {".nojekyll", "site_manifest.json"}
+    html, portraits = hosted_html(source)
+    allowed_output = set(HOSTED_FILES) | {".nojekyll", "site_manifest.json"}
     if output.exists() and any(
         p.name not in allowed_output or not p.is_file() or p.is_symlink()
         for p in output.iterdir()
@@ -72,13 +162,17 @@ def prepare(source: Path, output: Path) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     for name in FILES:
         shutil.copyfile(source / name, output / name)
+    shutil.copyfile(source / "index.html", output / "offline.html")
+    (output / "index.html").write_bytes(html)
+    for name, image in portraits.items():
+        (output / name).write_bytes(image)
     (output / ".nojekyll").write_text("", encoding="utf-8")
     manifest = {
         "purpose": "Reviewed static portfolio only; no data, models, source archives or memberships",
         "assessment_run_id": provenance["assessment_run_id"],
         "files_sha256": {
             name: hashlib.sha256((output / name).read_bytes()).hexdigest()
-            for name in FILES
+            for name in HOSTED_FILES
         },
     }
     (output / "site_manifest.json").write_text(
