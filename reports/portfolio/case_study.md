@@ -6,7 +6,7 @@ I built a SQL/DuckDB and Python pipeline that joins public loan and repayment ta
 
 Expanded inputs reached 0.266 average precision, compared with 0.231 using application fields only.
 
-Expanded inputs add loan history and two application-derived interactions; model settings were selected separately. Results are five-group means. Average precision measures ranking, not accuracy. Earlier exploration and random applicant groups limit claims about future cohorts.
+Expanded inputs add loan history and two application-derived interactions; model settings were selected separately. Results are five-group means. Earlier exploration and random applicant groups limit claims about future cohorts.
 
 ## The question
 
@@ -30,9 +30,9 @@ Public tables → SQL/DuckDB features → Python models → Reporting and batch 
 
 The expanded LightGBM model reaches average precision 0.266, compared with 0.231 using application fields only. Average precision measures how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy.
 
-Expanded inputs mean application fields, loan history and two application-derived interactions. Each model's settings were selected separately, so the comparison measures these changes together rather than isolating loan history alone.
+The expanded model captures 35.9% of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a rounded 10% random-ranking reference. This group is separate from the middle manual-review band.
 
-The expanded model captures 35.9% of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a rounded 10% random-ranking reference. This group is separate from the middle manual-review band. Equal scores at the boundary receive equal expected membership; the methods retain the exact group-size and tie rules.
+Expanded inputs add loan history and two application-derived interactions. Each model's settings were selected separately, so this comparison measures those changes together. The methods retain the group-size and equal-score boundary rules.
 
 | Model / input scope | Average precision ↑ | ROC AUC ↑ | Brier score ↓ | Log loss ↓ |
 |---|---:|---:|---:|---:|
@@ -47,39 +47,39 @@ The expanded model captures 35.9% of observed repayment-difficulty cases in the 
 
 ## Check probabilities separately
 
-A model can rank applicants well and still overstate their risk. The expanded model's Brier score is 0.067 and log loss is 0.241; lower means smaller probability errors for both. All five history models selected the full 174 eligible inputs and raw probabilities; no probability-adjustment transform was selected.
+The expanded model's Brier score is 0.067 and log loss is 0.241; lower means smaller probability errors for both. All five history models selected the full 174 eligible inputs and raw probabilities; no probability-adjustment transform was selected.
 
-Predicted probabilities track observed rates closely in this assessment. Across the 50 displayed score groups, the largest absolute difference is 1.07 percentage points. The predicted-versus-observed panel compares those rates; the gap panel exposes their difference in percentage points. The 50 displayed bins contain 5,227 to 5,228 applicants each; score ties stay together. This checks groups of similar scores, not every individual probability, and does not guarantee reliability in a new lending population.
+Predicted probabilities track observed rates closely in this assessment. Across the 50 displayed score groups, the largest absolute difference is 1.07 percentage points. The chart compares predicted and observed rates, then shows their difference in percentage points. The 50 displayed bins contain 5,227 to 5,228 applicants each; score ties stay together. These group checks do not guarantee individual probability accuracy or reliability in a new lending population.
 
 ![The gap panel shows observed minus predicted in percentage points; positive gaps indicate underestimated risk. Predicted probabilities track observed rates closely in this assessment. Across the 50 displayed score groups, the largest absolute difference is 1.07 percentage points. Each line uses one test group's own score bins; the lines are not uncertainty bounds.](probability_reliability.png)
 
 ## A broader search did not materially improve ranking
 
-More tuning did not produce a meaningful ranking gain: average precision moved from 0.265750 to 0.265862. Raw probability errors improved substantially, while final probability quality stayed similar.
+Average precision moved from 0.265750 to 0.265862 after broader tuning. Raw probability errors improved, while final probability quality stayed similar. Several settings and search budgets changed together, so this comparison alone cannot identify the cause. The controlled class-weighting comparison below isolates one setting.
 
-Several settings and search budgets changed together. The search comparison alone cannot attribute the improvement to one parameter; the controlled comparison below tests class weighting. A 20,000-applicant shuffled-outcome diagnostic returned roughly chance ranking, but cannot establish real-world field availability or erase earlier exploration.
+A 20,000-applicant shuffled-outcome diagnostic returned roughly chance ranking. This is a useful code check; it does not resolve field availability or earlier data exploration.
 
 ![Average precision barely changes after broader tuning. Raw Brier score and log loss improve, while the final probability results stay similar. Squares and dashed lines show raw predictions; circles and solid lines show final predictions after the selected adjustment choice.](search_comparison.png)
 
 ## Test why the raw probabilities improved
 
-Class weighting gives repayment-difficulty cases more influence during fitting. Here, the earlier weight made their influence roughly 9–11 times larger. The controlled comparison changes only that weight within each fixed model configuration and applicant group.
+Class weighting gave repayment-difficulty cases roughly 9–11 times more influence during fitting. This comparison changes only that weight within each fixed configuration and applicant group.
 
-Removing class weighting is the dominant explanation for the better raw probabilities in these fixed configurations. Probability errors improved in all ten configuration/group pairs, and putting the earlier weight into the current configuration reversed the benefit. Using the earlier settings, mean predicted risk fell from 34.2% to 7.94%, against an observed difficulty rate of 8.07%. Raw Brier score fell from 0.1573 to 0.0666; log loss improved too. Average-rate agreement alone does not prove calibration.
+Removing class weighting is the dominant explanation for the better raw probabilities in these fixed configurations. Probability errors improved in all ten configuration/group pairs, and putting the earlier weight into the current configuration reversed the benefit. With the earlier settings, mean predicted risk fell from 34.2% to 7.94%, against an observed difficulty rate of 8.07%. Raw Brier score fell from 0.1573 to 0.0666; log loss improved too. Average-rate agreement alone does not prove calibration.
 
-Earlier probability adjustment had already repaired much of the scale error, so final probability quality changed little. This retrospective check holds other settings and one model seed fixed; it does not establish optimal weights for future cohorts or isolate the search screen's separate selection effect.
+Earlier probability adjustment had repaired much of the scale error, so final probability quality changed little. This retrospective check holds other settings and one model seed fixed. It does not establish optimal future weights or isolate the search screen's selection effect.
 
 ![Removing the earlier class weight lowers average predicted risk toward the observed 8.07% outcome rate and reduces both probability errors in all ten matched pairs. Faint small markers show individual pairs; larger markers show five-group means. Two fixed configurations are distinguished by marker shape and line style.](class_weighting.png)
 
 [Controlled comparison methods and exact results](https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md).
 
-## What this demonstrates—and what remains unknown
+## How to interpret the results
 
-This project demonstrates SQL data engineering, model comparison, probability diagnosis and reproducible reporting. It does not establish underwriting, compliance, fair-lending or adverse-action readiness.
+This project demonstrates SQL data engineering, matched model assessment, probability diagnosis and reproducible reporting. Its public outcome is a repayment-difficulty proxy; simulated decisions do not establish underwriting, compliance, fair-lending or adverse-action readiness.
 
-The public data lacks calendar application, field-availability and outcome-maturity timestamps. Random applicant groups therefore cannot validate performance in a future cohort. Earlier exploration remains part of the project's history; these results are not an untouched final test. Unlabeled Kaggle applications demonstrate batch scoring only and contribute no outcome metrics.
+The data lacks calendar application, field-availability and outcome-maturity timestamps. These random-group results follow earlier exploration; they are not an untouched final test or validation for a future cohort. Unlabeled Kaggle applications demonstrate batch scoring only.
 
-Committed anonymous aggregates regenerate this presentation. Downloaded data and current code can run a new pipeline; exact historical execution also requires retained original models, memberships and source archives that stay local. The saved Power BI files and screenshots are unrefreshed historical demonstrations.
+Anonymous aggregates regenerate this report. Exact historical execution also needs retained models, memberships and source archives that stay local. The saved Power BI files are unrefreshed historical demonstrations; the current HTML report presents the assessed results.
 
 ## Supporting evidence and methods
 

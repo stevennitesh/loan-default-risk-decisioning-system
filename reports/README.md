@@ -8,11 +8,13 @@ The report presents the current matched assessment with readable labels, PNG/SVG
 
 `portfolio/provenance.json` records presentation-input, renderer and output hashes separately from scientific execution identities. Only the exact final-file exceptions in `.gitignore` admit these files.
 
-The report opens with the implemented pipeline and matched ranking result. Supporting assessment, segment, model-input and utility details remain in an expandable section; direct section links open that evidence.
+The report opens with Steven Bangdiwala's implemented pipeline and matched ranking result. Its contents link the overview, build, results and supporting evidence. A short engineering lesson explains the probability diagnosis; the detailed search and controlled-weighting plots are expandable. Supporting assessment, segment, model-input and utility details remain in a separate expandable section; direct section links open that evidence.
 
 Summary cards show the ranking result, highest-risk-group capture and assessment population. The reliability figure makes probability gaps visible in percentage points; the utility figure compares each expanded model with application-only LightGBM while preserving the existing fixed policies and assumptions. Expandable metric tables and definitions retain detail without interrupting the main story.
 
 Phone charts use portrait layouts with stacked panels, keeping labels beside their values. The embedded enlargement view preserves the responsive layout and opens fitted to the available width, with an optional native-size view. The adjacent full-size PNG provides the landscape export.
+
+`docs/images/featured.jpg` owns the coordinated public headline card. The renderer copies it byte-for-byte to `portfolio/featured.jpg` for social link previews and records its input hash separately from the scientific aggregates. The publisher includes the card in its reviewed, hash-checked bundle. The report itself keeps the result charts as its evidence visuals.
 
 The case study uses GitHub URLs for supporting documents outside the published bundle. Exported model-input methods name `model_input_provenance.json` for scientific checks; `provenance.json` records presentation files, including the adapted methods note. Original model-input evidence and its source hashes remain unchanged.
 

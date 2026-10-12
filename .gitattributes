@@ -5,3 +5,7 @@
 /reports/class_weighting_20261004/** -text
 /reports/model_inputs_20261004/** -text
 /reports/portfolio/** -text
+
+# Generated presentation HTML should not dominate GitHub's implementation summary.
+/reports/portfolio/index.html linguist-generated=true
+/reports/correctness_20261004/corrected_evidence.html linguist-generated=true

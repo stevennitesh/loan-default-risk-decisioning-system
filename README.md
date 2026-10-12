@@ -8,9 +8,27 @@ assessment and clear reporting in a local decision-support simulation.
 
 **[Read the project report →](https://stevennitesh.github.io/loan-default-risk-decisioning-system/)**
 
-The report brings the question, implementation, charts, lessons and limits together.
-Supporting methods and exact results are available within it. No installation or
-data download is needed to read it.
+The report contains the question, implementation, results and supporting methods.
+No installation or data download is needed to read it.
+
+## Main finding
+
+The expanded LightGBM model captured **35.9% of recorded repayment-difficulty
+cases in the highest-risk 10% of applicants**. Its mean average precision was
+**0.266**, compared with **0.231** using application fields only, across
+**261,384 labeled applicants** in five matched test groups. Average precision
+measures how strongly difficulty cases concentrate near the top of a ranking;
+it is not accuracy. Capture describes the highest-risk group, separate from the
+simulated middle manual-review band.
+
+[![Model ranking comparison: expanded LightGBM reaches mean average precision 0.266 versus 0.231 using application fields only; dots show five matched applicant test groups.](reports/portfolio/model_comparison.png)](https://stevennitesh.github.io/loan-default-risk-decisioning-system/#ranking)
+
+Expanded inputs add loan history and two application-derived interactions;
+each model's settings were selected separately. The comparison measures those
+changes together. Prior exploration and random applicant groups limit
+future-cohort claims. The public outcome is a repayment-difficulty proxy,
+not measured financial loss; simulated decisions do not establish lending
+readiness.
 
 ## What I built
 
@@ -24,20 +42,6 @@ data download is needed to read it.
   class weighting within fixed model recipes. Removing that weight largely
   explained why raw probability errors improved, while a broader tuning search
   produced little further ranking improvement.
-
-## Main finding
-
-The expanded model reached **0.266 average precision**, compared with **0.231**
-using application fields only, across **261,384 labeled applicants**. Average
-precision measures how strongly repayment-difficulty cases concentrate near the
-top of a ranking; it is not accuracy. These are means from five matched test groups.
-
-The expanded model adds loan history and two application-derived interactions;
-each model's settings were selected separately. The comparison measures those
-changes together. Prior exploration and random applicant groups prevent an
-untouched final-test or future-cohort claim. The recorded outcome is a proxy for
-repayment difficulty, not measured financial loss; simulated decisions do not
-establish lending readiness.
 
 ## Inspect the implementation
 

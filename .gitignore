@@ -172,6 +172,7 @@ logs/
 # Reviewed current portfolio presentation (exact final files only)
 !/reports/portfolio/case_study.md
 !/reports/portfolio/index.html
+!/reports/portfolio/featured.jpg
 !/reports/portfolio/metrics.csv
 !/reports/portfolio/metric_dictionary.csv
 !/reports/portfolio/provenance.json

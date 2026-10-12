@@ -14,6 +14,7 @@ from matplotlib import pyplot as plt
 from src.portfolio_extensions import INPUT_FILES as DRIVER_FILES
 from src.portfolio_extensions import INPUT_SOURCE, load_inputs, utility_chart
 from src.portfolio_report import (
+    FEATURED_SOURCE,
     INPUT_FILES,
     SOURCE,
     final_reliability_bins,
@@ -171,6 +172,14 @@ class Resources(HTMLParser):
 def test_render_is_offline_preserves_keys_and_is_deterministic(tmp_path: Path) -> None:
     destination = tmp_path / "portfolio"
     provenance = render(SOURCE, destination)
+    assert (destination / "featured.jpg").read_bytes() == FEATURED_SOURCE.read_bytes()
+    assert provenance["presentation_inputs_sha256"]["docs/images/featured.jpg"] == (
+        hashlib.sha256(FEATURED_SOURCE.read_bytes()).hexdigest()
+    )
+    assert (
+        'property="og:image" content="https://stevennitesh.github.io/loan-default-risk-decisioning-system/featured.jpg"'
+        in (destination / "index.html").read_text(encoding="utf-8")
+    )
     source_metrics = pd.read_csv(SOURCE / "summary.csv")
     rendered_metrics = pd.read_csv(destination / "metrics.csv")
     pd.testing.assert_frame_equal(source_metrics, rendered_metrics)

@@ -3,6 +3,9 @@
   "assessment_run_id": "b45cb7fb871d4322bfdbb52e6e8d1d38",
   "protocol": "nested_inner_cv_v3",
   "assessment_config_sha256": "0b3f8cde14c0c613af424949773a5e4f4721f565fb85a06b5915017fd3610842",
+  "presentation_inputs_sha256": {
+    "docs/images/featured.jpg": "dff5601f6ec5925fa9dcd5564a0c06f5b8559e712b04553e2eb94ddeda079c12"
+  },
   "source_aggregates_sha256": {
     "summary.csv": "eb32ae29ce41686be4c4c0f5e6a31c440dc33f221901cdb00e95b5142d954d0f",
     "fold_metrics.csv": "a4a389c135976ec20a86c4a384401c4477650493b8631205d6f8b1e3bf31a4b9",
@@ -30,12 +33,12 @@
     "provenance.json": "360e9cd2174f175a529dad553cdedc26dd81c7b73b029c9e9e2c8e44a83c4e9e"
   },
   "renderer_sha256": {
-    "src/portfolio_report.py": "a86e85571cd73db21fff2e31cd957ed3603af760aecb4a48a6d26346ae3d8e40",
-    "src/portfolio_extensions.py": "285003abc3d6572057776a20b225d2b159a9a0cf91a927b8aa316eaf32810850",
+    "src/portfolio_report.py": "8fcbd27c86e20bb0eedd725ca3a6ba0a533ab2dc1720e4def45d7b0de60aacc4",
+    "src/portfolio_extensions.py": "30f37c61263032a0410558a490cdefc9b07c98e1677a569e4962e8af9e0fc9da",
     "src/class_weighting_report.py": "fc3779719db550309c20c856c38563d916bf8afad84ff2a5e11b8946e3415428",
-    "src/presentation.py": "2b41cbe9f567c7197c6d850a35ca3beb333cb081671f8809f6ef09d693a0c474",
+    "src/presentation.py": "aef792d655d8c1e34a145e3fae891b34ec349b1e87d62e39f6db709ef70a45a2",
     "src/evidence.py": "5fd0dcb0cf26f8d02552fb6df6634a3ad398b63581c9a0c7a623093b74c85e24",
-    "src/runtime.py": "574055779ffa5165788524bd26c153427caedff8b51b36abf46b40531c595a90"
+    "src/runtime.py": "4938efc0d5232428cfd79aa739cf83567e0950f3e4ff97fffa21248bd29238d2"
   },
   "renderer_fingerprint_scope": "Generation-time snapshot of presentation modules and imported evidence/path helpers; these hashes describe this rendering, not the original model execution.",
   "scientific_execution_provenance": "Original execution code, configuration and environment fingerprints remain unchanged in the source evidence manifests.",
@@ -44,10 +47,11 @@
     "model_input_methods.md": "Adapted filenames and documented the descriptive dictionary correction; empirical methodology is unchanged."
   },
   "outputs_sha256": {
-    "case_study.md": "7bc6ae1adfef1405a9da14a6e26e6a71cd6759074c42544609819e802131ba41",
+    "case_study.md": "f7336c150eea8bfb533079de8857bf0dfd8511c714842363a2ce38bde60e3a58",
     "class_weighting.png": "78530ddc7c744f995019321b9967196640da3c33b82083aa784466170ad0168c",
     "class_weighting.svg": "45d9646c6d4142e75fc3a02a5215248cfe0a5712134f23f6dc59f49609b6cb3b",
-    "index.html": "7b8f9f22195ce3829786495953275ac537e0ca92a2f64a478ee8747ca7943877",
+    "featured.jpg": "dff5601f6ec5925fa9dcd5564a0c06f5b8559e712b04553e2eb94ddeda079c12",
+    "index.html": "2d16bfac012dc17c96b12a16ec96abbf9e518b4b2cacb635a35561dd968bfa3a",
     "installment_segments.png": "d045377dc2992a5a1a3f4b400472611a24925bfed8356ce7b6aee5939b8f423d",
     "installment_segments.svg": "bf0d1a0ac6633a4de49cdcd3caef68cb0b8e348abe9d583a729252d21722abd5",
     "metrics.csv": "9c986adf315c4414126a0ba8792e5bad7f78564038d61d2aab5f1d26ff01ca07",

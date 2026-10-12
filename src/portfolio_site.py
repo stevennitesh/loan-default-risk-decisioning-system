@@ -26,6 +26,7 @@ CHARTS = (
 FILES = (
     "index.html",
     "case_study.md",
+    "featured.jpg",
     "metrics.csv",
     "metric_dictionary.csv",
     "provenance.json",

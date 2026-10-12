@@ -58,6 +58,7 @@ ACCOUNTING_EXAMPLE = (
 )
 SOURCE = ROOT / "reports/tuning_20261004"
 DESTINATION = ROOT / "reports/portfolio"
+FEATURED_SOURCE = ROOT / "docs/images/featured.jpg"
 WEIGHTING_SOURCE = ROOT / "reports/class_weighting_20261004"
 WORKFLOWS = (
     "training_prevalence",
@@ -583,17 +584,17 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         (
             "ranking",
             "Expanded inputs improve ranking in this assessment",
-            f"The expanded LightGBM model reaches average precision {ap:.3f}, compared with {application:.3f} using application fields only. Average precision measures how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy.\n\nExpanded inputs mean application fields, loan history and two application-derived interactions. Each model's settings were selected separately, so the comparison measures these changes together rather than isolating loan history alone.\n\nThe expanded model captures {capture:.1%} of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a rounded 10% random-ranking reference. This group is separate from the middle manual-review band. Equal scores at the boundary receive equal expected membership; the methods retain the exact group-size and tie rules.",
+            f"The expanded LightGBM model reaches average precision {ap:.3f}, compared with {application:.3f} using application fields only. Average precision measures how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy.\n\nThe expanded model captures {capture:.1%} of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a rounded 10% random-ranking reference. This group is separate from the middle manual-review band.\n\nExpanded inputs add loan history and two application-derived interactions. Each model's settings were selected separately, so this comparison measures those changes together. The methods retain the group-size and equal-score boundary rules.",
         ),
         (
             "probabilities",
             "Check probabilities separately",
-            f"A model can rank applicants well and still overstate their risk. The expanded model's Brier score is {brier:.3f} and log loss is {loss:.3f}; lower means smaller probability errors for both. {method_text}\n\n{reliability_finding(evidence)} The predicted-versus-observed panel compares those rates; the gap panel exposes their difference in percentage points. {support_text} This checks groups of similar scores, not every individual probability, and does not guarantee reliability in a new lending population.",
+            f"The expanded model's Brier score is {brier:.3f} and log loss is {loss:.3f}; lower means smaller probability errors for both. {method_text}\n\n{reliability_finding(evidence)} The chart compares predicted and observed rates, then shows their difference in percentage points. {support_text} These group checks do not guarantee individual probability accuracy or reliability in a new lending population.",
         ),
         (
             "search",
             "A broader search did not materially improve ranking",
-            f"More tuning did not produce a meaningful ranking gain: average precision moved from {prior_ap:.6f} to {ap:.6f}. Raw probability errors improved substantially, while final probability quality stayed similar.\n\nSeveral settings and search budgets changed together. The search comparison alone cannot attribute the improvement to one parameter; the controlled comparison below tests class weighting. A 20,000-applicant shuffled-outcome diagnostic returned roughly chance ranking, but cannot establish real-world field availability or erase earlier exploration.",
+            f"Average precision moved from {prior_ap:.6f} to {ap:.6f} after broader tuning. Raw probability errors improved, while final probability quality stayed similar. Several settings and search budgets changed together, so this comparison alone cannot identify the cause. The controlled class-weighting comparison below isolates one setting.\n\nA 20,000-applicant shuffled-outcome diagnostic returned roughly chance ranking. This is a useful code check; it does not resolve field availability or earlier data exploration.",
         ),
         (
             "actions",
@@ -602,8 +603,8 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         ),
         (
             "limits",
-            "What this demonstrates—and what remains unknown",
-            "This project demonstrates SQL data engineering, model comparison, probability diagnosis and reproducible reporting. It does not establish underwriting, compliance, fair-lending or adverse-action readiness.\n\nThe public data lacks calendar application, field-availability and outcome-maturity timestamps. Random applicant groups therefore cannot validate performance in a future cohort. Earlier exploration remains part of the project's history; these results are not an untouched final test. Unlabeled Kaggle applications demonstrate batch scoring only and contribute no outcome metrics.\n\nCommitted anonymous aggregates regenerate this presentation. Downloaded data and current code can run a new pipeline; exact historical execution also requires retained original models, memberships and source archives that stay local. The saved Power BI files and screenshots are unrefreshed historical demonstrations.",
+            "How to interpret the results",
+            "This project demonstrates SQL data engineering, matched model assessment, probability diagnosis and reproducible reporting. Its public outcome is a repayment-difficulty proxy; simulated decisions do not establish underwriting, compliance, fair-lending or adverse-action readiness.\n\nThe data lacks calendar application, field-availability and outcome-maturity timestamps. These random-group results follow earlier exploration; they are not an untouched final test or validation for a future cohort. Unlabeled Kaggle applications demonstrate batch scoring only.\n\nAnonymous aggregates regenerate this report. Exact historical execution also needs retained models, memberships and source archives that stay local. The saved Power BI files are unrefreshed historical demonstrations; the current HTML report presents the assessed results.",
         ),
     ]
     weighting = evidence["weighting"]
@@ -620,7 +621,7 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         (
             "weighting",
             "Test why the raw probabilities improved",
-            f"Class weighting gives repayment-difficulty cases more influence during fitting. Here, the earlier weight made their influence roughly 9–11 times larger. The controlled comparison changes only that weight within each fixed model configuration and applicant group.\n\n{finding} Using the earlier settings, mean predicted risk fell from {before.mean_probability_mean:.1%} to {after.mean_probability_mean:.2%}, against an observed difficulty rate of {weighting['observed_rate']:.2%}. Raw Brier score fell from {before.brier_score_mean:.4f} to {after.brier_score_mean:.4f}; log loss improved too. Average-rate agreement alone does not prove calibration.\n\nEarlier probability adjustment had already repaired much of the scale error, so final probability quality changed little. This retrospective check holds other settings and one model seed fixed; it does not establish optimal weights for future cohorts or isolate the search screen's separate selection effect.",
+            f"Class weighting gave repayment-difficulty cases roughly 9–11 times more influence during fitting. This comparison changes only that weight within each fixed configuration and applicant group.\n\n{finding} With the earlier settings, mean predicted risk fell from {before.mean_probability_mean:.1%} to {after.mean_probability_mean:.2%}, against an observed difficulty rate of {weighting['observed_rate']:.2%}. Raw Brier score fell from {before.brier_score_mean:.4f} to {after.brier_score_mean:.4f}; log loss improved too. Average-rate agreement alone does not prove calibration.\n\nEarlier probability adjustment had repaired much of the scale error, so final probability quality changed little. This retrospective check holds other settings and one model seed fixed. It does not establish optimal future weights or isolate the search screen's selection effect.",
         ),
     )
     return intro, sections
@@ -638,6 +639,7 @@ def render(
     )
     evidence["inputs"] = load_inputs(input_source, evidence["provenance"])
     destination.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(FEATURED_SOURCE, destination / "featured.jpg")
     plt.rcParams.update(
         {
             "font.family": "DejaVu Sans",
@@ -707,8 +709,7 @@ def render(
     boundary = (
         "Expanded inputs add loan history and two application-derived interactions; "
         "model settings were selected separately. Results are five-group means. "
-        "Average precision measures ranking, not accuracy. Earlier exploration and "
-        "random applicant groups limit claims about future cohorts."
+        "Earlier exploration and random applicant groups limit claims about future cohorts."
     )
     input_dictionary = evidence["inputs"]["input_dictionary"].copy()
     input_dictionary.loc[
@@ -867,11 +868,11 @@ Install the dependencies using [the run guide](https://github.com/stevennitesh/l
     nav = " ".join(
         f'<a href="#{key}">{title}</a>'
         for key, title in (
-            ("engineering", "Build"),
+            ("overview", "Overview"),
+            ("engineering", "What I built"),
             ("ranking", "Results"),
             ("probabilities", "Probabilities"),
             ("lessons", "Lessons"),
-            ("limits", "Limits"),
             ("supporting-evidence", "Evidence and methods"),
         )
     )
@@ -890,15 +891,22 @@ Install the dependencies using [the run guide](https://github.com/stevennitesh/l
         "engineering": "02 · The build",
         "ranking": "03 · The result",
         "probabilities": "04 · The probability check",
-        "search": "05 · The tuning lesson",
-        "weighting": "06 · The diagnosis",
-        "limits": "07 · The interpretation",
+        "limits": "06 · The interpretation",
     }
     figure_number = 0
     body = ""
     for key, title, paragraph in sections:
         if key == "search":
-            body += '<div id="lessons" class="lesson-group" aria-label="Lessons from model selection and probability checks">'
+            body += (
+                '<section id="lessons" class="lesson-group"><p class="section-kicker">05 · The engineering lesson</p>'
+                "<h2>Test what caused the improvement</h2>"
+                '<p class="section-lead">Broader tuning barely changed ranking. A controlled follow-up '
+                "showed that removing class weighting explained most of the raw-probability improvement "
+                "in these fixed configurations.</p>"
+                "<p>Changing only one setting made the result interpretable. Final probability quality "
+                "stayed similar because the earlier probability adjustment had repaired much of the scale error.</p>"
+                '<details class="diagnostic-details"><summary>Inspect the tuning and class-weighting comparisons</summary>'
+            )
         elif key == "assessment":
             body += '<details id="supporting-evidence" class="supporting-evidence"><summary>Supporting evidence and methods</summary><p>Open the assessment design, installment-history segments, model-input explanations and simulated decision assumptions.</p>'
         body += f'<section id="{key}">'
@@ -991,7 +999,7 @@ Install the dependencies using [the run guide](https://github.com/stevennitesh/l
             body += '<p><a href="https://github.com/stevennitesh/loan-default-risk-decisioning-system/blob/main/reports/class_weighting_20261004/assessment_report.md">Controlled comparison methods and exact results</a></p>'
         body += "</section>"
         if key == "weighting":
-            body += "</div>"
+            body += "</details></section>"
     body += "</details>"
     appendix = f"Assessment {evidence['provenance']['assessment_run_id']}; protocol {evidence['provenance']['protocol']}; shuffled-label diagnostic {evidence['provenance']['control_run_id']}. Exact means, descriptive fold variation and preserved machine metric keys are in metrics.csv. The CSV score-kind key calibrated means the final method-choice view; it does not imply that a transform was selected. Presentation provenance records generation-time hashes of the aggregate inputs, presentation modules and imported evidence/path helpers. Scientific execution fingerprints remain in the source evidence manifests and are unchanged."
     dictionary = "".join(
@@ -1050,24 +1058,28 @@ Install the dependencies using [the run guide](https://github.com/stevennitesh/l
         ]
     )
     description = "SQL/DuckDB and Python credit-risk portfolio: repayment-history engineering, matched model comparison, probability checks and clearly bounded public-data results."
-    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="{description}"><meta name="author" content="Steven"><meta property="og:title" content="Credit risk from application and repayment history"><meta property="og:description" content="{description}"><meta property="og:type" content="website"><meta property="og:url" content="{PROJECT_URL}"><meta property="og:image" content="{PROJECT_URL}model_comparison.png"><meta name="twitter:card" content="summary_large_image"><title>Credit risk from application and repayment history</title><style>
+    document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="{description}"><meta name="author" content="Steven Bangdiwala"><meta property="og:title" content="Credit risk from application and repayment history"><meta property="og:description" content="{description}"><meta property="og:type" content="website"><meta property="og:url" content="{PROJECT_URL}"><meta property="og:image" content="{PROJECT_URL}featured.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="627"><meta property="og:image:alt" content="Credit risk modeling by Steven Bangdiwala: SQL feature engineering and matched model assessment"><meta name="twitter:card" content="summary_large_image"><title>Credit risk from application and repayment history</title><style>
 *{{box-sizing:border-box}}
 html{{scroll-behavior:smooth}}
 body{{margin:0;background:#f5f5f1;color:#182230;font:17px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}}
 main{{width:100%;max-width:1260px;margin:auto;padding:2.5rem 2rem}}
 header{{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:2.5rem;padding:2.7rem;background:#123e4b;color:white;border-radius:16px}}
 .hero-result{{font-size:1.2rem;font-weight:650;line-height:1.5;padding-left:1rem;border-left:3px solid #7fd6cc}}
-.hero-boundary{{font-size:.87rem;line-height:1.55;color:#d3e6ed}}
+.hero-boundary{{font-size:14px;line-height:1.55;color:#d3e6ed}}
+.byline{{font-size:14px;color:#d3e6ed;margin:0 0 .9rem}}
+.project-links{{margin:.8rem 0 0}}
+.project-links a{{color:#b9efe7;font-size:14px;font-weight:600}}
 .summary-cards{{display:grid;gap:.8rem;margin:0;align-content:center}}
 .summary-card{{border:1px solid #557880;border-radius:9px;padding:.9rem 1rem;background:#194854}}
-.summary-card dt{{font-size:.73rem;font-weight:600;letter-spacing:.035em;color:#d3e6ed}}
+.summary-card dt{{font-size:14px;font-weight:600;letter-spacing:.035em;color:#d3e6ed}}
 .summary-card dd{{margin:.1rem 0;font-size:2rem;font-weight:700;line-height:1.3;letter-spacing:-.03em;font-variant-numeric:tabular-nums}}
-.summary-card .summary-context{{font-size:.79rem;font-weight:400;line-height:1.5;letter-spacing:0;color:#d3e6ed}}
+.summary-card .summary-context{{font-size:14px;font-weight:400;line-height:1.5;letter-spacing:0;color:#d3e6ed}}
 h1{{font-size:clamp(2rem,3.4vw,3rem);line-height:1.15;letter-spacing:-.025em;margin:.6rem 0 1.2rem}}
 h2{{font-size:1.65rem;line-height:1.3;letter-spacing:-.02em;color:#123e4b;margin:0 0 1rem}}
 p{{margin:0 0 1rem;overflow-wrap:anywhere}}
+.reading-content p{{max-width:72ch}}
 p:last-child{{margin-bottom:0}}
-.eyebrow,.section-kicker{{letter-spacing:.09em;text-transform:uppercase;font-size:.73rem;font-weight:700}}
+.eyebrow,.section-kicker{{letter-spacing:.07em;text-transform:uppercase;font-size:14px;font-weight:700}}
 .section-kicker{{color:#087477;margin:0 0 .6rem}}
 .section-lead{{font-size:1.08rem;line-height:1.65}}
 .section-detail{{color:#344054}}
@@ -1090,13 +1102,13 @@ section{{min-width:0;background:white;padding:2rem;border:1px solid #dde4e1;bord
 .figure-heading{{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;border-bottom:1px solid #d7e2e3}}
 .figure-number{{margin:0 0 .2rem;color:#475467;font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase}}
 .figure-heading h3{{margin:0;color:#123e4b;font-size:1.1rem;line-height:1.35}}
-.figure-download{{flex-shrink:0;font-size:.8rem}}
+.figure-download{{flex-shrink:0;font-size:14px}}
 .figure-tools{{display:flex;align-items:center;flex-wrap:wrap;gap:.65rem}}
-.chart-enlarge{{display:none;font:inherit;font-size:.8rem;color:#076c76;background:white;border:1px solid #87aeb8;border-radius:5px;padding:.35rem .6rem;cursor:pointer}}
+.chart-enlarge{{display:none;font:inherit;font-size:14px;color:#076c76;background:white;border:1px solid #87aeb8;border-radius:5px;padding:.35rem .6rem;cursor:pointer}}
 .interactive .chart-enlarge{{display:inline-block}}
 .chart-panel{{margin:0;padding:.8rem;background:white;overflow-x:auto}}
 .chart-panel img{{display:block;width:100%;height:auto}}
-figcaption{{padding:1rem 1.1rem;border-top:1px solid #cad6df;background:#edf3f3;color:#344054;font-size:.85rem;line-height:1.6}}
+figcaption{{padding:1rem 1.1rem;border-top:1px solid #cad6df;background:#edf3f3;color:#344054;font-size:14px;line-height:1.6}}
 .figure-description{{font-weight:500;margin:0 0 .65rem}}
 .figure-source{{margin:0}}
 .figure-source strong{{color:#123e4b}}
@@ -1105,13 +1117,14 @@ table{{border-collapse:collapse;width:100%;font-size:.9rem}}
 td,th{{text-align:left;padding:.65rem;border-bottom:1px solid #dde4eb}}
 th{{background:#edf5f6}}
 td{{font-variant-numeric:tabular-nums}}
-caption{{text-align:left;font-size:.8rem;color:#475467;padding-bottom:.6rem}}
+caption{{text-align:left;font-size:14px;color:#475467;padding-bottom:.6rem}}
 code{{overflow-wrap:anywhere}}
 details{{min-width:0;background:white;padding:1.2rem 1.5rem;border:1px solid #dde4eb;border-radius:9px}}
 summary{{cursor:pointer;color:#123e4b;font-weight:600}}
 .supporting-evidence,.glossary{{margin:0 0 1.5rem}}
 .supporting-evidence>summary{{font-size:1.35rem}}
 .supporting-evidence>section{{padding:1rem;border-radius:8px;margin-bottom:1rem}}
+.diagnostic-details>section{{padding:1rem;border-radius:8px;margin-bottom:1rem}}
 details[open] summary{{margin-bottom:1rem}}
 .metric-definitions{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.3rem 1.5rem;margin:0}}
 .metric-definitions dt{{font-weight:700;color:#123e4b;margin-bottom:.35rem}}
@@ -1134,18 +1147,19 @@ main{{padding:1.5rem}}
 .reading-layout>nav a{{background:white;border:1px solid #c9d9d9}}
 }}
 @media(max-width:600px){{
+body{{font-size:16px}}
 main{{padding:.8rem}}
 header{{grid-template-columns:minmax(0,1fr);gap:1rem;padding:1.2rem}}
 section,details{{padding:1rem}}
 h1{{font-size:2.1rem}}
 .summary-cards{{grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}}
 .summary-card{{padding:.7rem}}
-.summary-card dt{{font-size:.75rem;line-height:1.45}}
+.summary-card dt{{font-size:14px;line-height:1.45}}
 .summary-card dd{{font-size:1.5rem}}
-.summary-card .summary-context{{font-size:.75rem;line-height:1.45}}
+.summary-card .summary-context{{font-size:14px;line-height:1.45}}
 .summary-card:last-child{{grid-column:1/-1}}
 .hero-result{{font-size:1.02rem}}
-.hero-boundary{{font-size:.8rem}}
+.hero-boundary{{font-size:14px}}
 .section-lead{{font-size:1rem}}
 h2{{font-size:1.35rem}}
 .figure-heading{{align-items:flex-start;flex-direction:column;gap:.55rem;padding:.8rem}}
@@ -1167,7 +1181,7 @@ nav,.figure-tools,dialog{{display:none}}
 .report-figure{{break-inside:avoid}}
 .chart-panel img{{min-width:0}}
 }}
-</style></head><body><main><header><div><p class="eyebrow">Public-data portfolio · SQL · Python · credit risk</p><h1>Credit risk from application and repayment history</h1><p>{html.escape(intro)}</p><p class="hero-result">{html.escape(headline)}</p><p class="hero-boundary">{html.escape(boundary)}</p></div><dl class="summary-cards" aria-label="Assessment at a glance">{summary_cards}</dl></header><div class="reading-layout"><nav aria-label="Report contents">{nav}</nav><div class="reading-content">{body}<details id="technical-appendix"><summary>Technical appendix: exact identities and machine-key dictionary</summary><p>{html.escape(appendix)}</p><div class="table-wrap"><table><thead><tr><th>Preserved machine key</th><th>Measure</th><th>Meaning</th><th>Direction</th><th>Units</th></tr></thead><tbody>{dictionary}</tbody></table></div></details><footer><p>This file is self-contained: charts, styles and text require no network connection. Adjacent PNG/SVG files are available for reuse; metrics.csv and provenance.json provide the technical evidence trail.</p></footer></div></div></main>
+</style></head><body><main><header id="overview"><div><p class="eyebrow">Public-data portfolio · SQL · Python · credit risk</p><p class="byline">Steven Bangdiwala</p><h1>Credit risk from application and repayment history</h1><p>{html.escape(intro)}</p><p class="hero-result">{html.escape(headline)}</p><p class="hero-boundary">{html.escape(boundary)}</p><nav class="project-links" aria-label="Project links"><a href="{REPOSITORY_URL}">GitHub repository</a><a href="#downloads">Charts and evidence</a></nav></div><dl class="summary-cards" aria-label="Assessment at a glance">{summary_cards}</dl></header><div class="reading-layout"><nav aria-label="Report contents">{nav}</nav><div class="reading-content">{body}<details id="technical-appendix"><summary>Technical appendix: exact identities and machine-key dictionary</summary><p>{html.escape(appendix)}</p><div class="table-wrap"><table><thead><tr><th>Preserved machine key</th><th>Measure</th><th>Meaning</th><th>Direction</th><th>Units</th></tr></thead><tbody>{dictionary}</tbody></table></div></details><footer><p>This file is self-contained: charts, styles and text require no network connection. Adjacent PNG/SVG files are available for reuse; metrics.csv and provenance.json provide the technical evidence trail.</p></footer></div></div></main>
 <dialog id="chart-viewer" aria-labelledby="viewer-title" aria-describedby="viewer-help"><div class="viewer-heading"><h2 id="viewer-title">Chart</h2><form method="dialog"><button>Close chart</button></form></div><p id="viewer-help">The chart opens fitted to the available width. Choose Show native size for a closer view, then scroll if needed. Press Escape or Close chart to return to the report.</p><div class="viewer-tools"><button id="viewer-zoom" type="button" aria-pressed="false">Show native size</button></div><div class="viewer-content" tabindex="0" role="region" aria-label="Enlarged chart"></div></dialog>
 <script>
 document.documentElement.classList.add('interactive');
@@ -1276,6 +1290,11 @@ window.addEventListener('afterprint', () => printDetails.forEach(([element, open
         "assessment_run_id": evidence["provenance"]["assessment_run_id"],
         "protocol": evidence["provenance"]["protocol"],
         "assessment_config_sha256": evidence["provenance"]["config_sha256"],
+        "presentation_inputs_sha256": {
+            "docs/images/featured.jpg": hashlib.sha256(
+                FEATURED_SOURCE.read_bytes()
+            ).hexdigest()
+        },
         "source_aggregates_sha256": {
             name: hashlib.sha256((source / name).read_bytes()).hexdigest()
             for name in INPUT_FILES
