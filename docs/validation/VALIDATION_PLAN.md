@@ -7,7 +7,7 @@ The [HTML project report](https://stevennitesh.github.io/loan-default-risk-decis
 **Status:** Named corrected protocol evidence, preserved historical comparisons, and native Power BI refresh limit
 **Owner:** Steven  
 **Aligned spec:** [PROJECT_SPEC.md](../spec/PROJECT_SPEC.md)
-**Last updated:** 2026-10-04
+**Last updated:** 2026-10-11
 
 ---
 
@@ -393,21 +393,25 @@ Explainability artifacts support interpretation and debugging without overclaimi
 
 ### Gate 10 — Dashboard and Reporting Validation
 
-**When:** Before final README polish.
+**When:** Before presenting new or refreshed results.
 
 **Checks:**
 
-- Power BI visuals reconcile to exported tables.
-- KPI cards match `model_metrics_summary`.
-- Threshold visuals match `model_threshold_metrics`.
-- Lift chart matches `model_lift_by_decile`.
-- Confusion matrix matches selected threshold scenario.
-- Dashboard distinguishes evaluation population from unlabeled scoring demo where relevant.
-- Dashboard screenshot supports the project story.
+- HTML summary values, charts and text reconcile to the identified anonymous assessment aggregates.
+- Labels distinguish test-group means, descriptive variation, probability error and simulated utility units.
+- The report distinguishes evaluated applicants from unlabeled scoring demonstrations and current results from historical snapshots.
+- Desktop, phone and offline views preserve the values and provide readable chart labels, explanations and links.
+
+For an explicitly requested native Power BI refresh, additional checks remain required:
+
+- KPI cards reconcile to `model_metrics_summary`, threshold visuals to `model_threshold_metrics`, and lift to `model_lift_by_decile`.
+- Confusion matrices and action counts use the same identified model, split and scenario.
+- DAX, relationships, population filters and import widths preserve the selected export bundle's meaning.
+- New screenshots match the refreshed report and clearly identify its evidence.
 
 **Pass condition:**
 
-A reviewer can understand the business tradeoff from the dashboard screenshot without running code.
+A reader can understand the main finding, its limits and the simulated tradeoff from the HTML report without running code. This does not close the native Power BI reconciliation gate: archived snapshots remain historical until a deliberate refresh and numeric inspection are completed.
 
 ---
 
@@ -415,14 +419,14 @@ A reviewer can understand the business tradeoff from the dashboard screenshot wi
 
 ### 5.1 Headline metrics
 
-Report these in README and validation report:
+The README shows one headline ranking comparison with its assessment boundary. The HTML report and linked assessment evidence provide the complete metric comparison:
 
 - PR-AUC;
 - ROC-AUC;
 - Brier score;
 - top-decile lift;
-- recall at review capacity;
-- expected value for selected scenario;
+- highest-risk 10% case capture (separate from middle-band manual review);
+- illustrative utility for the predefined scenarios;
 - approval/review/high-risk rates.
 
 ### 5.2 Secondary or appendix metrics
@@ -475,7 +479,7 @@ business_assumptions:
 ### Validation checks
 
 - assumptions appear in config;
-- assumptions are repeated in README/report;
+- assumptions are stated beside the report's simulated-action results or in its linked methods; the README points to the report rather than duplicating them;
 - scenario results change when assumptions change;
 - business-value calculations reconcile to counts;
 - final interpretation avoids overstating actual dollars.

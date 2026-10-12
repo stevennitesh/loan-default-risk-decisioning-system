@@ -15,7 +15,7 @@ Presentation checks also cover portable case-study/method links and the distinct
 **Status:** Implemented fixture checks; scientific and native Power BI limits tracked separately
 **Owner:** Steven  
 **Aligned spec:** [PROJECT_SPEC.md](../spec/PROJECT_SPEC.md)
-**Last updated:** 2026-10-06
+**Last updated:** 2026-10-11
 
 ---
 
@@ -315,11 +315,11 @@ Given `T_low` and `T_high`:
 
 | Score | Expected band | Expected action |
 |---:|---|---|
-| `< T_low` | Low risk | Approve |
+| `< T_low` | Low risk | Simulated approval |
 | `= T_low` | Medium risk | Manual review |
 | between thresholds | Medium risk | Manual review |
-| `= T_high` | High risk | High-priority review |
-| `> T_high` | High risk | High-priority review |
+| `= T_high` | High risk | Simulated decline |
+| `> T_high` | High risk | Simulated decline |
 
 Test expectations:
 
@@ -327,6 +327,8 @@ Test expectations:
 - every score receives exactly one band;
 - null scores fail explicitly or are assigned to a configured error band;
 - action labels match the implemented `ACTION_LABELS` in `src/score_batch.py`.
+
+The high band represents no issued loan and zero modeled value or review cost. Only the middle manual-review band incurs review cost. Historical Power BI snapshots retain earlier high-priority-review labels; they do not define current scoring behavior.
 
 ### 10.2 Scenario tests
 

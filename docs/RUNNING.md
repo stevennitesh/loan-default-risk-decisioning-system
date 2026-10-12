@@ -41,7 +41,19 @@ On Windows where `python3` is unavailable:
 make portfolio PYTHON=python
 ```
 
-The renderer reads only the committed anonymous results in `reports/tuning_20261004/` and the controlled weighting evidence in `reports/class_weighting_20261004/` and anonymous frozen-model input magnitudes in `reports/model_inputs_20261004/`. It writes `reports/portfolio/`, checks matched population counts, fold-summary agreement and weighting-run identity, and records input/renderer/output hashes. It does not download data, load model artifacts, fit models or replace frozen scientific evidence. The HTML embeds images and styles; PNG/SVG files support GitHub viewing and reuse. A short main story leads to expandable supporting evidence. Phone charts use portrait layouts with stacked panels, keeping labels beside their values. Charts can also be enlarged within the report. Both layouts preserve the plotted values, axis limits and units. Exact technical keys remain in the numeric appendix and metric dictionary. `make portfolio-site` verifies the reviewed final-file allowlist and hashes, then copies only the static presentation into `.tmp/portfolio-site/`; the Pages workflow publishes this folder. Repository-wide data/models/scratch files are never uploaded. Source evidence links point to GitHub; adjacent downloads work online and offline when the presentation folder is retained. The HTML alone keeps all eight charts and text offline.
+The renderer reads three committed, anonymous evidence bundles:
+
+- `reports/tuning_20261004/`: model comparisons and probability, segment and utility checks.
+- `reports/class_weighting_20261004/`: the controlled probability-quality follow-up.
+- `reports/model_inputs_20261004/`: contribution magnitudes from the five frozen models.
+
+It writes `reports/portfolio/`, checks matched applicant counts, agreement between test-group metrics and summaries, and the weighting comparison's run identity. It records input, renderer and output hashes. It does not download data, load fitted models, fit new models or replace scientific evidence.
+
+The HTML embeds all eight charts and its styles for offline reading. PNG/SVG downloads support reuse; the numeric appendix retains exact technical keys. Phone charts use portrait layouts with stacked panels. The in-report enlargement view fits the chart to the available width, with an optional native-size view. Both layouts preserve the plotted values, axis limits and units. Supporting methods and results remain optional reading.
+
+The opening summary leads through the build, ranking, probability checks and tuning diagnosis. The probability chart includes an observed-minus-predicted gap in percentage points. The utility chart shows differences from application-only LightGBM under the same fixed policies and cost assumptions; its zero reference is not zero absolute utility. Full model metrics and the glossary are expandable, alongside the supporting evidence.
+
+`make portfolio-site` verifies the reviewed final-file allowlist and hashes, then copies only the static presentation into `.tmp/portfolio-site/`. The Pages workflow publishes that folder. Data, models and scratch files are outside the publication bundle. Source evidence links lead to GitHub. Adjacent downloads work offline when the complete presentation folder is retained; the HTML alone keeps the story and embedded charts available.
 
 `make portfolio-inputs` is a separate local diagnostic requiring the completed current five frozen models and identified mart. It reads the database in read-only mode and reuses saved preprocessing/native TreeSHAP on 1,000 target-blind assessment rows per fold (seed 20261004), with no fitting or selection. Only anonymous per-fold/mean magnitudes, the input dictionary and provenance are curated; the ordinary presentation renderer does not need those models or data.
 

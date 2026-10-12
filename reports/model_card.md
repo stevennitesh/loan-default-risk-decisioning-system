@@ -2,11 +2,20 @@
 
 ## Current assessment and intended use
 
-This project asks whether prior loan and repayment history improves ranking beyond application fields. It is a local decision-support portfolio using public Home Credit data. The outcome, `TARGET`, records repayment difficulty; it does not measure financial loss. It is not an underwriting, compliance, fair-lending or adverse-action system.
+This project compares models that rank applicants by recorded repayment difficulty using public Home Credit data. The simpler model uses application fields; the expanded model adds prior loan history and two interactions derived from application fields. Each model's settings are selected separately, so the comparison measures the combined changes rather than the isolated value of history. The outcome, `TARGET`, does not measure financial loss. This is a local portfolio decision-support simulation, not a lending system.
 
-[The HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) explains the results and contains current charts; its [standalone HTML](portfolio/index.html) supports offline reading. The completed five-group assessment compares models on 261,384 labeled development applicants. Mean average precision is 0.266 for application and loan history LightGBM, 0.251 for history logistic regression, 0.231 for application-only LightGBM and 0.081 for the constant training-outcome-rate benchmark. Average precision measures ranking, not accuracy. The history model's mean Brier/log loss is 0.067/0.241 (lower is better), and ROC AUC is 0.776. [Exact results and identities](tuning_20261004/assessment_report.md) remain the numerical authority.
+[The HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) is the main reading destination; its [standalone HTML](portfolio/index.html) supports offline reading. The completed assessment predicts 261,384 labeled development applicants in five matched test groups. The figures below are means of the five group metrics, not metrics pooled across applicants.
 
-All five history fits selected 174 eligible inputs and unchanged raw probabilities after probability-adjustment testing. Different model families have different declared search budgets. These results assess the selection procedure fitted inside each applicant group; they do not describe one promoted saved dashboard model. Each workflow predicts the same assessment applicants, with fitting, stopping, probability-adjustment and selection roles kept separate. No outer result promotes a recipe, input surface, model family or seed.
+| Model / input scope | Average precision ↑ | ROC AUC ↑ | Brier score ↓ | Log loss ↓ |
+|---|---:|---:|---:|---:|
+| Constant training-outcome-rate benchmark | 0.081 | 0.500 | 0.074 | 0.281 |
+| Application fields only · LightGBM | 0.231 | 0.748 | 0.068 | 0.249 |
+| Expanded inputs · logistic regression | 0.251 | 0.767 | 0.067 | 0.244 |
+| Expanded inputs · LightGBM | 0.266 | 0.776 | 0.067 | 0.241 |
+
+Average precision summarizes how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy. ROC AUC measures ordering across difficulty and non-difficulty cases. Brier score and log loss measure probability error. Higher ranking scores and lower probability errors are better. [Exact results and identities](tuning_20261004/assessment_report.md) remain the numerical authority.
+
+All five expanded LightGBM fits selected the full set of 174 eligible inputs and unchanged raw probabilities after probability-adjustment testing. Different model families have different declared search budgets. These results assess a selection procedure fitted separately for each test group; they do not describe one promoted saved dashboard model. Each model procedure predicts the same assessment applicants, with fitting, stopping, probability-adjustment and selection roles kept separate. Test-group results are reported after those choices are frozen and do not select a recipe, input set, model family or seed.
 
 ## Controlled probability-quality follow-up
 

@@ -4,9 +4,17 @@
 
 Start with [the HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/), the main reading destination for recruiters and new readers. The [standalone HTML](portfolio/index.html) is the same report for offline use; download it and open it in a browser. The [Markdown case study](portfolio/case_study.md) is a text alternative, generated from the same evidence. Supporting technical reports below provide exact methods and results.
 
-The report explains the current matched assessment with human labels, exportable PNG/SVG charts and an exact numeric appendix. `make portfolio` derives these final outputs from the existing committed anonymous tuning aggregates, without raw data or model fitting. See the [run guide](../docs/RUNNING.md#recreate-the-presentation-without-data) for dependencies and regeneration. `portfolio/provenance.json` records presentation-input, renderer and output hashes separately from scientific execution identities. Only the exact final-file exceptions in `.gitignore` admit these files.
+The report presents the current matched assessment with readable labels, PNG/SVG chart downloads and an exact numeric appendix. `make portfolio` derives it from the three committed anonymous assessment, weighting and model-input bundles described below. No applicant data or model fitting is required. See the [run guide](../docs/RUNNING.md#recreate-the-presentation-without-data) for dependencies and regeneration.
 
-The report opens with the implemented pipeline and matched ranking result. Supporting assessment, segment, model-input and utility details remain in an expandable section; direct section links open that evidence. Phone charts use portrait layouts with stacked panels, keeping labels beside their values. The embedded enlargement view preserves the current responsive layout and opens fitted to the available width, with an optional native-size view. The adjacent full-size PNG provides the landscape export. The case study uses GitHub URLs for supporting documents outside the published bundle. Exported model-input methods name `model_input_provenance.json` for scientific checks; `provenance.json` records presentation files, including the adapted methods note. Original model-input evidence and its source hashes remain unchanged.
+`portfolio/provenance.json` records presentation-input, renderer and output hashes separately from scientific execution identities. Only the exact final-file exceptions in `.gitignore` admit these files.
+
+The report opens with the implemented pipeline and matched ranking result. Supporting assessment, segment, model-input and utility details remain in an expandable section; direct section links open that evidence.
+
+Summary cards show the ranking result, highest-risk-group capture and assessment population. The reliability figure makes probability gaps visible in percentage points; the utility figure compares each expanded model with application-only LightGBM while preserving the existing fixed policies and assumptions. Expandable metric tables and definitions retain detail without interrupting the main story.
+
+Phone charts use portrait layouts with stacked panels, keeping labels beside their values. The embedded enlargement view preserves the responsive layout and opens fitted to the available width, with an optional native-size view. The adjacent full-size PNG provides the landscape export.
+
+The case study uses GitHub URLs for supporting documents outside the published bundle. Exported model-input methods name `model_input_provenance.json` for scientific checks; `provenance.json` records presentation files, including the adapted methods note. Original model-input evidence and its source hashes remain unchanged.
 
 The named tuning/correctness evidence below remains the technical appendix. Numbered experiments and saved Power BI visuals remain explicitly historical. Active report generators use [shared presentation vocabulary](../src/presentation.py); machine CSV keys remain unchanged under [report contracts](../src/report_contracts.py).
 
@@ -45,7 +53,7 @@ This policy covers only those five named bundles. Historical experiment reports,
 
 ## Curated Evidence
 
-The committed experiment reports and selected CSV snapshots preserve the post-v1 modeling trail used by the README and Power BI comparison. These files are intentionally versioned:
+The committed experiment reports and selected CSV snapshots preserve the earlier modeling trail and historical Power BI comparison. They support the project's development history, rather than the current headline assessment. These files are intentionally versioned:
 
 - `reports/experiments/*.md`
 - `reports/experiments/experiment_log.csv`

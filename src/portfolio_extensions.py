@@ -5,13 +5,12 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import textwrap
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from src.presentation import workflow_label
 
 INPUT_SOURCE = Path(__file__).resolve().parents[1] / "reports/model_inputs_20261004"
 INPUT_FILES = (
@@ -317,22 +316,22 @@ def segment_chart(evidence: dict, destination: Path, save_chart) -> None:
         count = int(ref.applicant_count.sum())
         prevalence = np.average(ref.target_rate, weights=ref.applicant_count)
         axis.set_title(
-            f"{label.replace(' or ', ' or\n')}\n{count:,} applicants · {prevalence:.1%} outcome rate",
+            f"{label.replace(' or ', ' or\n')}\n{count:,} applicants · {prevalence:.1%} recorded difficulty",
             fontsize=10,
             pad=15,
         )
-        axis.set_xticks([0, 1], ["Application\nonly", "Application\n+ history"])
+        axis.set_xticks([0, 1], ["Application-only\nLightGBM", "Expanded\nLightGBM"])
         axis.set_xlim(-0.3, 1.3)
         axis.set_ylim(0.10, 0.33)
         axis.grid(axis="y", alpha=0.15)
     axes[0].set_ylabel("Average precision · higher is better")
     figure.suptitle(
-        "Compare models within each installment-history segment",
+        "Does the ranking gain hold across installment-history groups?",
         weight="bold",
         fontsize=13,
     )
     figure.supxlabel(
-        "Paired lines: five applicant test groups. Diamonds: mean of five metrics. Segment outcome rates differ;\ndo not compare AP across segments. No installment obligations does not mean no bureau or other loan history.",
+        "Small paired dots: five matched test groups. Large diamonds: mean average precision.\nCompare models within each panel; difficulty rates differ. No installment obligations does not mean no other loan history.",
         fontsize=9,
         color="#475467",
     )
@@ -349,15 +348,18 @@ def utility_chart(evidence: dict, destination: Path, save_chart) -> None:
     )
     combos = list(itertools.product([0.5, 1.0, 2.0], repeat=2))
     for axis, margin in zip(axes, [0.5, 1.0, 2.0], strict=True):
-        for workflow, color, marker, linestyle in zip(
-            UTILITY_WORKFLOWS,
-            ["#5275a5", "#8a6397", "#087f82"],
-            ["o", "s", "^"],
-            ["-", "--", "-."],
+        for workflow, label, color, marker, linestyle in zip(
+            ["history_selected", "logistic_tuned"],
+            ["Expanded LightGBM", "Expanded logistic regression"],
+            ["#087f82", "#8a6397"],
+            ["^", "s"],
+            ["-", "--"],
             strict=True,
         ):
             values = [
-                means.loc[(workflow, margin, loss, review)] for loss, review in combos
+                means.loc[(workflow, margin, loss, review)]
+                - means.loc[("application_only", margin, loss, review)]
+                for loss, review in combos
             ]
             axis.plot(
                 range(9),
@@ -366,7 +368,7 @@ def utility_chart(evidence: dict, destination: Path, save_chart) -> None:
                 linestyle=linestyle,
                 markersize=4,
                 color=color,
-                label=workflow_label(workflow).replace(" · ", "\n"),
+                label=label,
             )
         axis.set_title(f"Approved-loan margin: {margin:g}×", fontsize=11, pad=12)
         axis.set_xticks(
@@ -377,17 +379,25 @@ def utility_chart(evidence: dict, destination: Path, save_chart) -> None:
             fontsize=9,
         )
         axis.set_xlabel("Loss multiplier / review-cost multiplier", fontsize=9)
-        axis.axhline(0, color="#667085", linewidth=0.8)
+        axis.axhline(
+            0,
+            color="#667085",
+            linewidth=1,
+            linestyle=":",
+            label="Application-only LightGBM = 0",
+        )
         axis.grid(axis="y", alpha=0.15)
-    axes[0].set_ylabel("Illustrative utility units per applicant")
+    axes[0].set_ylabel(
+        "Additional illustrative utility units\nper applicant versus application-only"
+    )
     axes[1].legend(fontsize=8, loc="upper left")
     figure.suptitle(
-        "Fixed simulated policies across all 27 cost assumptions",
+        "How much utility do the expanded models add?",
         weight="bold",
         fontsize=13,
     )
     figure.supxlabel(
-        "Each point is a five-group mean; lines guide the eye across discrete assumptions, not a cost response curve.\nBase weights: margin 1,000, loss 5,000, review 50 units. Only middle-band reviews incur cost; declines contribute zero.",
+        "Positive values favour the expanded model. Means of five test groups; all 27 cost combinations; fixed policies.\nBase weights: margin 1,000, loss 5,000, review 50 units. Lines connect discrete assumptions. Units are not dollars or profit.",
         fontsize=9,
         color="#475467",
     )
@@ -401,7 +411,7 @@ def input_chart(evidence: dict, destination: Path, save_chart) -> None:
         inputs["fold_importance"],
         inputs["input_dictionary"],
     )
-    figure, axes = plt.subplots(1, 2, figsize=(13, 6.6), layout="constrained")
+    figure, axes = plt.subplots(1, 2, figsize=(11, 6.6), layout="constrained")
     groups = dictionary.groupby("source_group").agg(
         group_label=("group_label", "first"), input_count=("raw_field", "count")
     )
@@ -410,8 +420,8 @@ def input_chart(evidence: dict, destination: Path, save_chart) -> None:
         axes,
         ["source_group", "feature"],
         [
-            "Source groups · cumulative magnitudes",
-            "Largest individual input magnitudes",
+            "Contributions summed by input source",
+            "Eight largest individual contributions",
         ],
         strict=True,
     ):
@@ -434,16 +444,20 @@ def input_chart(evidence: dict, destination: Path, save_chart) -> None:
             axis.scatter(
                 dots, np.full(5, index), color="#123e4b", s=12, alpha=0.65, zorder=3
             )
-        axis.set_yticks(range(len(rows)), text, fontsize=9)
+        axis.set_yticks(
+            range(len(rows)), [textwrap.fill(label, 28) for label in text], fontsize=10
+        )
         axis.set_title(title, fontsize=11, pad=14)
-        axis.set_xlabel("Mean absolute contribution · raw log-odds", fontsize=9)
+        axis.set_xlabel("Mean absolute contribution\n(log-odds)", fontsize=10)
         axis.grid(axis="x", alpha=0.15)
         axis.set_axisbelow(True)
     figure.suptitle(
-        "What the five frozen history models use", weight="bold", fontsize=13
+        "Which inputs influence the expanded models' scores?",
+        weight="bold",
+        fontsize=13,
     )
     figure.supxlabel(
-        "Bars: equal mean of five 1,000-applicant samples. Dots: fold magnitudes. Absolute encoded effects sum by raw field/group.\nLarger groups can accumulate more; correlation shares attribution. Model behavior, not causal effects or predictive-value shares.",
+        "Bars: mean of five model samples, 1,000 applicants each. Small dots: each model sample's mean magnitude.\nAbsolute contributions sum by input/source. Group size and correlated inputs affect totals; these are not causal or performance shares.",
         fontsize=9,
         color="#475467",
     )
@@ -497,16 +511,16 @@ def extra_narrative(evidence: dict) -> list[tuple[str, str, str]]:
         (
             "segments",
             "Check the installment-history boundary",
-            f"History improves average precision within each declared installment-history segment: {'; '.join(parts)}. The chart preserves matched fold variation and applicant counts. Segment prevalences differ, so average precision should be compared between models within each segment. These labels describe installment records and payment support; no installment obligations does not imply absence of bureau or other loan history. Results are descriptive, with no significance claim.",
+            f"The expanded LightGBM model has higher average precision within each declared installment-history group: {'; '.join(parts)}. Small connected dots show the same five test groups for both models; large diamonds show their mean scores. Applicant counts and recorded difficulty rates appear above each panel. Those rates differ, so compare models within each panel. These labels describe installment records and payment support; no installment obligations does not imply absence of bureau or other loan history. Results are descriptive, with no significance claim.",
         ),
         (
             "inputs",
-            "Explain the current assessed model inputs",
-            f"The five assessed history models use {len(dictionary)} eligible raw inputs. {leading_text} lead individual input magnitudes; {largest.lower()} have the largest cumulative group magnitude. Supplied credit scores are application inputs, so the signal should not be credited entirely to engineered history.\n\nThe chart describes how these fitted models use their inputs, on the model's internal log-odds score scale. It sums absolute contributions, so a group's total depends on its input count and correlated fields. These magnitudes are not signed net effects, probability changes, causal effects or shares of predictive performance.\n\nThe diagnostic reuses the five frozen models on target-blind samples without fitting or selection. Sampling, encoded-field aggregation and separate signed additivity checks are documented in the methods download; these are not adverse-action reasons.",
+            "Explain the expanded model's inputs",
+            f"The five assessed expanded LightGBM models use {len(dictionary)} eligible raw inputs. {leading_text} lead individual input magnitudes; {largest.lower()} have the largest cumulative group magnitude. Supplied credit scores are application inputs, so the signal should not be credited entirely to engineered history.\n\nSHAP attributes a model's score to its inputs. Here, contributions use the model's internal log-odds scale rather than percentage changes in predicted risk. The chart sums absolute contributions, so a group's total depends on its input count and correlated fields. These magnitudes are not signed net effects, probability changes, causal effects or shares of predictive performance.\n\nThe diagnostic reuses the five existing fitted models on bounded samples selected without using outcomes. It performs no fitting or selection. Sampling, aggregation across encoded inputs and separate checks that signed contributions reproduce model scores are documented in the methods download; these are not adverse-action reasons.",
         ),
         (
             "utility",
             "Check sensitivity without re-optimizing policies",
-            f"Application and loan history has the highest mean simulated utility among the three declared model workflows in {wins} of 27 assumption combinations. Each of the three workflows keeps the score cutoffs and actions from its five applicant-group fits fixed (15 fitted policies in total); varying margin, loss and review-cost weights does not optimize a new policy. Each point is a mean of five fold utilities, not a profit estimate. The constant ranking benchmark is not part of this declared utility grid.\n\nOnly the middle manual-review band incurs review cost; simulated declines contribute zero modeled utility. These descriptive results remain conditional on the illustrative formula and public-data population.",
+            f"The expanded LightGBM model has the highest mean simulated utility among the three assessed models in {wins} of 27 cost combinations. The chart subtracts the application-only LightGBM model's mean utility from each expanded model's mean. The zero line represents application-only; positive differences favour the expanded model. Each point compares the same five test groups. These are additional illustrative utility units per applicant, not dollars or profit.\n\nEach model keeps the score cutoffs and actions from its five fitted policies fixed (15 policies in total). Varying margin, loss and review-cost weights does not optimize a new policy. The three panels show margin multipliers of 0.5, 1 and 2; each contains all nine combinations of loss and review-cost multipliers. The constant ranking benchmark is not part of this grid. Only the middle manual-review band incurs review cost; simulated declines contribute zero modeled utility. These descriptive results remain conditional on the illustrative formula and public-data population, with no significance claim.",
         ),
     ]

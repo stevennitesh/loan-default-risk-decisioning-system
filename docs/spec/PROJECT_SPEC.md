@@ -3,7 +3,7 @@
 **Version:** 0.6.0 (matched correctness assessment completed 2026-10-04; historical evidence preserved)
 **Status:** Verified local pipeline and matched assessment; source/temporal/native Power BI limits documented
 **Owner:** Steven  
-**Last updated:** 2026-10-04
+**Last updated:** 2026-10-11
 
 ---
 
@@ -21,7 +21,7 @@ The [HTML project report](https://stevennitesh.github.io/loan-default-risk-decis
 
 **One-line portfolio summary:**
 
-> Built a reproducible loan default risk decisioning pipeline using public credit application data, SQL feature engineering, LightGBM modeling, SHAP explainability, batch scoring, and matched applicant-group assessment and readable reporting.
+> Built a SQL/DuckDB and Python credit-risk pipeline with tested repayment accounting, matched model assessment, batch scoring and an accessible report explaining the results and their limits.
 
 **Portfolio claim:**
 
@@ -76,8 +76,10 @@ Risk band
    ↓
 Simulated business action
    ↓
-Power BI threshold and value analysis
+HTML results and illustrative utility analysis
 ```
+
+The current reader-facing output is the HTML report. Power BI exports demonstrate the saved-model reporting pipeline; committed PBIX files and screenshots remain historical, unrefreshed assets.
 
 ---
 
@@ -90,14 +92,14 @@ Power BI threshold and value analysis
 3. Load Parquet files into DuckDB staging tables.
 4. Use SQL to create applicant-level feature tables and a final feature mart.
 5. Train a logistic regression baseline and a LightGBM model.
-6. Evaluate ranking quality, class-imbalance behavior, calibration, lift, threshold outcomes, and expected business value.
+6. Evaluate ranking quality, class-imbalance behavior, probability quality, lift, threshold outcomes, and illustrative utility.
 7. Derive decision thresholds from validation-score quantiles and review-capacity
    scenarios, then evaluate those scenarios under explicit business assumptions.
 8. Score applicants in batch and write predictions to DuckDB.
 9. Generate SHAP-based global feature importance and applicant-level reason-code-style outputs.
 10. Export Power BI-ready tables and build a business-readable dashboard.
 11. Add tests for data contracts, feature logic, scoring schema, threshold logic, and expected-value math.
-12. Publish a README and model card that explain the system, results, limitations, and run instructions.
+12. Maintain one HTML report for the project story and findings, a short README that points to it, a current model card and a separate run guide.
 
 ### Non-goals
 
@@ -949,8 +951,10 @@ Use [the run guide's repository map](../RUNNING.md#repository-guide) for the mai
 - `tests/`: synthetic fixture checks; no downloaded sample dataset is required.
 - `docs/spec/`, `docs/implementation/`, `docs/testing/`, and `docs/validation/`: scope, build history/proposals, checks, and evidence requirements.
 - `data/`, `models/`, and scoped runtime reports: local generated artifacts, ignored by Git.
-- `reports/experiments/` and `reports/model_card.md`: curated historical evidence and its interpretation.
-- `powerbi/`: saved report binaries and historical screenshots.
+- `reports/portfolio/`: current HTML report, text alternative, charts and anonymous result tables.
+- `reports/model_card.md`: current model purpose, assessment results and limits, with its earlier text preserved in a labeled archive.
+- `reports/experiments/`: historical exploratory evidence and its original conclusions.
+- `powerbi/archive/`: saved report binaries and historical screenshots.
 
 The active agent reading path is [AGENTS.md](../../AGENTS.md), which points to the maintained specification, validation, runtime and reporting owners.
 
@@ -1032,42 +1036,11 @@ The model card should be brief but concrete. It should make clear that this is a
 
 ## 24. Portfolio README Requirements
 
-The README should answer these questions within two minutes:
+The README is a short landing page for recruiters and new readers. It should explain the question, the author's concrete contributions, one headline result with its assessment boundary, and the data/technical stack. A prominent link leads to the HTML report as the single main reading destination.
 
-1. What business problem does this solve?
-2. What data and stack were used?
-3. What makes this more than a notebook?
-4. How was the model evaluated?
-5. How are scores converted into decisions?
-6. What does the Power BI dashboard show?
-7. What are the limitations?
-8. How can someone run or inspect the project?
+Keep detailed architecture, charts, metric comparisons, probability checks, simulated-action assumptions and limitations in the HTML report or its linked technical evidence. The Markdown case study is an alternative format, not a competing starting point. Historical Power BI assets belong in their labeled archive rather than serving as the current result preview.
 
-Required README information (headings may vary):
-
-```text
-Overview
-Business Problem
-Architecture
-Dataset
-Modeling Approach
-Evaluation Results
-Threshold and Business Value Analysis
-Power BI Dashboard
-How to Run
-Repository Structure
-Limitations
-Next Steps
-```
-
-Required README artifacts:
-
-- architecture diagram;
-- dashboard screenshot;
-- metrics table;
-- threshold scenario table;
-- lift chart or decile table;
-- model-risk/limitations section.
+Link implementation examples and [the run guide](../RUNNING.md) for code checks, presentation regeneration and new pipeline runs. Do not require visitors to install dependencies or download data to understand the main result. The README need not duplicate the report's charts, numeric tables, reproduction commands or dated next actions.
 
 ---
 
@@ -1076,7 +1049,9 @@ Required README artifacts:
 | Deliverable | Description |
 |---|---|
 | `docs/spec/PROJECT_SPEC.md` | Technical plan and build contract |
-| `README.md` | Portfolio summary and run instructions |
+| `README.md` | Short portfolio summary and link to the main HTML report |
+| `reports/portfolio/index.html` | Main reader journey, findings, charts and optional supporting evidence |
+| `docs/RUNNING.md` | Code checks, presentation regeneration and reproduction boundaries |
 | `configs/base.yaml` | Paths, split parameters, model settings, business assumptions |
 | SQL feature pipeline | Reproducible SQL scripts for feature extraction |
 | Training pipeline | Logistic regression baseline and LightGBM model |

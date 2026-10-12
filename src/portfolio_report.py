@@ -222,7 +222,12 @@ def portrait_chart(figure) -> str:
                 text.set_fontsize(11)
     for text in (figure._suptitle, figure._supxlabel):
         if text:
-            text.set_text(textwrap.fill(text.get_text().replace("\n", " "), 52))
+            text.set_text(
+                textwrap.fill(
+                    text.get_text().replace("\n", " "),
+                    40 if text is figure._suptitle else 52,
+                )
+            )
             text.set_fontsize(12 if text is figure._suptitle else 10)
     canvas = FigureCanvasAgg(figure)
     canvas.draw()
@@ -233,7 +238,11 @@ def portrait_chart(figure) -> str:
             title.get_window_extent(renderer).x0 < -1
             or title.get_window_extent(renderer).x1 > figure.bbox.width + 1
         )
-        for title in [*titles, *(axis.xaxis.label for axis in axes)]
+        for title in [
+            *titles,
+            *(axis.xaxis.label for axis in axes),
+            *(text for text in (figure._suptitle, figure._supxlabel) if text),
+        ]
     ):
         raise ValueError("Portrait chart text extends beyond the rendered image")
     output = io.BytesIO()
@@ -275,7 +284,13 @@ def comparison_chart(
             weight="bold",
         )
     axis.set_yticks(
-        range(4), [workflow_label(w).replace(" · ", "\n") for w in WORKFLOWS]
+        range(4),
+        [
+            "Outcome-rate constant",
+            "Application only\nLightGBM",
+            "Expanded inputs\nLogistic regression",
+            "Expanded inputs\nLightGBM",
+        ],
     )
     axis.set_xlim(0, 0.46 if name == "risk_capture" else 0.33)
     axis.grid(axis="x", alpha=0.17)
@@ -286,13 +301,10 @@ def comparison_chart(
         axis.set_title(
             "Who appears in the highest-risk 10%?", loc="left", pad=20, weight="bold"
         )
-        axis.set_xlabel(
-            "Share of all repayment-difficulty cases captured · higher is better"
-        )
+        axis.set_xlabel("Repayment-difficulty cases captured · higher is better")
         caption = (
-            "Small dots: individual test-group results. Diamonds: five-group means; variation is descriptive.\n"
-            "Dashed line: 10% random-ranking reference. Boundary ties receive equal expected membership.\n"
-            "Public labeled applications. Highest-risk capture is separate from middle-band manual review."
+            "Dots: five test groups. Diamonds: mean. Dashed line: 10% random-ranking reference.\n"
+            "Boundary ties receive equal expected membership. This group is separate from manual review."
         )
     else:
         axis.set_title(
@@ -301,10 +313,8 @@ def comparison_chart(
             pad=20,
             weight="bold",
         )
-        axis.set_xlabel(
-            "Average precision · higher is better · not classification accuracy"
-        )
-        caption = "Public labeled applications · same five test groups; inputs and selected settings differ.\nSmall dots: individual group results. Diamonds: mean of five metrics; variation is descriptive."
+        axis.set_xlabel("Average precision · higher is better")
+        caption = "Dots: five matched test groups. Diamonds: mean; variation is descriptive.\nExpanded inputs include loan history and two application interactions; settings also differ."
     figure.supxlabel(caption, fontsize=9, color="#475467")
     writer(figure, destination, name)
 
@@ -331,7 +341,9 @@ def reliability_finding(evidence: dict) -> str:
 
 
 def reliability_chart(evidence: dict, destination: Path, writer=save_chart) -> None:
-    figure, axis = plt.subplots(figsize=(8, 6), layout="constrained")
+    figure, (axis, gap_axis) = plt.subplots(
+        1, 2, figsize=(11, 5.4), layout="constrained"
+    )
     bins = final_reliability_bins(evidence)
     styles = [("o", "-"), ("s", "--"), ("^", "-."), ("D", ":"), ("P", (0, (5, 1)))]
     for (fold, group), (marker, linestyle) in zip(
@@ -347,6 +359,15 @@ def reliability_chart(evidence: dict, destination: Path, writer=save_chart) -> N
             linewidth=1.2,
             label=f"Applicant test group {fold}",
         )
+        gap_axis.plot(
+            group.average_predicted_score,
+            (group.observed_default_rate - group.average_predicted_score) * 100,
+            marker=marker,
+            linestyle=linestyle,
+            markersize=4,
+            linewidth=1.2,
+            label=f"Test group {fold}",
+        )
     maximum = float(
         max(bins.average_predicted_score.max(), bins.observed_default_rate.max())
     )
@@ -361,21 +382,35 @@ def reliability_chart(evidence: dict, destination: Path, writer=save_chart) -> N
     axis.set(
         xlim=(0, upper),
         ylim=(0, upper),
-        xlabel="Mean predicted repayment-difficulty probability",
+        xlabel="Mean predicted probability",
         ylabel="Observed repayment-difficulty rate",
     )
     axis.xaxis.set_major_formatter(PercentFormatter(1))
     axis.yaxis.set_major_formatter(PercentFormatter(1))
     axis.set_title(
-        "Do predicted probabilities match observed rates?",
+        "Predicted versus observed",
         loc="left",
         pad=18,
         weight="bold",
     )
     axis.grid(alpha=0.17)
-    axis.legend(fontsize=9)
+    axis.legend(fontsize=8, loc="upper left")
+    maximum_gap = float(
+        (bins.observed_default_rate - bins.average_predicted_score).abs().max() * 100
+    )
+    gap_axis.axhline(0, color="#475467", linestyle="--", linewidth=1)
+    gap_axis.set(
+        xlim=(0, upper),
+        ylim=(-maximum_gap * 1.25, maximum_gap * 1.25),
+        xlabel="Mean predicted probability",
+        ylabel="Observed minus predicted · percentage points",
+    )
+    gap_axis.xaxis.set_major_formatter(PercentFormatter(1))
+    gap_axis.set_title("How large is the gap?", loc="left", pad=18, weight="bold")
+    gap_axis.grid(alpha=0.17)
     figure.supxlabel(
-        "Application and loan history · final probabilities. Each line keeps its own score groups;\nidentical scores stay together. No pooling or averaging of different group boundaries.",
+        "Expanded LightGBM · ten score bins per test group; identical scores stay together.\n"
+        "Positive gap: risk underestimated. Each group keeps its own bins; lines are descriptive, not uncertainty bounds.",
         fontsize=9,
         color="#475467",
     )
@@ -469,7 +504,7 @@ def weighting_chart(evidence: dict, destination: Path, writer=save_chart) -> Non
                 linestyle=linestyle,
                 markersize=6,
                 linewidth=2,
-                label=f"{recipe.capitalize()} recipe",
+                label=f"{recipe.capitalize()} settings",
             )
         axis.set_xticks([0, 1], ["Earlier weight\n(9–11×)", "No weighting\n(1×)"])
         axis.set_title(title, fontsize=11)
@@ -489,7 +524,7 @@ def weighting_chart(evidence: dict, destination: Path, writer=save_chart) -> Non
         fontsize=13,
     )
     figure.supxlabel(
-        "History model · small markers show matched groups; larger markers show five-group means.\nOnly class weighting changes within each recipe; inputs, applicants, preprocessing, seed and other settings stay fixed.",
+        "Expanded LightGBM · small markers: matched groups; large markers: five-group means.\nOnly class weighting changes; inputs, applicants, preprocessing, model seed and other settings stay fixed.",
         fontsize=9,
         color="#475467",
     )
@@ -538,7 +573,7 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         (
             "engineering",
             "What I built",
-            "SQL builds one modeling record per applicant, separately for labeled assessment and unlabeled scoring. Installment obligations are counted once across split payments; ambiguous schedules and unknown payments remain explicit. POS/cash-loan and credit-card delinquency rates and last-three-month windows use distinct applicant months; account-month record counts retain their separate meaning. Bureau loans must originate before the application day.\n\nPython coordinates ingestion, model selection, scoring, SHAP interpretation and exports. Identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Relative dates cannot certify when a lender could have obtained each field.",
+            "I joined loan and repayment records into one modeling record per applicant, using SQL and DuckDB for features and Python for model selection, scoring, interpretation and exports. Labeled assessment and unlabeled batch scoring stay separate.\n\nThe difficult part was counting financial events correctly. Split payments count as one installment obligation; ambiguous schedules and unknown payments remain explicit. Monthly delinquency rates use distinct applicant months, while account-month record counts keep their separate meaning. Bureau loans must originate before the application day. Identifiers, the outcome and direct demographic/protected-status-like fields are excluded from model inputs. Relative dates cannot certify when a lender could have obtained each field.",
         ),
         (
             "assessment",
@@ -548,17 +583,17 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         (
             "ranking",
             "Expanded inputs improve ranking in this assessment",
-            f"Average precision is {ap:.3f} with application and loan history versus {application:.3f} with application fields only. The expanded model also includes two interactions derived entirely from application fields, and each model's settings were selected separately. The matched comparison measures these changes together; it does not isolate loan history alone. Average precision summarizes how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy. The history model captures {capture:.1%} of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a 10% random-ranking reference. This highest-risk group is separate from the middle manual-review band.\n\nEqual scores at the boundary receive equal expected membership; the methods retain the exact tie rule.",
+            f"The expanded LightGBM model reaches average precision {ap:.3f}, compared with {application:.3f} using application fields only. Average precision measures how strongly repayment-difficulty cases concentrate near the top of the ranking; it is not accuracy.\n\nExpanded inputs mean application fields, loan history and two application-derived interactions. Each model's settings were selected separately, so the comparison measures these changes together rather than isolating loan history alone.\n\nThe expanded model captures {capture:.1%} of observed repayment-difficulty cases in the highest-risk 10% of applicants, against a rounded 10% random-ranking reference. This group is separate from the middle manual-review band. Equal scores at the boundary receive equal expected membership; the methods retain the exact group-size and tie rules.",
         ),
         (
             "probabilities",
             "Check probabilities separately",
-            f"The history model's Brier score is {brier:.3f} and log loss is {loss:.3f}; lower is better for both. These measure probability errors, while the reliability chart compares predicted and observed rates within each test group's own score bins. {method_text}\n\n{reliability_finding(evidence)} {support_text} Reliability is descriptive, not a guarantee for a new lending population.",
+            f"A model can rank applicants well and still overstate their risk. The expanded model's Brier score is {brier:.3f} and log loss is {loss:.3f}; lower means smaller probability errors for both. {method_text}\n\n{reliability_finding(evidence)} The predicted-versus-observed panel compares those rates; the gap panel exposes their difference in percentage points. {support_text} This checks groups of similar scores, not every individual probability, and does not guarantee reliability in a new lending population.",
         ),
         (
             "search",
             "A broader search did not materially improve ranking",
-            f"The earlier corrected history search had average precision {prior_ap:.6f}; the current search has {ap:.6f}. That is a practical ranking plateau in these descriptive results. Raw probability errors improved substantially, while final probability quality stayed similar. Multiple settings and search budgets changed together, so this search comparison alone cannot attribute the change to one parameter. The separate controlled comparison below tests class weighting. A 20,000-applicant shuffled-outcome diagnostic returned roughly chance ranking; it does not establish real-world field availability or erase earlier exploration.",
+            f"More tuning did not produce a meaningful ranking gain: average precision moved from {prior_ap:.6f} to {ap:.6f}. Raw probability errors improved substantially, while final probability quality stayed similar.\n\nSeveral settings and search budgets changed together. The search comparison alone cannot attribute the improvement to one parameter; the controlled comparison below tests class weighting. A 20,000-applicant shuffled-outcome diagnostic returned roughly chance ranking, but cannot establish real-world field availability or erase earlier exploration.",
         ),
         (
             "actions",
@@ -568,7 +603,7 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         (
             "limits",
             "What this demonstrates—and what remains unknown",
-            "The contribution is disciplined SQL data engineering, benchmark comparison, bounded model selection, identified same-host assessment reproduction and readable reporting. Committed anonymous aggregates can regenerate this presentation. Downloaded data and current code can run a new pipeline; exact historical execution also requires retained original models, memberships and source archives that stay local. Historical comparisons remain an archive. Unlabeled Kaggle applications demonstrate batch scoring only and contribute no outcome metrics. Calendar application, field-availability and outcome-maturity timestamps are missing; random applicant groups cannot validate performance in a future cohort. This portfolio does not establish underwriting, compliance, fair-lending or adverse-action readiness. The saved Power BI files and screenshots are unrefreshed historical demonstrations; the current charts and offline report are separate presentation artifacts.",
+            "This project demonstrates SQL data engineering, model comparison, probability diagnosis and reproducible reporting. It does not establish underwriting, compliance, fair-lending or adverse-action readiness.\n\nThe public data lacks calendar application, field-availability and outcome-maturity timestamps. Random applicant groups therefore cannot validate performance in a future cohort. Earlier exploration remains part of the project's history; these results are not an untouched final test. Unlabeled Kaggle applications demonstrate batch scoring only and contribute no outcome metrics.\n\nCommitted anonymous aggregates regenerate this presentation. Downloaded data and current code can run a new pipeline; exact historical execution also requires retained original models, memberships and source archives that stay local. The saved Power BI files and screenshots are unrefreshed historical demonstrations.",
         ),
     ]
     weighting = evidence["weighting"]
@@ -576,7 +611,7 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
     before = results.loc[("earlier", "earlier_weight")]
     after = results.loc[("earlier", "unweighted")]
     finding = (
-        "Removing class weighting is the dominant explanation for the better raw probabilities in these recipes. Probability errors improved in all ten recipe/group pairs, and putting the earlier weight into the current recipe reversed the benefit."
+        "Removing class weighting is the dominant explanation for the better raw probabilities in these fixed configurations. Probability errors improved in all ten configuration/group pairs, and putting the earlier weight into the current configuration reversed the benefit."
         if weighting["probability_improved_all_pairs"]
         else "The controlled comparison did not show a consistent probability-quality benefit in every recipe/group pair; the weighting explanation remains conditional."
     )
@@ -585,7 +620,7 @@ def narrative(evidence: dict) -> tuple[str, list[tuple[str, str, str]]]:
         (
             "weighting",
             "Test why the raw probabilities improved",
-            f"Class weighting gives repayment-difficulty cases more influence during fitting. It can improve attention to a rare outcome while distorting the probability scale. The controlled comparison changes only that weight within each frozen recipe and applicant group.\n\n{finding} Using the earlier recipe, mean predicted risk fell from {before.mean_probability_mean:.1%} to {after.mean_probability_mean:.2%}, against an observed difficulty rate of {weighting['observed_rate']:.2%}. Raw Brier score fell from {before.brier_score_mean:.4f} to {after.brier_score_mean:.4f}; log loss improved too. Average-rate agreement alone does not prove calibration.\n\nEarlier probability adjustment had already repaired much of the scale error, so final probability quality changed little. This retrospective check does not promote a model, establish optimal weights for future cohorts or isolate the search screen's separate selection effect.",
+            f"Class weighting gives repayment-difficulty cases more influence during fitting. Here, the earlier weight made their influence roughly 9–11 times larger. The controlled comparison changes only that weight within each fixed model configuration and applicant group.\n\n{finding} Using the earlier settings, mean predicted risk fell from {before.mean_probability_mean:.1%} to {after.mean_probability_mean:.2%}, against an observed difficulty rate of {weighting['observed_rate']:.2%}. Raw Brier score fell from {before.brier_score_mean:.4f} to {after.brier_score_mean:.4f}; log loss improved too. Average-rate agreement alone does not prove calibration.\n\nEarlier probability adjustment had already repaired much of the scale error, so final probability quality changed little. This retrospective check holds other settings and one model seed fixed; it does not establish optimal weights for future cohorts or isolate the search screen's separate selection effect.",
         ),
     )
     return intro, sections
@@ -609,6 +644,13 @@ def render(
             "font.size": 11,
             "axes.spines.top": False,
             "axes.spines.right": False,
+            "axes.labelcolor": "#344054",
+            "text.color": "#182230",
+            "xtick.color": "#475467",
+            "ytick.color": "#344054",
+            "axes.prop_cycle": plt.cycler(
+                color=["#087f82", "#5277ae", "#8a6397", "#9c6024", "#475467"]
+            ),
             "svg.hashsalt": "home-credit-portfolio",
         }
     )
@@ -658,14 +700,15 @@ def render(
         )
     ]
     headline = (
-        f"Application and loan history reached {mean(evidence, 'history_selected', 'pr_auc'):.3f} "
+        f"Expanded inputs reached {mean(evidence, 'history_selected', 'pr_auc'):.3f} "
         f"average precision, compared with {mean(evidence, 'application_only', 'pr_auc'):.3f} "
         "using application fields only."
     )
     boundary = (
-        f"These are means from five matched applicant test groups covering {evidence['applicant_count']:,} "
-        "labeled applicants. Average precision measures ranking, not accuracy. "
-        "Prior exploration and random groups limit claims about future cohorts."
+        "Expanded inputs add loan history and two application-derived interactions; "
+        "model settings were selected separately. Results are five-group means. "
+        "Average precision measures ranking, not accuracy. Earlier exploration and "
+        "random applicant groups limit claims about future cohorts."
     )
     input_dictionary = evidence["inputs"]["input_dictionary"].copy()
     input_dictionary.loc[
@@ -696,7 +739,10 @@ def render(
     for workflow in WORKFLOWS:
         metric_rows.append(
             [
-                workflow_label(workflow),
+                {
+                    "history_selected": "Expanded inputs · LightGBM",
+                    "logistic_tuned": "Expanded inputs · logistic regression",
+                }.get(workflow, workflow_label(workflow)),
                 *[
                     f"{mean(evidence, workflow, metric):.3f}"
                     for metric in ("pr_auc", "roc_auc", "brier_score", "log_loss")
@@ -719,31 +765,31 @@ def render(
     figures = {
         "segments": (
             "installment_segments",
-            "Application-only and history ranking within three installment-history segments; fold variation and counts retained.",
+            "Expanded LightGBM ranks better than application-only LightGBM within all three installment-history segments. Dots show five paired test-group comparisons; diamonds show their means. Compare models within a segment, because outcome rates differ between segments.",
         ),
         "inputs": (
             "model_inputs",
-            "Cumulative mean absolute raw-margin contributions by source group and individual input for five frozen history models.",
+            "Application information has the largest cumulative contribution magnitude across five fitted expanded models. Bars sum mean absolute SHAP contributions within each source group; dots show individual model samples. These are raw log-odds magnitudes, not shares of predictive performance or causal effects.",
         ),
         "utility": (
             "utility_sensitivity",
-            "Three model workflows, each with five fixed simulated policies, across all 27 cost assumptions; five-group means.",
+            "Both expanded models have higher mean illustrative utility than application-only LightGBM in all 27 assumptions. Positive values show additional units per applicant above that reference. Each model keeps its five existing policies fixed; the comparison does not estimate money, profit or a causal effect.",
         ),
         "ranking": (
             "model_comparison",
-            "Average precision for four models on five matched applicant test groups.",
+            f"Expanded LightGBM averages {mean(evidence, 'history_selected', 'pr_auc'):.3f} average precision versus {mean(evidence, 'application_only', 'pr_auc'):.3f} for application-only LightGBM. Small dots show five test-group metrics; diamonds show their mean. Average precision measures ranking, not accuracy.",
         ),
         "probabilities": (
             "probability_reliability",
-            f"Predicted and observed repayment-difficulty rates in each test group's own bins. {reliability_finding(evidence)} This descriptive comparison does not guarantee reliability in a future lending population.",
+            f"The gap panel shows observed minus predicted in percentage points; positive gaps indicate underestimated risk. {reliability_finding(evidence)} Each line uses one test group's own score bins; the lines are not uncertainty bounds.",
         ),
         "search": (
             "search_comparison",
-            "Earlier and current search: ranking and raw/final probability quality.",
+            "Average precision barely changes after broader tuning. Raw Brier score and log loss improve, while the final probability results stay similar. Squares and dashed lines show raw predictions; circles and solid lines show final predictions after the selected adjustment choice.",
         ),
         "weighting": (
             "class_weighting",
-            "Controlled class-weighting comparison: two fixed recipes, weighted and unweighted, on five matched groups.",
+            "Removing the earlier class weight lowers average predicted risk toward the observed 8.07% outcome rate and reduces both probability errors in all ten matched pairs. Faint small markers show individual pairs; larger markers show five-group means. Two fixed configurations are distinguished by marker shape and line style.",
         ),
     }
     md = (
@@ -837,7 +883,16 @@ Install the dependencies using [the run guide](https://github.com/stevennitesh/l
         "probability_reliability": "Predicted and observed probabilities",
         "search_comparison": "Earlier and current search",
         "class_weighting": "Controlled class-weighting comparison",
-        "utility_sensitivity": "Fixed-policy utility sensitivity",
+        "utility_sensitivity": "Utility differences under changing assumptions",
+    }
+    stages = {
+        "problem": "01 · The question",
+        "engineering": "02 · The build",
+        "ranking": "03 · The result",
+        "probabilities": "04 · The probability check",
+        "search": "05 · The tuning lesson",
+        "weighting": "06 · The diagnosis",
+        "limits": "07 · The interpretation",
     }
     figure_number = 0
     body = ""
@@ -846,9 +901,13 @@ Install the dependencies using [the run guide](https://github.com/stevennitesh/l
             body += '<div id="lessons" class="lesson-group" aria-label="Lessons from model selection and probability checks">'
         elif key == "assessment":
             body += '<details id="supporting-evidence" class="supporting-evidence"><summary>Supporting evidence and methods</summary><p>Open the assessment design, installment-history segments, model-input explanations and simulated decision assumptions.</p>'
-        body += f'<section id="{key}"><h2>{html.escape(title)}</h2>'
+        body += f'<section id="{key}">'
+        if key in stages:
+            body += f'<p class="section-kicker">{stages[key]}</p>'
+        body += f"<h2>{html.escape(title)}</h2>"
         body += "".join(
-            f"<p>{html.escape(part)}</p>" for part in paragraph.split("\n\n")
+            f'<p class="{"section-lead" if index == 0 else "section-detail"}">{html.escape(part)}</p>'
+            for index, part in enumerate(paragraph.split("\n\n"))
         )
         if key == "problem":
             body += (
@@ -865,30 +924,17 @@ Install the dependencies using [the run guide](https://github.com/stevennitesh/l
             body += (
                 '<ol class="pipeline" aria-label="Implemented pipeline"><li>Public tables</li>'
                 "<li>SQL / DuckDB features</li><li>Python models</li><li>Reporting and batch scoring</li></ol>"
-                '<aside class="accounting-example" aria-label="Synthetic repayment example">'
-                "<h3>Counting one obligation once</h3>"
+                '<details class="accounting-example" aria-label="Synthetic repayment example">'
+                "<summary>Example: counting one obligation once</summary>"
                 f"<p>{html.escape(ACCOUNTING_EXAMPLE)}</p>"
-                f'<p><a href="{REPOSITORY_URL}/blob/main/tests/test_repayment_methodology.py">Inspect the repayment fixture</a></p></aside>'
-            )
-        if key == "ranking":
-            body += (
-                '<div class="table-wrap"><table><thead><tr>'
-                + "".join(f"<th>{html.escape(v)}</th>" for v in headers)
-                + "</tr></thead><tbody>"
-                + "".join(
-                    "<tr>"
-                    + "".join(f"<td>{html.escape(v)}</td>" for v in row)
-                    + "</tr>"
-                    for row in metric_rows
-                )
-                + "</tbody></table></div>"
+                f'<p><a href="{REPOSITORY_URL}/blob/main/tests/test_repayment_methodology.py">Inspect the repayment fixture</a></p></details>'
             )
         chart_list = [figures[key]] if key in figures else []
         if key == "ranking":
             chart_list.append(
                 (
                     "risk_capture",
-                    "Share of repayment-difficulty cases captured in the highest-risk 10%.",
+                    f"The expanded model captures {mean(evidence, 'history_selected', 'recall_at_manual_review_capacity'):.1%} of repayment-difficulty cases in the highest-risk 10% of applicants. The dashed line shows a rounded 10% random-ranking reference. This highest-risk group is separate from middle-band manual review.",
                 )
             )
         for name, alt in chart_list:
@@ -898,15 +944,15 @@ Install the dependencies using [the run guide](https://github.com/stevennitesh/l
             score_note = (
                 "Within-segment model comparison; different segment prevalences prevent cross-segment AP interpretation."
                 if key == "segments"
-                else "Frozen-model behavior on target-blind bounded samples; cumulative absolute raw-log-odds magnitudes, not performance shares."
+                else "Existing fitted models on bounded samples selected without using outcomes; grouped absolute log-odds magnitudes depend on correlations and field counts."
                 if key == "inputs"
-                else "Fixed balanced-reference actions; illustrative utility units, not money or profit."
+                else "27 margin/loss/review-cost combinations; fixed existing actions, with application-only LightGBM as the zero reference."
                 if key == "utility"
-                else "Raw probabilities; only class weighting changes within each fixed recipe."
+                else "Raw probabilities; only class weighting changes within each fixed configuration and model seed."
                 if key == "weighting"
                 else "Raw and final probabilities from different search procedures."
                 if key == "search"
-                else "Final probabilities: after choosing whether to adjust the raw model probabilities."
+                else "Final probabilities; no adjustment was selected for expanded LightGBM. Variation between test groups is descriptive."
             )
             figure_number += 1
             body += (
@@ -918,8 +964,24 @@ Install the dependencies using [the run guide](https://github.com/stevennitesh/l
                 f'<a class="figure-download" href="{name}.png">Full-size PNG</a></div></div>'
                 f'<div class="chart-panel" tabindex="0" role="region" aria-label="{html.escape(chart_titles[name])}; chart"><picture><source media="(max-width:600px)" srcset="data:image/png;base64,{mobile_images[name]}"><img src="data:image/png;base64,{encoded}" alt="{html.escape(alt)}"></picture></div>'
                 f'<figcaption id="{name}-caption"><p class="figure-description">{html.escape(alt)}</p>'
-                f'<p class="figure-source"><strong>Source and interpretation:</strong> Completed public labeled-applicant assessment; '
+                f'<p class="figure-source"><strong>Evidence:</strong> Completed public labeled-applicant assessment; '
                 f"five matched test groups. {html.escape(score_note)}</p></figcaption></figure>"
+            )
+        if key == "ranking":
+            body += (
+                '<details class="numeric-results"><summary>Compare all four models: full metric table</summary>'
+                "<p>Means of five separate test-group metrics using final probabilities. "
+                "Arrows indicate the better direction. Differences are descriptive, without confidence intervals.</p>"
+                '<div class="table-wrap"><table><caption>Five-group means; exact values are in metrics.csv</caption><thead><tr>'
+                + "".join(f'<th scope="col">{html.escape(v)}</th>' for v in headers)
+                + "</tr></thead><tbody>"
+                + "".join(
+                    "<tr>"
+                    + "".join(f"<td>{html.escape(v)}</td>" for v in row)
+                    + "</tr>"
+                    for row in metric_rows
+                )
+                + "</tbody></table></div></details>"
             )
         if key == "inputs":
             body += '<p><a href="model_input_methods.md">Sampling and contribution methods</a></p>'
@@ -962,24 +1024,58 @@ Install the dependencies using [the run guide](https://github.com/stevennitesh/l
         for label, meaning, direction, units in glossary_rows
     )
     body += (
-        '<section id="metric-glossary"><h2>Metric glossary</h2>'
-        f'<dl class="metric-definitions">{glossary}</dl></section>'
+        '<details id="metric-glossary" class="glossary"><summary>Metric glossary: what each measure means</summary>'
+        f'<dl class="metric-definitions">{glossary}</dl></details>'
     )
     body += evidence_links
+    summary_cards = "".join(
+        f'<div class="summary-card"><dt>{html.escape(label)}</dt><dd>{html.escape(value)}</dd>'
+        f'<dd class="summary-context">{html.escape(context)}</dd></div>'
+        for label, value, context in [
+            (
+                "Ranking · average precision",
+                f"{mean(evidence, 'history_selected', 'pr_auc'):.3f}",
+                f"vs {mean(evidence, 'application_only', 'pr_auc'):.3f} with application fields only",
+            ),
+            (
+                "Cases in highest-risk 10%",
+                f"{mean(evidence, 'history_selected', 'recall_at_manual_review_capacity'):.1%}",
+                "Share of all recorded repayment-difficulty cases captured",
+            ),
+            (
+                "Assessment population",
+                f"{evidence['applicant_count']:,}",
+                "Public labeled applicants · five matched test groups",
+            ),
+        ]
+    )
     description = "SQL/DuckDB and Python credit-risk portfolio: repayment-history engineering, matched model comparison, probability checks and clearly bounded public-data results."
     document = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="{description}"><meta name="author" content="Steven"><meta property="og:title" content="Credit risk from application and repayment history"><meta property="og:description" content="{description}"><meta property="og:type" content="website"><meta property="og:url" content="{PROJECT_URL}"><meta property="og:image" content="{PROJECT_URL}model_comparison.png"><meta name="twitter:card" content="summary_large_image"><title>Credit risk from application and repayment history</title><style>
 *{{box-sizing:border-box}}
 html{{scroll-behavior:smooth}}
-body{{margin:0;background:#f6f8fa;color:#182230;font:17px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}}
-main{{width:100%;max-width:1000px;margin:auto;padding:2rem 1.5rem}}
-header{{padding:2rem;background:#123e4b;color:white;border-radius:14px}}
-.hero-result{{font-size:1.15rem;font-weight:650}}
-.hero-boundary{{font-size:.9rem;line-height:1.55;color:#d3e6ed}}
-h1{{font-size:clamp(2rem,5vw,3.1rem);line-height:1.15;margin:.6rem 0 1.2rem}}
-h2{{font-size:1.55rem;line-height:1.3;color:#123e4b;margin:0 0 1rem}}
+body{{margin:0;background:#f5f5f1;color:#182230;font:17px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}}
+main{{width:100%;max-width:1260px;margin:auto;padding:2.5rem 2rem}}
+header{{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:2.5rem;padding:2.7rem;background:#123e4b;color:white;border-radius:16px}}
+.hero-result{{font-size:1.2rem;font-weight:650;line-height:1.5;padding-left:1rem;border-left:3px solid #7fd6cc}}
+.hero-boundary{{font-size:.87rem;line-height:1.55;color:#d3e6ed}}
+.summary-cards{{display:grid;gap:.8rem;margin:0;align-content:center}}
+.summary-card{{border:1px solid #557880;border-radius:9px;padding:.9rem 1rem;background:#194854}}
+.summary-card dt{{font-size:.73rem;font-weight:600;letter-spacing:.035em;color:#d3e6ed}}
+.summary-card dd{{margin:.1rem 0;font-size:2rem;font-weight:700;line-height:1.3;letter-spacing:-.03em;font-variant-numeric:tabular-nums}}
+.summary-card .summary-context{{font-size:.79rem;font-weight:400;line-height:1.5;letter-spacing:0;color:#d3e6ed}}
+h1{{font-size:clamp(2rem,3.4vw,3rem);line-height:1.15;letter-spacing:-.025em;margin:.6rem 0 1.2rem}}
+h2{{font-size:1.65rem;line-height:1.3;letter-spacing:-.02em;color:#123e4b;margin:0 0 1rem}}
 p{{margin:0 0 1rem;overflow-wrap:anywhere}}
 p:last-child{{margin-bottom:0}}
-.eyebrow{{letter-spacing:.08em;text-transform:uppercase;font-size:.8rem}}
+.eyebrow,.section-kicker{{letter-spacing:.09em;text-transform:uppercase;font-size:.73rem;font-weight:700}}
+.section-kicker{{color:#087477;margin:0 0 .6rem}}
+.section-lead{{font-size:1.08rem;line-height:1.65}}
+.section-detail{{color:#344054}}
+.reading-layout{{display:grid;grid-template-columns:145px minmax(0,1fr);gap:2rem;align-items:start;margin-top:2rem}}
+.reading-layout>nav{{position:sticky;top:1.5rem;display:grid;gap:.45rem;margin:0;padding-top:1.2rem}}
+.reading-layout>nav a{{text-decoration:none;font-size:.86rem;font-weight:600;padding:.5rem .6rem;border-radius:5px;border-left:2px solid #c9d9d9}}
+.reading-layout>nav a:hover{{background:#e7efed;border-color:#087f82}}
+.reading-content{{min-width:0}}
 nav{{display:flex;flex-wrap:wrap;gap:.5rem 1rem;margin:1.5rem 0}}
 a{{color:#076c76;text-underline-offset:3px;overflow-wrap:anywhere}}
 a:focus-visible,summary:focus-visible{{outline:3px solid #087f82;outline-offset:4px}}
@@ -989,31 +1085,33 @@ button:focus-visible,.chart-panel:focus-visible,.viewer-content:focus-visible{{o
 .accounting-example{{padding:1rem;background:#edf5f6;border-left:4px solid #087f82;border-radius:6px}}
 .accounting-example h3{{margin:0 0 .6rem;font-size:1.1rem}}
 .lesson-group{{scroll-margin-top:1rem}}
-section{{min-width:0;background:white;padding:1.7rem 1.75rem;border:1px solid #dde4eb;border-radius:12px;margin:1.2rem 0;scroll-margin-top:1rem}}
-.report-figure{{width:100%;margin:1.8rem 0;border:1px solid #cad6df;border-radius:12px;background:#f0f4f6;overflow:hidden}}
-.figure-heading{{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem}}
+section{{min-width:0;background:white;padding:2rem;border:1px solid #dde4e1;border-radius:12px;margin:0 0 1.5rem;scroll-margin-top:1rem}}
+.report-figure{{width:100%;margin:1.8rem 0;border:1px solid #c9d9dc;border-radius:10px;background:#edf3f3;overflow:hidden}}
+.figure-heading{{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;border-bottom:1px solid #d7e2e3}}
 .figure-number{{margin:0 0 .2rem;color:#475467;font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase}}
 .figure-heading h3{{margin:0;color:#123e4b;font-size:1.1rem;line-height:1.35}}
 .figure-download{{flex-shrink:0;font-size:.8rem}}
 .figure-tools{{display:flex;align-items:center;flex-wrap:wrap;gap:.65rem}}
 .chart-enlarge{{display:none;font:inherit;font-size:.8rem;color:#076c76;background:white;border:1px solid #87aeb8;border-radius:5px;padding:.35rem .6rem;cursor:pointer}}
 .interactive .chart-enlarge{{display:inline-block}}
-.chart-panel{{margin:0 .75rem .75rem;padding:.75rem;background:white;border:1px solid #dde4eb;border-radius:8px;overflow-x:auto}}
+.chart-panel{{margin:0;padding:.8rem;background:white;overflow-x:auto}}
 .chart-panel img{{display:block;width:100%;height:auto}}
-figcaption{{padding:1rem 1.1rem;border-top:1px solid #cad6df;background:#e9f1f3;color:#344054;font-size:.85rem;line-height:1.55}}
-.figure-description{{font-weight:600;margin:0 0 .4rem}}
+figcaption{{padding:1rem 1.1rem;border-top:1px solid #cad6df;background:#edf3f3;color:#344054;font-size:.85rem;line-height:1.6}}
+.figure-description{{font-weight:500;margin:0 0 .65rem}}
 .figure-source{{margin:0}}
 .figure-source strong{{color:#123e4b}}
 .table-wrap{{width:100%;max-width:100%;overflow-x:auto;margin:1.3rem 0}}
 table{{border-collapse:collapse;width:100%;font-size:.9rem}}
 td,th{{text-align:left;padding:.65rem;border-bottom:1px solid #dde4eb}}
 th{{background:#edf5f6}}
+td{{font-variant-numeric:tabular-nums}}
+caption{{text-align:left;font-size:.8rem;color:#475467;padding-bottom:.6rem}}
 code{{overflow-wrap:anywhere}}
-details{{min-width:0;background:white;padding:1.5rem;border:1px solid #dde4eb;border-radius:12px}}
+details{{min-width:0;background:white;padding:1.2rem 1.5rem;border:1px solid #dde4eb;border-radius:9px}}
 summary{{cursor:pointer;color:#123e4b;font-weight:600}}
-.supporting-evidence{{margin:1.2rem 0}}
+.supporting-evidence,.glossary{{margin:0 0 1.5rem}}
 .supporting-evidence>summary{{font-size:1.35rem}}
-.supporting-evidence>section{{padding:1rem;border-radius:8px}}
+.supporting-evidence>section{{padding:1rem;border-radius:8px;margin-bottom:1rem}}
 details[open] summary{{margin-bottom:1rem}}
 .metric-definitions{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.3rem 1.5rem;margin:0}}
 .metric-definitions dt{{font-weight:700;color:#123e4b;margin-bottom:.35rem}}
@@ -1029,13 +1127,30 @@ dialog::backdrop{{background:rgba(18,38,46,.65)}}
 .viewer-content{{overflow:auto;max-height:70vh;border:1px solid #dde4eb;margin-top:1rem}}
 .viewer-content img{{display:block;width:100%;max-width:100%;height:auto}}
 .viewer-content.native-size img{{width:auto;max-width:none}}
+@media(max-width:1000px){{
+main{{padding:1.5rem}}
+.reading-layout{{grid-template-columns:minmax(0,1fr);gap:0;margin-top:1.3rem}}
+.reading-layout>nav{{position:static;display:flex;flex-wrap:wrap;padding:0;margin:0 0 1.3rem;gap:.5rem}}
+.reading-layout>nav a{{background:white;border:1px solid #c9d9d9}}
+}}
 @media(max-width:600px){{
 main{{padding:.8rem}}
-header,section,details{{padding:1rem}}
+header{{grid-template-columns:minmax(0,1fr);gap:1rem;padding:1.2rem}}
+section,details{{padding:1rem}}
+h1{{font-size:2.1rem}}
+.summary-cards{{grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}}
+.summary-card{{padding:.7rem}}
+.summary-card dt{{font-size:.75rem;line-height:1.45}}
+.summary-card dd{{font-size:1.5rem}}
+.summary-card .summary-context{{font-size:.75rem;line-height:1.45}}
+.summary-card:last-child{{grid-column:1/-1}}
+.hero-result{{font-size:1.02rem}}
+.hero-boundary{{font-size:.8rem}}
+.section-lead{{font-size:1rem}}
 h2{{font-size:1.35rem}}
 .figure-heading{{align-items:flex-start;flex-direction:column;gap:.55rem;padding:.8rem}}
 .figure-heading h3{{font-size:1rem}}
-.chart-panel{{margin:0 .5rem .5rem;padding:.35rem}}
+.chart-panel{{padding:.45rem}}
 .chart-panel img{{min-width:0}}
 figcaption{{padding:.8rem}}
 .report-figure{{margin:1.4rem 0}}
@@ -1044,11 +1159,15 @@ figcaption{{padding:.8rem}}
 @media print{{
 body{{background:white}}
 main{{max-width:none;padding:0}}
+.reading-layout{{display:block}}
+header{{color:#182230;background:white;border:1px solid #cad6df}}
+.hero-boundary,.summary-card dt,.summary-card .summary-context{{color:#344054}}
+.summary-card{{background:white}}
 nav,.figure-tools,dialog{{display:none}}
 .report-figure{{break-inside:avoid}}
 .chart-panel img{{min-width:0}}
 }}
-</style></head><body><main><header><p class="eyebrow">Public-data portfolio · SQL · Python · credit risk</p><h1>Credit risk from application and repayment history</h1><p>{html.escape(intro)}</p><p class="hero-result">{html.escape(headline)}</p><p class="hero-boundary">{html.escape(boundary)}</p></header><nav aria-label="Report contents">{nav}</nav>{body}<details id="technical-appendix"><summary>Technical appendix: exact identities and machine-key dictionary</summary><p>{html.escape(appendix)}</p><div class="table-wrap"><table><thead><tr><th>Preserved machine key</th><th>Measure</th><th>Meaning</th><th>Direction</th><th>Units</th></tr></thead><tbody>{dictionary}</tbody></table></div></details><footer><p>This file is self-contained: charts, styles and text require no network connection. Adjacent PNG/SVG files are available for reuse; metrics.csv and provenance.json provide the technical evidence trail.</p></footer></main>
+</style></head><body><main><header><div><p class="eyebrow">Public-data portfolio · SQL · Python · credit risk</p><h1>Credit risk from application and repayment history</h1><p>{html.escape(intro)}</p><p class="hero-result">{html.escape(headline)}</p><p class="hero-boundary">{html.escape(boundary)}</p></div><dl class="summary-cards" aria-label="Assessment at a glance">{summary_cards}</dl></header><div class="reading-layout"><nav aria-label="Report contents">{nav}</nav><div class="reading-content">{body}<details id="technical-appendix"><summary>Technical appendix: exact identities and machine-key dictionary</summary><p>{html.escape(appendix)}</p><div class="table-wrap"><table><thead><tr><th>Preserved machine key</th><th>Measure</th><th>Meaning</th><th>Direction</th><th>Units</th></tr></thead><tbody>{dictionary}</tbody></table></div></details><footer><p>This file is self-contained: charts, styles and text require no network connection. Adjacent PNG/SVG files are available for reuse; metrics.csv and provenance.json provide the technical evidence trail.</p></footer></div></div></main>
 <dialog id="chart-viewer" aria-labelledby="viewer-title" aria-describedby="viewer-help"><div class="viewer-heading"><h2 id="viewer-title">Chart</h2><form method="dialog"><button>Close chart</button></form></div><p id="viewer-help">The chart opens fitted to the available width. Choose Show native size for a closer view, then scroll if needed. Press Escape or Close chart to return to the report.</p><div class="viewer-tools"><button id="viewer-zoom" type="button" aria-pressed="false">Show native size</button></div><div class="viewer-content" tabindex="0" role="region" aria-label="Enlarged chart"></div></dialog>
 <script>
 document.documentElement.classList.add('interactive');

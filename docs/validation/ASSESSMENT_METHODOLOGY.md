@@ -2,7 +2,17 @@
 
 ## Plain-language reading path
 
-[The HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) explains the current assessment; its [standalone HTML](../../reports/portfolio/index.html) supports offline reading. A **feature** is a model input; the **mart** is a one-applicant modeling table. **Cross-validation** repeats fitting/selection across applicant groups. An **outer fold** is an applicant test group predicted after the training procedure is frozen. **Calibration** is a probability adjustment; the final method can leave raw probabilities unchanged. Exact protocol/CSV keys remain technical identifiers.
+[The HTML project report](https://stevennitesh.github.io/loan-default-risk-decisioning-system/) explains the findings; its [standalone HTML](../../reports/portfolio/index.html) supports offline reading. This document explains how those results were produced.
+
+| Technical term | Meaning in this project |
+|---|---|
+| Feature | A model input. |
+| Feature mart | The modeling table, with one row per applicant and source population. |
+| Cross-validation | Repeated fitting and selection on separate applicant groups within the available fitting data. |
+| Outer fold | An applicant test group predicted after the fitting and selection procedure is frozen. |
+| Calibration | A probability adjustment. Method selection can also leave raw probabilities unchanged. |
+
+Exact protocol and CSV keys remain technical identifiers. Test-group summaries describe the complete expanded model procedure: history inputs, two application-derived interactions and separately selected settings. They do not isolate the value of history alone.
 
 
 The current protocol is `nested_inner_cv_v3`. It evaluates a declared bounded

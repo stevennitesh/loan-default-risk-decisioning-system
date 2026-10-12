@@ -9,10 +9,19 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from matplotlib import pyplot as plt
 
 from src.portfolio_extensions import INPUT_FILES as DRIVER_FILES
-from src.portfolio_extensions import INPUT_SOURCE, load_inputs
-from src.portfolio_report import INPUT_FILES, SOURCE, load_evidence, mean, render
+from src.portfolio_extensions import INPUT_SOURCE, load_inputs, utility_chart
+from src.portfolio_report import (
+    INPUT_FILES,
+    SOURCE,
+    final_reliability_bins,
+    load_evidence,
+    mean,
+    reliability_chart,
+    render,
+)
 from src.portfolio_site import FILES as SITE_FILES
 from src.portfolio_site import prepare
 
@@ -36,6 +45,66 @@ def test_committed_aggregate_metrics_keep_their_scientific_mean() -> None:
     assert mean(evidence, "history_selected", "brier_score") < mean(
         evidence, "training_prevalence", "brier_score"
     )
+
+
+def test_probability_gap_keeps_bin_identity_sign_and_percentage_point_units() -> None:
+    evidence = load_evidence(SOURCE)
+    figures = []
+    reliability_chart(evidence, Path("."), lambda figure, *_: figures.append(figure))
+    figure = figures[0]
+    try:
+        for (fold, group), comparison, gap in zip(
+            final_reliability_bins(evidence).groupby("outer_fold"),
+            figure.axes[0].lines[:5],
+            figure.axes[1].lines[:5],
+            strict=True,
+        ):
+            group = group.sort_values("average_predicted_score")
+            assert comparison.get_xdata() == pytest.approx(
+                group.average_predicted_score
+            )
+            assert comparison.get_ydata() == pytest.approx(group.observed_default_rate)
+            assert gap.get_xdata() == pytest.approx(group.average_predicted_score)
+            # Positive gaps mean underestimation; one percentage point is 0.01.
+            assert gap.get_ydata() == pytest.approx(
+                (group.observed_default_rate - group.average_predicted_score) * 100
+            ), fold
+    finally:
+        plt.close(figure)
+
+
+def test_utility_differences_use_the_same_application_only_reference() -> None:
+    evidence = load_evidence(SOURCE)
+    figures = []
+    utility_chart(evidence, Path("."), lambda figure, *_: figures.append(figure))
+    figure = figures[0]
+    try:
+        paired = evidence["utility_sensitivity"].pivot(
+            index=[
+                "margin_multiplier",
+                "loss_multiplier",
+                "review_multiplier",
+                "outer_fold",
+            ],
+            columns="workflow",
+            values="utility_per_applicant",
+        )
+        for margin, axis in zip([0.5, 1.0, 2.0], figure.axes, strict=True):
+            for workflow, line in zip(
+                ["history_selected", "logistic_tuned"], axis.lines[:2], strict=True
+            ):
+                expected = (
+                    (paired[workflow] - paired.application_only)
+                    .groupby(level=[0, 1, 2])
+                    .mean()
+                    .loc[margin]
+                    .sort_index()
+                )
+                assert len(line.get_ydata()) == 9
+                assert line.get_ydata() == pytest.approx(expected, abs=1e-12, rel=0)
+            assert axis.lines[2].get_ydata() == [0, 0]
+    finally:
+        plt.close(figure)
 
 
 @pytest.mark.parametrize(
@@ -179,7 +248,6 @@ def test_render_is_offline_preserves_keys_and_is_deterministic(tmp_path: Path) -
     assert "no probability-adjustment transform was selected" in report
     assert "Removing class weighting is the dominant explanation" in report
     assert "no installment obligations does not imply" in report
-    assert "27 assumption combinations" in report
     assert "shares of predictive performance" in report
     assert "model_input_methods.md" in report
     assert "1,000 uniformly sampled assessment applicants per fold" in (

@@ -120,7 +120,7 @@ Legacy visual labels require these qualifications:
 
 - "Held-out test" is the saved within-run split label; historical stability runs reused those applicants in fitting.
 - PR-AUC is average precision. Recall at review capacity measures highest-score capture, not capture in the middle manual-review band.
-- The 10% setting is a scenario reference, not an enforced queue cap. The high band is labeled high-priority review but is not charged review cost by the current utility formula.
+- The 10% setting is a scenario reference, not an enforced queue cap. Archived visuals label the high band as high-priority review, although the historical utility formula did not charge that band review cost. Current scoring resolves this mismatch with an explicit simulated-decline action.
 - Currency-formatted EV cards show illustrative utility units, not dollars of measured profit. The displayed historical calibration fit/selection used shared validation data; current code reserves separate fitting rows.
 
 These labels remain embedded in the saved PBIX/screenshots. Updating this guide does not certify that their visuals have been repaired or refreshed.
