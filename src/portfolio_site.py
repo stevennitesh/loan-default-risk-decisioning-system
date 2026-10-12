@@ -42,17 +42,23 @@ HTML_MAX_BYTES = 3 * 1024 * 1024
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 DELIVERY_REPLACEMENTS = (
     (
-        "Downloads work online or alongside this HTML in the presentation folder. "
-        "The charts and story remain readable when this HTML is opened alone offline.",
-        "Charts and downloads use files alongside this HTML. "
-        '<a href="offline.html" download>Download the offline report</a> '
-        "for a single-file copy with embedded charts.",
+        (
+            "Downloads work online or alongside this HTML in the presentation folder. "
+            "The charts and story remain readable when this HTML is opened alone offline."
+        ),
+        (
+            "Charts and downloads use files alongside this HTML. "
+            '<a href="offline.html" download>Download the offline report</a> '
+            "for a single-file copy with embedded charts."
+        ),
     ),
     (
         "This file is self-contained: charts, styles and text require no network connection.",
-        "This hosted page loads charts from adjacent PNG files. "
-        '<a href="offline.html" download>Download the self-contained offline report</a> '
-        "for reading without a network connection.",
+        (
+            "This hosted page loads charts from adjacent PNG files. "
+            '<a href="offline.html" download>Download the self-contained offline report</a> '
+            "for reading without a network connection."
+        ),
     ),
 )
 
